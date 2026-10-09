@@ -45,19 +45,19 @@ struct PerchPanel: View {
                 Button { toggle(.newAccount) } label: { Label("新建账号", systemImage: "plus") }
                     .foregroundStyle(page == .newAccount ? accent : Color.secondary)
                 Spacer()
-                Button { toggle(.info) } label: { Image(systemName: "info.circle") }
+                Button { toggle(.info) } label: { footerIcon("info.circle") }
                     .foregroundStyle(page == .info ? accent : Color.secondary)
                     .help(page == .info ? "返回账号列表" : "信息")
                     .accessibilityLabel("信息")
                     .accessibilityValue(page == .info ? "已选中" : "未选中")
-                Button { toggle(.settings) } label: { Image(systemName: "gearshape") }
+                Button { toggle(.settings) } label: { footerIcon("gearshape") }
                     .foregroundStyle(page == .settings ? accent : Color.secondary)
                     .help(page == .settings ? "返回账号列表" : "设置")
                     .accessibilityLabel("设置")
                     .accessibilityValue(page == .settings ? "已选中" : "未选中")
                 if pet.enabled {
                     Button { pet.setVisible(!pet.visible) } label: {
-                        Image(systemName: pet.visible ? "pawprint.fill" : "pawprint")
+                        footerIcon(pet.visible ? "pawprint.fill" : "pawprint")
                     }
                     .foregroundStyle(pet.visible ? accent : Color.secondary)
                     .help(pet.visible ? "隐藏桌宠" : "显示桌宠")
@@ -78,6 +78,14 @@ struct PerchPanel: View {
         .tint(pet.usesCharacterTheme ? pet.theme.accent : .accentColor)
         .accentColor(pet.usesCharacterTheme ? pet.theme.accent : nil)
         .preferredColorScheme(pet.usesCharacterTheme ? pet.theme.colorScheme : nil)
+    }
+
+    private func footerIcon(_ symbol: String) -> some View {
+        Image(systemName: symbol)
+            .resizable().scaledToFit()
+            .frame(width: 16, height: 16)
+            .frame(width: 24, height: 24, alignment: .center)
+            .contentShape(Rectangle())
     }
 
     private func toggle(_ destination: Page) {

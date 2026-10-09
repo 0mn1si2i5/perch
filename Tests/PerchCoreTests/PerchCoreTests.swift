@@ -14,7 +14,7 @@ final class PerchCoreTests: XCTestCase {
         XCTAssertEqual(PetPolicy.pose(tasks: [task(.running)], media: media), .thinking)
         XCTAssertEqual(PetPolicy.pose(tasks: [task(.waiting)], media: media), .salute)
         XCTAssertEqual(PetPolicy.pose(tasks: [], media: MediaSnapshot(kind: .video, playing: false)), .idle)
-        XCTAssertEqual(PetPolicy.pose(tasks: [], media: MediaSnapshot(kind: .unknown, playing: true)), .idle)
+        XCTAssertEqual(PetPolicy.pose(tasks: [], media: MediaSnapshot(kind: .unknown, playing: true)), .watching)
     }
 
     func testMediaUsesContentTypeBeforePlayerName() {

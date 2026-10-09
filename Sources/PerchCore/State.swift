@@ -68,6 +68,7 @@ public enum PetPolicy {
         if tasks.contains(where: { $0.status == .running }) { return .thinking }
         if media.playing && media.kind == .video { return .watching }
         if media.playing && media.kind == .music { return .listening }
+        if media.playing && media.kind == .unknown { return .watching }
         return .idle
     }
 

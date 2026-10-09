@@ -122,7 +122,7 @@ final class PetModel: ObservableObject {
         if previewing && Date() >= previewUntil { previewing = false }
         if Date() >= overrideUntil {
             pose = PetPolicy.pose(tasks: tasks, media: media)
-            bubble = nil
+            bubble = pose == .watching && media.kind == .unknown && !quiet ? "媒体播放中" : nil
         }
         changed?()
     }

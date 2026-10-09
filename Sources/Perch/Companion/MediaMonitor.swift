@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import MediaPlayer
 import PerchCore
 
 /// Read-only access to the system's active media session through the bundled, pinned adapter.
@@ -44,7 +45,16 @@ final class MediaMonitor {
                           let values = json as? [String: Any] {
                     let playing = values["playing"] as? Bool ?? false
                     let id = values["parentApplicationBundleIdentifier"] as? String ?? values["bundleIdentifier"] as? String ?? ""
-                    let kind = MediaPolicy.classify(type: values["mediaType"] as? String, bundleID: id,
+                    // The adapter preserves numeric MediaRemote values; older clients emit strings.
+                    var mediaType = values["mediaType"] as? String
+                    if let number = values["mediaType"] as? NSNumber {
+                        switch MPNowPlayingInfoMediaType(rawValue: number.uintValue) {
+                        case .audio: mediaType = "audio"
+                        case .video: mediaType = "video"
+                        default: break
+                        }
+                    }
+                    let kind = MediaPolicy.classify(type: mediaType, bundleID: id,
                                                     isMusicApp: values["isMusicApp"] as? Bool ?? false)
                     // Only state and application identity are retained. Song/video titles are discarded.
                     result = MediaSnapshot(kind: playing ? kind : .none, playing: playing, source: id)
