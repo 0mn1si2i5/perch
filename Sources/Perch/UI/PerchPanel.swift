@@ -12,7 +12,7 @@ struct PerchPanel: View {
         switch page {
         case .accounts: return "Perch"
         case .settings: return "设置"
-        case .info: return "须知"
+        case .info: return "信息"
         case .newAccount: return "新建账号"
         }
     }
@@ -25,7 +25,7 @@ struct PerchPanel: View {
             ZStack(alignment: .topLeading) {
                 pageContent(.accounts) { cards }
                 pageContent(.settings) { SettingsView(perch: perch, pet: pet) }
-                pageContent(.info) { PanelInfoView() }
+                pageContent(.info) { PanelInfoView(perch: perch) }
                 pageContent(.newAccount) { NewAccountView(perch: perch) { page = .accounts } }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -45,8 +45,8 @@ struct PerchPanel: View {
                 Spacer()
                 Button { toggle(.info) } label: { Image(systemName: "info.circle") }
                     .foregroundStyle(page == .info ? accent : Color.secondary)
-                    .help(page == .info ? "返回账号列表" : "须知")
-                    .accessibilityLabel("须知")
+                    .help(page == .info ? "返回账号列表" : "信息")
+                    .accessibilityLabel("信息")
                     .accessibilityValue(page == .info ? "已选中" : "未选中")
                 Button { toggle(.settings) } label: { Image(systemName: "gearshape") }
                     .foregroundStyle(page == .settings ? accent : Color.secondary)
