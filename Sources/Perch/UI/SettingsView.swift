@@ -21,7 +21,7 @@ struct SettingsView: View {
                     Text(pet.character == .native ? "静态浮球 · 系统外观" : "角色主题 · 隐藏后保留")
                         .foregroundStyle(.secondary)
                     if pet.character == .pox {
-                        DisclosureGroup("桌宠选项") {
+                        PanelDisclosure("桌宠选项") {
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack {
                                     Text("大小")

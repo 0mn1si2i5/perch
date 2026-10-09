@@ -20,7 +20,7 @@ struct PanelInfoView: View {
                 Text("在设置开启桌宠，爪印控制显示与隐藏。单击打开面板，拖动换位置。原生浮球保留系统外观，Pox 使用角色主题。")
             }
             Divider()
-            DisclosureGroup("数据与限制") {
+            PanelDisclosure("数据与限制") {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("平时只读任务元数据。接力只复制你选择的文档，不提取或自动发送聊天；副本保存在本机。")
                     Text("Claude 额度使用对应账号授权，仅在内存中使用。首次手动同步可能需要钥匙串授权；后台不弹提示。")

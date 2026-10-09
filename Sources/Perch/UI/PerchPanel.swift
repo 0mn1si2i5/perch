@@ -6,6 +6,8 @@ struct PerchPanel: View {
     @ObservedObject var pet: PetModel
     @State private var page: Page = .accounts
     enum Page { case accounts, settings, newAccount, info }
+    private static let panelWidth: CGFloat = 340
+    private static let panelPadding: CGFloat = 14
 
     private var accent: Color { pet.usesCharacterTheme ? pet.theme.accent : .accentColor }
     private var title: String {
@@ -65,8 +67,8 @@ struct PerchPanel: View {
             }
             .buttonStyle(.plain).font(.system(size: 12))
         }
-        .padding(14)
-        .frame(width: 340, height: 570)
+        .padding(Self.panelPadding)
+        .frame(width: Self.panelWidth, height: 570)
         .background {
             if pet.usesCharacterTheme { pet.theme.background } else {
                 NativePanelMaterial()
@@ -83,10 +85,12 @@ struct PerchPanel: View {
     }
 
     private func pageContent<Content: View>(_ destination: Page, @ViewBuilder content: () -> Content) -> some View {
-        ScrollView {
+        // A fixed text column prevents disclosure expansion from rewrapping every page.
+        // Scrolling remains available without a legacy scroller taking layout space.
+        ScrollView(.vertical, showsIndicators: false) {
             content()
+                .frame(width: Self.panelWidth - 2 * Self.panelPadding - 8, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.trailing, 8)
         }
         .opacity(page == destination ? 1 : 0)
         .disabled(page != destination)
