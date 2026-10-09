@@ -21,7 +21,7 @@ DMG 包含 Perch.app 和 Applications 入口。ZIP 也可解压后把 Perch.app 
 
 ## 签名与公证
 
-默认使用 ad-hoc 签名，属于未公证的 GitHub 分发。1.0.0 没有 Developer ID 发布签名或 Apple 公证，macOS 可能阻止首次打开。仅在确认下载来源后按系统“隐私与安全性”的提示允许，不全局关闭 Gatekeeper。
+默认使用 ad-hoc 签名，属于未公证的 GitHub 分发。当前发行包没有 Developer ID 发布签名或 Apple 公证，macOS 可能阻止首次打开。仅在确认下载来源后按系统“隐私与安全性”的提示允许，不全局关闭 Gatekeeper。
 
 有 Developer ID Application 证书时，可设置 `PERCH_SIGNING_IDENTITY` 后重新打包；构建脚本会启用 hardened runtime 与时间戳。随后使用自己的 notarytool 钥匙串配置提交应用／磁盘映像，通过后 staple 并复核。单独传入签名身份不代表已经公证；不把证书、密码或 API 凭据加入仓库。
 

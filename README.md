@@ -6,7 +6,7 @@
 
 **在 macOS 菜单栏管理多个 Codex / Claude 账号，查看任务与额度，用文档接力。**
 
-[下载 1.0.0](https://github.com/0mn1si2i5/perch/releases/latest) · [快速上手](#快速上手) · [构建与开发](#构建) · [更新记录](CHANGELOG.md)
+[下载 1.0.1](https://github.com/0mn1si2i5/perch/releases/latest) · [快速上手](#快速上手) · [构建与开发](#构建) · [更新记录](CHANGELOG.md)
 
 macOS 14+ · Apple Silicon / Intel · 本机账号管理 · 桌宠可选
 
