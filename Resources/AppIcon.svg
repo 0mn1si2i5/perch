@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b3550"/><stop offset="1" stop-color="#121725"/></linearGradient>
+<linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffd98a"/><stop offset="1" stop-color="#e09a2c"/></linearGradient>
+<path id="bird" d="M600 268 C656 268 694 306 694 360 L770 382 L692 404 C694 520 640 630 548 682 L430 770 L452 668 C418 596 428 468 498 380 C516 306 552 268 600 268 Z"/>
+</defs>
+<rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+<g transform="translate(0 -44)">
+<path d="M170 720 H854" stroke="#c9d2e6" stroke-opacity=".55" stroke-width="20" stroke-linecap="round"/>
+<use href="#bird" transform="translate(-5 370) scale(.5)" fill="#9fb0cf"/>
+<use href="#bird" transform="translate(439 370) scale(.5)" fill="#dfe6f2"/>
+<use href="#bird" transform="translate(158 300) scale(.6)" fill="url(#gold)"/>
+</g>
+</svg>

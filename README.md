@@ -1,0 +1,47 @@
+# Perch
+
+Perch 是 macOS 菜单栏应用，用于管理本机多个 Codex / Claude 账号、查看最近会话和额度、跨账号接力任务。Pox 是可选的内置桌宠角色。
+
+当前正式版为 **1.0.0**，需要 macOS 14+（Apple Silicon / Intel）。[下载发行包](https://github.com/0mn1si2i5/perch/releases/latest)。发行包尚未经过 Apple 公证；安装和签名说明见[发布指南](docs/releasing.md)。
+
+不依赖 agent-desk 运行，也不连接 Pox 飞书服务。
+
+## 使用
+
+- 点击菜单栏图标打开面板；点击外部或按 Esc 关闭。
+- 点“新建账号”添加 Codex 或 Claude 账号；“启动 / 前台”打开对应客户端。
+- 点击会话调出所属账号。多实例深链和 Claude 会话定位有限制，具体会话可能需要在客户端中选择。
+- 点击分组收起或展开；拖动分组或账号调整顺序。右键账号可改名或删除。
+- Codex 与 Claude 都支持实时额度同步：打开面板时查询，账号旁可手动刷新，设置可开关每 5 分钟的后台同步（默认开启）。每个窗口显示已用比例与重置时间，悬停可看剩余比例；失败时保留旧值并标注缓存年龄和原因。Claude 使用对应客户端的登录授权，后台不弹钥匙串提示，手动刷新可请求授权。
+- 右键已停下的会话 →“接力到…”：选择已准备好的 Markdown 交接文档。Perch 保存副本、复制正文与绝对路径、调出目标账号；在目标账号新建对话后粘贴并发送。所有方向统一采用文档接力，不自动复制原对话。
+- 底栏的 ⓘ 和设置图标在同尺寸面板内切换内容，选中时变色，再次点击返回账号列表。ⓘ 提供简要用法。设置中可打开交接文件夹；接力记录默认显示最近 5 次，其余可展开。点击记录优先定位交接文档；可单独删除记录而保留文档。
+- 桌宠能力默认关闭，关闭时不显示爪印。在设置开启后选择“原生桌宠”（默认）或 Pox；爪印只负责显示／隐藏桌宠。原生桌宠是静态磨砂浮球，保持系统明暗模式和原生毛玻璃面板；Pox 使用角色主题，隐藏后仍保留该主题。能力关闭或桌宠隐藏时停止动画与媒体轮询。
+- 单击桌宠打开面板，双击调出忙碌账号，拖动换位置，右键打开菜单。设置可调整大小、安静模式和媒体感知。
+
+## 构建
+
+需要 Xcode Swift/clang 工具链，不需要额外下载媒体依赖或提供 API key。
+
+```bash
+swift test
+./script/build_and_run.sh --build     # 只构建 dist.noindex/Perch.app
+./script/build_and_run.sh --install   # 安装到 ~/Applications/Perch.app 并启动
+./script/build_and_run.sh --verify    # 构建、安装、启动并检查进程
+./script/package-release.sh          # release 通用架构 DMG、ZIP 和 SHA-256
+```
+
+默认运行同样使用安装位置，避免 Spotlight 出现多个应用入口。`--verify` 检查启动，不代表所有交互已验收。
+
+## 本机数据
+
+- 账号配置：`~/Library/Application Support/Perch/accounts.json`。客户端数据目录原地引用；导入 agent-desk 配置不删除其数据。
+- 交接文档：`~/Library/Application Support/Perch/handoffs/`。实际剪贴板提示和设置显示展开后的绝对路径。目录 0700、文件 0600，同名文件不覆盖；不放在应用包内，以免升级覆盖。
+- 平时读取任务元数据、标题、状态和工作目录；接力只读取主动选择的交接文件，不读取聊天正文生成文档。Claude 额度查询仅读取匹配账号的登录授权并在内存中用于官方服务请求，不写入 Perch 文件或日志，不改变客户端登录状态。不自动发送聊天，不调用模型生成交接。
+- 偏好使用 `com.omnis.perch`，保留从 `com.pox.desktop` 的一次性迁移。桌宠能力使用 `petEnabled`，角色使用 `petCharacter`，显示状态使用 `companionVisible`；首次使用默认关闭能力、默认角色为原生桌宠，之后记住选择。
+- 媒体感知使用固定版本的 [MediaRemote Adapter](Vendor/MediaRemoteAdapter/UPSTREAM.md)，仅保留播放状态与应用身份。
+
+## 仓库结构
+
+`Sources/`、`Tests/`、`Resources/`、`Vendor/` 按 Swift 项目约定大写；`docs/` 与 `script/` 使用小写。第三方源码保留原目录命名。`.build/`、`dist.noindex/` 是忽略的本机构建产物。
+
+架构与数据边界见[架构说明](docs/architecture.md)，检查结果与真实界面待验收项见[验收说明](docs/acceptance.md)，版本变化见[CHANGELOG](CHANGELOG.md)。目前支持原生桌宠和 Pox 两个内置选择，尚无外部角色包、插件系统、跨设备同步；agent-desk 上游同步和退役暂缓。
