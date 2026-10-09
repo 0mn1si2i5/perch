@@ -13,7 +13,7 @@ Perch 是独立的 macOS 菜单栏应用。Pox 是可选角色，不依赖 Pox �
 | `Sources/PerchCore/Launcher` | 客户端定位、进程归属、启动、运行目录和会话路由 |
 | `Sources/PerchCore/CodexTasks` / `ClaudeSessions` | 本地会话元数据与状态 |
 | `Sources/PerchCore/Quota` | 额度解析、缓存、实时查询与刷新状态 |
-| `Sources/PerchCore/Handoff` | 用户选择的 Markdown 副本、剪贴板格式、历史记录 |
+| `Sources/PerchCore/Handoff` | 待接力状态、提示词、Markdown 副本、剪贴板格式与记录 |
 | `Tests` | 核心行为与应用状态回归测试 |
 | `Resources` / `Vendor` | 应用图标、角色素材、固定版本的媒体适配器及其许可证 |
 | `script` | 开发构建、安装、通用架构发行包 |
@@ -31,7 +31,7 @@ Codex 使用所属账号的 app-server 查询额度，本地 rollout 尾部记�
 ## 数据与兼容
 
 - 数据根目录：`~/Library/Application Support/Perch/`。`accounts.json` 保存账号槽；客户端原目录继续原地引用。
-- `handoffs/` 保存用户主动选择的 Markdown 副本和 `log.jsonl`。目录权限 0700、文档权限 0600；同名不覆盖，复制不修改原文档，记录删除保留文档。剪贴板包含副本绝对路径和完整正文。没有会话提取、模型生成、文件等待或自动发送功能。
+- `handoffs/` 保存本次准备或用户选择的 Markdown 副本和 `log.jsonl`。目录权限 0700、最终副本文档权限 0600；同名不覆盖，复制不修改原文档，记录删除保留文档。剪贴板包含副本绝对路径和完整正文。pending.json 保存一个待接力任务，drafts/<UUID>/handoff.md 是源 agent 应写入的唯一绝对路径。Perch 只复制提示词，由用户在源对话发送；用户点击继续后才读取文件并保存不可覆盖的副本。取消保留文档，失败可重试。不调用模型，不提取聊天，不后台等待文件或自动发送消息。
 - Claude 登录信息通过 macOS 钥匙串解开对应客户端的加密配置，仅在内存用于 `api.anthropic.com` 额度请求；不保存、打印、不刷新 token，不改变客户端登录，也不跟随请求重定向。
 - 偏好域为 `com.omnis.perch`，保留从 `com.pox.desktop` 的一次性迁移，不覆盖已有新偏好。
 - 桌宠能力默认关闭；开启后默认选择静态原生浮球。Pox 主题由角色选择决定，隐藏角色仍保留主题。原生角色和能力关闭时保持系统毛玻璃外观。

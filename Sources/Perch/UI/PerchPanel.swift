@@ -100,6 +100,7 @@ struct PerchPanel: View {
 
     private var cards: some View {
         VStack(spacing: 8) {
+            HandoffPreparationView(perch: perch)
             ForEach(perch.discovered, id: \.self) { app in DiscoveredRow(perch: perch, app: app) }
             if perch.accounts.isEmpty {
                 Text("还没有账号。点下面的“新建账号”添加一个。").font(.system(size: 11)).foregroundStyle(.secondary)
