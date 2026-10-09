@@ -6,13 +6,15 @@ struct PerchPanel: View {
     @ObservedObject var pet: PetModel
     @State private var page: Page = .accounts
     enum Page { case accounts, settings, newAccount, info }
+    private static let panelWidth: CGFloat = 340
+    private static let panelPadding: CGFloat = 14
 
     private var accent: Color { pet.usesCharacterTheme ? pet.theme.accent : .accentColor }
     private var title: String {
         switch page {
         case .accounts: return "Perch"
         case .settings: return "设置"
-        case .info: return "须知"
+        case .info: return "信息"
         case .newAccount: return "新建账号"
         }
     }
@@ -25,7 +27,7 @@ struct PerchPanel: View {
             ZStack(alignment: .topLeading) {
                 pageContent(.accounts) { cards }
                 pageContent(.settings) { SettingsView(perch: perch, pet: pet) }
-                pageContent(.info) { PanelInfoView() }
+                pageContent(.info) { PanelInfoView(perch: perch) }
                 pageContent(.newAccount) { NewAccountView(perch: perch) { page = .accounts } }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -45,8 +47,8 @@ struct PerchPanel: View {
                 Spacer()
                 Button { toggle(.info) } label: { Image(systemName: "info.circle") }
                     .foregroundStyle(page == .info ? accent : Color.secondary)
-                    .help(page == .info ? "返回账号列表" : "须知")
-                    .accessibilityLabel("须知")
+                    .help(page == .info ? "返回账号列表" : "信息")
+                    .accessibilityLabel("信息")
                     .accessibilityValue(page == .info ? "已选中" : "未选中")
                 Button { toggle(.settings) } label: { Image(systemName: "gearshape") }
                     .foregroundStyle(page == .settings ? accent : Color.secondary)
@@ -57,14 +59,16 @@ struct PerchPanel: View {
                     Button { pet.setVisible(!pet.visible) } label: {
                         Image(systemName: pet.visible ? "pawprint.fill" : "pawprint")
                     }
-                    .foregroundStyle(Color.secondary)
+                    .foregroundStyle(pet.visible ? accent : Color.secondary)
                     .help(pet.visible ? "隐藏桌宠" : "显示桌宠")
+                    .accessibilityLabel("桌宠")
+                    .accessibilityValue(pet.visible ? "已显示" : "已隐藏")
                 }
             }
             .buttonStyle(.plain).font(.system(size: 12))
         }
-        .padding(14)
-        .frame(width: 340, height: 570)
+        .padding(Self.panelPadding)
+        .frame(width: Self.panelWidth, height: 570)
         .background {
             if pet.usesCharacterTheme { pet.theme.background } else {
                 NativePanelMaterial()
@@ -81,10 +85,12 @@ struct PerchPanel: View {
     }
 
     private func pageContent<Content: View>(_ destination: Page, @ViewBuilder content: () -> Content) -> some View {
-        ScrollView {
+        // A fixed text column prevents disclosure expansion from rewrapping every page.
+        // Scrolling remains available without a legacy scroller taking layout space.
+        ScrollView(.vertical, showsIndicators: false) {
             content()
+                .frame(width: Self.panelWidth - 2 * Self.panelPadding - 8, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.trailing, 8)
         }
         .opacity(page == destination ? 1 : 0)
         .disabled(page != destination)
@@ -94,6 +100,7 @@ struct PerchPanel: View {
 
     private var cards: some View {
         VStack(spacing: 8) {
+            HandoffPreparationView(perch: perch)
             ForEach(perch.discovered, id: \.self) { app in DiscoveredRow(perch: perch, app: app) }
             if perch.accounts.isEmpty {
                 Text("还没有账号。点下面的“新建账号”添加一个。").font(.system(size: 11)).foregroundStyle(.secondary)
