@@ -57,8 +57,10 @@ struct PerchPanel: View {
                     Button { pet.setVisible(!pet.visible) } label: {
                         Image(systemName: pet.visible ? "pawprint.fill" : "pawprint")
                     }
-                    .foregroundStyle(Color.secondary)
+                    .foregroundStyle(pet.visible ? accent : Color.secondary)
                     .help(pet.visible ? "隐藏桌宠" : "显示桌宠")
+                    .accessibilityLabel("桌宠")
+                    .accessibilityValue(pet.visible ? "已显示" : "已隐藏")
                 }
             }
             .buttonStyle(.plain).font(.system(size: 12))
