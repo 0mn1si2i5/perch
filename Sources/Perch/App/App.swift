@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var outsideClickMonitor: Any?
     private var escapeMonitor: Any?
     private var popoverAnchor: PetWindow?
+    private var popoverPetOrigin: NSPoint?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -34,6 +35,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         panel.hasShadow = false; panel.level = .floating; panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         panel.isReleasedWhenClosed = false
+        NotificationCenter.default.addObserver(self, selector: #selector(petWindowDidMove),
+                                               name: NSWindow.didMoveNotification, object: panel)
         petView = PetView(model: pet, atlas: atlas)
         panel.contentView = petView
         petView.onClick = { [weak self] in self?.togglePopover(fromPet: true) }
@@ -103,7 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // Activate the accessory app and make its popover key before the first context menu tracks.
         NSApp.activate(ignoringOtherApps: true)
         if fromPet && panel.isVisible {
-            // Attach the transparent anchor to the pet so dragging moves the open popover with it.
+            // Follow movement explicitly; a child window would also hide the popover with the pet.
             let rect = panel.convertToScreen(petView.convert(petView.petRect, to: nil))
             if popoverAnchor == nil {
                 let anchor = PetWindow(contentRect: rect, styleMask: [.borderless, .nonactivatingPanel],
@@ -120,7 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
             if let anchor = popoverAnchor, let view = anchor.contentView {
                 anchor.setFrame(rect, display: false)
-                panel.addChildWindow(anchor, ordered: .above)
+                popoverPetOrigin = panel.frame.origin
                 anchor.orderFrontRegardless()
                 popover.show(relativeTo: view.bounds, of: view, preferredEdge: .minX)
             }
@@ -146,12 +149,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     func popoverDidClose(_ notification: Notification) {
-        if let anchor = popoverAnchor { panel.removeChildWindow(anchor); anchor.orderOut(nil) }
+        popoverPetOrigin = nil
+        popoverAnchor?.orderOut(nil)
         perch.panelClosed()
         if let monitor = outsideClickMonitor { NSEvent.removeMonitor(monitor) }
         outsideClickMonitor = nil
         if let monitor = escapeMonitor { NSEvent.removeMonitor(monitor) }
         escapeMonitor = nil
+    }
+
+    @objc private func petWindowDidMove(_ notification: Notification) {
+        guard let previous = popoverPetOrigin, let anchor = popoverAnchor,
+              popover.isShown else { return }
+        let current = panel.frame.origin
+        popoverPetOrigin = current
+        anchor.setFrameOrigin(NSPoint(x: anchor.frame.minX + current.x - previous.x,
+                                      y: anchor.frame.minY + current.y - previous.y))
     }
 
     func popoverDidShow(_ notification: Notification) { focusPopover() }
