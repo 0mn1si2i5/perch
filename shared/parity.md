@@ -23,4 +23,4 @@
 | 共享 strings/fixtures 消费 | 🟡 | ✅ | Mac Claude 会话测试消费共享 fixture；共享 strings 和其余 fixture 待接入 |
 | 双个人账号同时登录 | 🟡 | 🟡 | 未具备两套个人账号验收条件 |
 | 原生 UI 明暗/Pox | ✅ | ✅ | Windows 三主题四页面渲染 |
-| 平台发布配置 | N/A | 🟡 | Windows 配置未在远端运行 |
+| 平台发布配置 | N/A | ✅ | `windows-v0.2.0` tag 已在远端完成测试、打包并发布预览 Release |
