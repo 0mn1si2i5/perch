@@ -12,3 +12,16 @@
 <!-- delivery-first:end -->
 
 Perch (formerly Compaxion) is a standalone macOS menu-bar app. Pox is its desktop-pet character. Perch also launches and monitors the owner's Codex and Claude desktop accounts, replacing agent-desk. Work only in this repository; do not import the Pox Feishu server. Preferences moved from `com.pox.desktop` to `com.omnis.perch` through a one-time migration; keep that migration intact.
+
+
+## 仓库结构
+
+平台代码位于 `macos/`、`windows/`；共用资产、文案、样本与设计约定位于 `shared/`。修改用户可见行为时更新 `shared/parity.md`。不要把公司账号配置、凭据或真实会话正文写入仓库。
+
+## macOS 构建与验收
+
+运行 `swift test --package-path macos`、`macos/script/build_and_run.sh --build`；打包入口 `macos/script/package-release.sh`。保留偏好域一次迁移。Windows 机器上的路径检查不能替代 Mac 验收。
+
+## Windows 构建与验收
+
+使用 .NET 10：`windows/script/build.ps1 -Action Test`、`-Action Publish`、`-Action Package`。无系统 SDK 时传 `-Dotnet ./scratch/dotnet/dotnet.exe`。`--demo --theme light|dark|pox --page accounts|settings|info|add --screenshot <dir>` 输出独立演示截图；不读取真实客户端。运行正常产品用 `dist.noindex/windows/Perch/Perch.exe`。验证时不得关闭个人客户端或修改登录配置。

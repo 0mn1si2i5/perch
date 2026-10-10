@@ -1,43 +1,16 @@
-# 架构
+# Perch 双端架构
 
-Perch 是独立的 macOS 菜单栏应用。Pox 是可选角色，不依赖 Pox 飞书服务或 agent-desk 进程。
+Perch 在本机管理 Codex、Claude 桌面账号，读取任务与额度，以指定 Markdown 文档接力。两端分别实现原生窗口和桌宠，平台代码不互相依赖。
 
-## 目录
+- `macos/`：SwiftPM、AppKit/SwiftUI；[macOS 架构](macos/architecture.md)。偏好域迁移仍保留。
+- `windows/src/Perch.Core/`：持久化、只读会话、进程隔离、额度、接力事务；不依赖 WPF/WinForms。
+- `windows/src/Perch.App/`：WPF 视图、增量 ViewModel、主题、托盘、全局快捷键、桌宠。WinForms 仅托盘宿主；无第三方 UI 框架。
+- `shared/assets/`：唯一品牌与精灵素材；`strings/`：共享文案；`fixtures/`：手工样本和期望值；`design/tokens.md`：设计依据；[功能对齐](../shared/parity.md)。Windows 消费共享文案和样本；macOS 会话测试也消费 Claude 共享样本，共享文案的 macOS 接入仍待单独处理。
 
-| 目录 | 职责 |
-| --- | --- |
-| `Sources/Perch/App` | AppKit 应用生命周期、popover、账号状态协调、通知、文档接力 |
-| `Sources/Perch/UI` | SwiftUI 面板、账号和会话、设置、信息、主题与状态颜色 |
-| `Sources/Perch/Companion` | 桌宠模型、窗口与拖动、姿态、可选媒体感知 |
-| `Sources/PerchCore/Accounts` | 账号配置、分组及默认客户端数据发现 |
-| `Sources/PerchCore/Launcher` | 客户端定位、进程归属、启动、运行目录和会话路由 |
-| `Sources/PerchCore/CodexTasks` / `ClaudeSessions` | 本地会话元数据与状态 |
-| `Sources/PerchCore/Quota` | 额度解析、缓存、实时查询与刷新状态 |
-| `Sources/PerchCore/Handoff` | 待接力状态、提示词、Markdown 副本、剪贴板格式与记录 |
-| `Tests` | 核心行为与应用状态回归测试 |
-| `Resources` / `Vendor` | 应用图标、角色素材、固定版本的媒体适配器及其许可证 |
-| `script` | 开发构建、安装、通用架构发行包 |
+Windows 轮询通过进程内 Win32 查询，显示时 5 秒、全部隐藏时 20 秒。客户端发现使用 WinRT 包管理，API 不可用时只回退一次 PowerShell。按账号 profile/home 匹配主进程；不会把子渲染进程当账号。
 
-Swift 约定目录使用大写，文档和脚本目录使用小写；第三方源码保持上游命名。构建产物和本机恢复快照位于被忽略的 `.build/` 与 `dist.noindex/`，不提交。
+会话数据库以 SQLite READONLY 打开。标题优先客户端元数据索引，不以提示词冒充生成标题。额度使用对应账号本地授权，Claude DPAPI 解密仅在内存中，向官方地址查询；第三方模式不假造官方订阅额度。
 
-## 运行路径
+接力按 Read → Clipboard → Commit → Clear 执行；复制失败保留待办且不产生记录或副本。只处理用户指定的 Markdown，不自动发送聊天。
 
-AppDelegate 管理菜单栏、桌宠窗口和一个由 SwiftUI 承载的 popover。面板为固定 340 × 570pt，底栏始终存在；账号、信息、设置和新建账号在内部切换并滚动，页面状态保留。关闭行为由应用显式控制，避免首次聚焦或内容变化使 popover 意外关闭。
-
-PerchModel 协调账号、任务、额度与动作，后台队列读取本机状态，主线程发布 UI 更新。任务元数据每 5 秒轮询；额度独立每 5 分钟同步，可在设置关闭，打开面板和手动刷新也可触发。自动请求遵守节流并且不弹钥匙串授权；手动请求允许系统请求授权。并发请求去重，服务限流时退避。
-
-Codex 使用所属账号的 app-server 查询额度，本地 rollout 尾部记录提供回退。Claude 使用所选桌面配置中当前账号的 profile 授权查询 usage 服务，并用客户端历史与 IndexedDB 额度事件回退。账号 UUID、组织与 scope 必须匹配；旧组织历史不阻断唯一有效的新登录。成功替换缓存；失败保留原始观测时间，不能用更旧的缓存覆盖实时快照。Claude 端点不是承诺稳定的公开集成 API，变更、授权过期或限流均明确显示原因。
-
-## 数据与兼容
-
-- 数据根目录：`~/Library/Application Support/Perch/`。`accounts.json` 保存账号槽；客户端原目录继续原地引用。
-- `handoffs/` 保存本次准备或用户选择的 Markdown 副本和 `log.jsonl`。目录权限 0700、最终副本文档权限 0600；同名不覆盖，复制不修改原文档，记录删除保留文档。剪贴板包含副本绝对路径和完整正文。pending.json 保存一个待接力任务，drafts/<UUID>/handoff.md 是源 agent 应写入的唯一绝对路径。Perch 只复制提示词，由用户在源对话发送；用户点击继续后才读取文件并保存不可覆盖的副本。取消保留文档，失败可重试。不调用模型，不提取聊天，不后台等待文件或自动发送消息。
-- Claude 登录信息通过 macOS 钥匙串解开对应客户端的加密配置，仅在内存用于 `api.anthropic.com` 额度请求；不保存、打印、不刷新 token，不改变客户端登录，也不跟随请求重定向。
-- 偏好域为 `com.omnis.perch`，保留从 `com.pox.desktop` 的一次性迁移，不覆盖已有新偏好。
-- 桌宠能力默认关闭；开启后默认选择静态原生浮球。Pox 主题由角色选择决定，隐藏角色仍保留主题。原生角色和能力关闭时保持系统毛玻璃外观。
-
-## 产品边界
-
-只支持本机 Codex / Claude。多实例深链无法保证定向，因此会话点击优先调出正确账号，具体对话可能仍需手动选择。没有跨账号原会话复制、跨设备同步、外部角色包或通用插件系统。agent-desk 上游同步与退役继续暂缓；Perch 的发布不删除其数据或修改其仓库。
-
-面板内容使用固定列宽，折叠区域整行可点击；长内容通过滚轮或触控板滚动，不因滚动条出现而重新换行。
+Windows 版本来自 `windows/VERSION`，tag 为 `windows-v*`；macOS 版本来自 `macos/VERSION`，tag 为 `macos-v*`。CI 按目录分别运行。已发布的 macOS 1.0.x 保留旧 `v*` tag。Windows 自包含 x64 ZIP 与 SHA256 可本地生成；尚无远端发行包、安装器、签名或开机启动。Windows 详细模块与运行见 [Windows 架构](windows/architecture.md)。

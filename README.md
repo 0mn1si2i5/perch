@@ -1,89 +1,114 @@
-<p align="center">
-  <img src="docs/images/perch-overview.png" alt="Perch 产品总览：在一个 macOS 菜单栏面板中查看多个 Claude 和 Codex 账号、任务与额度" width="100%">
-</p>
-
 # Perch
 
-**在 macOS 菜单栏管理多个 Codex / Claude 账号，查看任务与额度，用文档接力。**
+**在 macOS 菜单栏或 Windows 系统托盘管理 Codex / Claude 账号，查看任务与额度，用文档接力。**
 
-[下载 1.0.1](https://github.com/0mn1si2i5/perch/releases/latest) · [快速上手](#快速上手) · [构建与开发](#构建) · [更新记录](CHANGELOG.md)
+[macOS 下载](https://github.com/0mn1si2i5/perch/releases/tag/v1.0.1) · [Windows 本地构建](#windows) · [快速上手](#快速上手) · [更新记录](CHANGELOG.md)
 
-macOS 14+ · Apple Silicon / Intel · 本机账号管理 · 桌宠可选
+| 平台 | 系统要求 | 当前交付 |
+| --- | --- | --- |
+| macOS | macOS 14+，Apple Silicon / Intel | 已发布 1.0.1，提供通用 DMG / ZIP；main 另含后续面板与会话修复 |
+| Windows | Windows 10 19041+ x64；已在 Windows 11 验证部分路径 | 原生 0.2.0 源码与本地自包含便携包构建；尚无 GitHub Release |
 
-> 发行包尚未经过 Apple 公证，首次打开可能需要在系统“隐私与安全性”中允许。仓库目前为私有，下载需要访问权限。详见[安装与签名说明](docs/releasing.md)。
->
-> 上图为界面示意，账号、任务与额度均为演示数据。
+仓库已公开。macOS 发行包尚未经过 Apple 公证；Windows 便携包尚未签名。安装与打包说明分别见 [macOS](docs/macos/releasing.md) 和 [Windows](docs/windows/releasing.md)。两端各自管理本机数据，不跨设备同步。
+
+<p align="center">
+  <img src="docs/images/perch-overview.png" alt="Perch macOS 面板示意：账号、会话、额度与可选桌宠" width="100%">
+</p>
+
+上图为 macOS 界面示意，使用演示数据；Windows 使用原生 WPF 面板，提供系统浅色、深色和 Pox 主题。
 
 ## 打开面板，就能看到
 
-| 多账号集中管理 | 任务状态一眼可见 | 额度与重置时间 |
+| 多账号集中管理 | 任务与会话 | 额度与重置时间 |
 | --- | --- | --- |
-| 按 Codex / Claude 分组，启动或调出对应客户端；支持拖动排序。 | 查看运行中任务与最近会话，完成的任务折叠展示。 | 显示已用比例、重置时间；支持手动刷新和每 5 分钟同步，查询失败时明确标注缓存。 |
+| 按 Codex / Claude 分组，启动或调出对应客户端；支持独立本地配置目录。 | 查看活动任务与最近会话；分组、账号和会话支持拖动排序。 | 显示已用比例与重置时间，支持手动刷新和定期同步；查询失败时保留并标注缓存。 |
 
 ## 按你的习惯使用
 
-| 默认：原生 macOS | 原生桌宠：静态入口 | Pox：角色与配套主题 |
+| 默认界面 | 原生桌宠 | Pox |
 | --- | --- | --- |
-| 不开启桌宠，使用系统毛玻璃面板，在菜单栏打开。 | 开启桌宠并选择原生浮球，拖到顺手的位置，单击打开面板；保留原生外观。 | 选择内置 Pox 角色，面板随角色使用配套主题；隐藏桌宠后仍保留所选主题。 |
+| 桌宠默认关闭。macOS 使用系统毛玻璃，Windows 跟随系统明暗与强调色。 | 静态浮球入口，可拖到顺手的位置，单击打开面板；保留系统主题。 | 内置角色与配套面板主题；隐藏角色后仍保留所选主题。 |
 
-桌宠能力默认关闭。开启后，底栏爪印控制显示与隐藏；设置与信息在同尺寸面板内切换。
+设置中开启桌宠能力并选择角色后，底栏爪印控制显示与隐藏。设置、信息和账号列表在同一个面板内切换。
 
 ## 换账号，继续同一个任务
 
-![文档接力流程：准备 Markdown → 选择目标账号 → Perch 保存与复制 → 在新聊天粘贴发送](docs/images/handoff-flow.png)
+![文档接力示意：在源对话生成交接文档，复制到目标新对话继续](docs/images/handoff-flow.png)
 
-Codex 与 Claude 之间、同类客户端的不同账号之间，都使用同一套文档接力。选择目标后，Perch 复制交接提示词并调出源账号；在原任务对话粘贴发送，让 agent 把交接文档写到指定绝对路径。文档生成后回到面板点“继续接力”，Perch 自动读取、复制正文与绝对路径，并调出目标账号。最后由你在目标新聊天中粘贴发送。
+1. 右键已停下的会话，选择“接力到…”及目标账号。
+2. Perch 复制提示词并调出源客户端；在原对话粘贴发送，让 agent 将交接文档写到指定绝对路径。
+3. 文档生成后回到面板点“继续接力”，复制正文与路径并调出目标客户端。
+4. 在目标新对话粘贴发送，继续任务。
 
-接力记录默认显示最近 5 次，可展开更多、定位文档或单独删除记录。**不自动复制原对话，不自动发送消息。**
+也可使用已有 Markdown。待接力状态重启后保留；记录默认显示最近 5 次，可展开、定位文档或删除记录。**不自动复制原对话，不自动发送消息。**
 
 ## 快速上手
 
-1. 安装并打开 Perch，点击菜单栏图标。
-2. 点“新建账号”添加 Codex 或 Claude，点击“启动 / 前台”打开对应客户端。
-3. 查看任务与额度；需要更新时点账号旁的刷新按钮。
-4. 需要桌面入口时，在设置中开启桌宠并选择原生桌宠或 Pox。
+1. 安装并打开 Perch：macOS 点击菜单栏图标；Windows 点击系统托盘图标，也可按 `Ctrl+Alt+P`。
+2. 点“新建账号”添加 Codex 或 Claude，再在对应客户端登录。Perch 中的账号是本地客户端配置入口。
+3. 查看任务与额度；点账号旁的刷新按钮手动同步，在设置中管理定期同步。
+4. 需要桌面入口时，在设置开启桌宠，选择原生浮球或 Pox。
 
-点击面板外部或按 Esc 关闭。底栏 ⓘ 可随时查看用法。
+点击外部或按 Esc 收起面板；底栏 ⓘ 可查看用法。收起面板后应用继续在后台运行，可从设置或菜单退出。
 
 <details>
-<summary>操作细节与限制</summary>
+<summary>会话与账号限制</summary>
 
-- 点击菜单栏图标打开面板；点击外部或按 Esc 关闭。
-- 点“新建账号”添加 Codex 或 Claude 账号；“启动 / 前台”打开对应客户端。
-- 点击会话调出所属账号。多实例深链和 Claude 会话定位有限制，具体会话可能需要在客户端中选择。
-- 点击分组收起或展开；拖动分组或账号调整顺序。右键账号可改名或删除。
-- Codex 与 Claude 都支持实时额度同步：打开面板时查询，账号旁可手动刷新，设置可开关每 5 分钟的后台同步（默认开启）。每个窗口显示已用比例与重置时间，悬停可看剩余比例；失败时保留旧值并标注缓存年龄和原因。Claude 使用对应客户端的登录授权，后台不弹钥匙串提示，手动刷新可请求授权。
-- 右键已停下的会话 →“接力到…”：复制提示词并调出源账号。确认原任务对话后粘贴发送，待 agent 写好文档，再回到 Perch 点“继续接力”。待办重启后保留；更多菜单支持使用已有文档或取消。所有方向统一采用文档接力，不自动复制原对话或发送消息。
-- 底栏的 ⓘ 和设置图标在同尺寸面板内切换内容，选中时变色，再次点击返回账号列表。ⓘ 提供简要用法。设置中可打开交接文件夹；接力记录默认显示最近 5 次，其余可展开。点击记录优先定位交接文档；可单独删除记录而保留文档。
-- 桌宠能力默认关闭，关闭时不显示爪印。在设置开启后选择“原生桌宠”（默认）或 Pox；爪印只负责显示／隐藏桌宠。原生桌宠是静态磨砂浮球，保持系统明暗模式和原生毛玻璃面板；Pox 使用角色主题，隐藏后仍保留该主题。能力关闭或桌宠隐藏时停止动画与媒体轮询。
-- 单击桌宠打开面板，双击调出忙碌账号，拖动换位置，右键打开菜单。设置可调整大小、安静模式和媒体感知。
+- Codex 单实例可使用对话深链；多实例时只调出所属客户端，避免跳错账号。Claude 目前只调出客户端，具体会话需自行选择。
+- Claude 桌面会话从各账号配置目录读取。macOS 默认客户端卡片另显示本机 Claude Code 历史，并标记 `Code`；不能据此确认 Code 与桌面客户端使用相同登录。Windows 目前不读取 CLI projects 历史。
+- 会话排序保存在 Perch，不修改原会话文件；macOS 限同账号、同活动状态分区，Windows 保持活动／最近分区。
+- 额度依赖客户端授权及服务可用性，百分比为已用额度。失败时的缓存时间不是重置时间；悬停可查看原因。API Key / 第三方账号不提供官方订阅额度数据，“不限”不代表第三方网关没有限制。
+- 桌宠可选；主题与显示状态分离。媒体感知只读取系统播放状态与类型，不读取媒体标题；应用未上报时无法检测。
+- 双个人账号同时登录、完整跨账号接力及部分多屏交互仍需实测。具体证据见 [macOS 验收](docs/macos/acceptance.md)、[Windows 验收](docs/windows/acceptance.md) 与 [功能对齐](shared/parity.md)。
 
 </details>
 
 ## 构建
 
-需要 Xcode Swift/clang 工具链，不需要额外下载媒体依赖或提供 API key。
+### macOS
+
+需要 Xcode Swift / clang 工具链。无需额外下载媒体依赖或提供 API key。
 
 ```bash
-swift test
-./script/build_and_run.sh --build     # 只构建 dist.noindex/Perch.app
-./script/build_and_run.sh --install   # 安装到 ~/Applications/Perch.app 并启动
-./script/build_and_run.sh --verify    # 构建、安装、启动并检查进程
-./script/package-release.sh          # release 通用架构 DMG、ZIP 和 SHA-256
+swift test --package-path macos
+./macos/script/build_and_run.sh --build     # macos/dist.noindex/Perch.app
+./macos/script/build_and_run.sh --install   # 安装到 ~/Applications/Perch.app 并启动
+./macos/script/build_and_run.sh --verify    # 安装并检查进程，不替代交互验收
+./macos/script/package-release.sh          # macos/dist.noindex/releases/ 下生成 DMG、ZIP、SHA256SUMS
 ```
 
-默认运行同样使用安装位置，避免 Spotlight 出现多个应用入口。`--verify` 检查启动，不代表所有交互已验收。
+### Windows
 
-## 本机数据
+在 Windows 上使用 .NET 10 SDK；运行自包含包无需安装 SDK。
 
-- 账号配置：`~/Library/Application Support/Perch/accounts.json`。客户端数据目录原地引用；导入 agent-desk 配置不删除其数据。
-- 交接文档：`~/Library/Application Support/Perch/handoffs/`。实际剪贴板提示和设置显示展开后的绝对路径。目录 0700、文件 0600，同名文件不覆盖；不放在应用包内，以免升级覆盖。
-- 平时读取任务元数据、标题、状态和工作目录；接力只读取本次指定路径或用户选择的交接文件，不读取聊天正文生成文档。Claude 额度查询仅读取匹配账号的登录授权并在内存中用于官方服务请求，不写入 Perch 文件或日志，不改变客户端登录状态。不自动发送聊天，不调用模型生成交接。
-- 偏好使用 `com.omnis.perch`，保留从 `com.pox.desktop` 的一次性迁移。桌宠能力使用 `petEnabled`，角色使用 `petCharacter`，显示状态使用 `companionVisible`；首次使用默认关闭能力、默认角色为原生桌宠，之后记住选择。
-- 媒体感知使用固定版本的 [MediaRemote Adapter](Vendor/MediaRemoteAdapter/UPSTREAM.md)，仅保留播放状态与应用身份。
+```powershell
+./windows/script/build.ps1 -Action Test
+./windows/script/build.ps1 -Action Run
+./windows/script/build.ps1 -Action Publish  # dist.noindex/windows/Perch/Perch.exe
+./windows/script/build.ps1 -Action Package  # dist.noindex/windows/releases/ 下生成 ZIP 与 SHA256SUMS
+```
+
+便携运行时保留完整的 `Perch` 目录。构建、架构与发布说明见 [Windows 文档](docs/windows/architecture.md)。CI 分别检查两端；Windows tag 发布流程已配置，不代表已有发行包。
+
+## 本机数据与隐私
+
+| 数据 | macOS | Windows |
+| --- | --- | --- |
+| Perch 配置与接力文档 | `~/Library/Application Support/Perch/` | `%LOCALAPPDATA%\Perch\` |
+| 新建客户端配置 | 上述目录下的 `Profiles/` | `%USERPROFILE%\.perch\profiles\` |
+| 偏好 | `com.omnis.perch`，保留旧偏好域的一次性迁移 | Perch 数据目录下的 `preferences.json` |
+
+现有客户端目录原地引用，导入 agent-desk 配置不删除其数据。交接提示词使用展开后的绝对路径，文档不放在应用包内。macOS 数据使用私有目录／文件权限，Windows 新建数据目录限制为当前用户访问。
+
+平时只保留会话标题、状态、工作目录等元数据。接力仅处理指定的 Markdown；额度授权只在内存中用于官方服务请求，不保存到 Perch 文件或日志，不自动发送聊天。macOS 媒体适配器来源与许可证见 [MediaRemote Adapter](macos/Vendor/MediaRemoteAdapter/UPSTREAM.md)。
 
 ## 仓库结构
 
-`Sources/`、`Tests/`、`Resources/`、`Vendor/` 按 Swift 项目约定大写；`docs/` 与 `script/` 使用小写。第三方源码保留原目录命名。`.build/`、`dist.noindex/` 是忽略的本机构建产物。
+```text
+macos/    SwiftPM、AppKit / SwiftUI、测试与打包脚本
+windows/  .NET Core、WPF App、回归测试与打包脚本
+shared/   共用素材、中文文案、手工样本与设计约定
+docs/     双端架构、验收与发布说明
+```
 
-架构与数据边界见[架构说明](docs/architecture.md)，检查结果与真实界面待验收项见[验收说明](docs/acceptance.md)，版本变化见[CHANGELOG](CHANGELOG.md)。目前支持原生桌宠和 Pox 两个内置选择，尚无外部角色包、插件系统、跨设备同步；agent-desk 上游同步和退役暂缓。
+`macos/Sources`、`Tests`、`Vendor` 保留 Swift 命名约定；Windows 使用 `src`、`tests`。构建产物、个人账号配置与临时验收材料均不提交。详见 [架构说明](docs/architecture.md)。

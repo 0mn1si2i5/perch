@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>Perch</AssemblyName>
+    <RootNamespace>Perch.Windows</RootNamespace>
+    <Description>Perch for Windows — local Codex and Claude account management</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Perch.Core/Perch.Core.csproj" />
+    <Content Include="../../../shared/assets/pox-atlas.png" Link="Resources/pox-atlas.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Resources/ClientIcons/*.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
