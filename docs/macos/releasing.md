@@ -33,6 +33,6 @@ DMG 包含 Perch.app 和 Applications 入口。ZIP 也可解压后把 Perch.app 
 4. 创建普通 GitHub Release，上传 DMG、ZIP 和校验文件，正文写明系统要求、变更及未公证状态。
 5. 下载并校验发布资产，确认 Release tag 与 main 对齐。
 
-仓库已公开。现有 1.0.0、1.0.1 发行版保留 `v1.0.0`、`v1.0.1` tag 与原附件；后续版本使用 `macos-v*`。main 可能包含尚未打包的修复，不能用历史发行包代表最新源码。CI 在 main 推送和 PR 上运行测试与 release 构建，不自动发布。
+仓库已公开。发布 tag 统一使用 `macos-v*`（1.0.0、1.0.1 的旧 Release 已移除，变更见 CHANGELOG）。main 可能包含尚未打包的修复，不能用历史发行包代表最新源码。CI 在 main 推送和 PR 上运行测试与 release 构建，不自动发布。
 
 macOS 尚无自动发布 workflow。实际验证范围见 [验收说明](acceptance.md)。
