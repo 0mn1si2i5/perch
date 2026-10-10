@@ -11,7 +11,7 @@
 - 汇报围绕“现在能用什么、距离用户目标还差什么、下一步如何完成”。清楚区分本地验证、真实服务运行、部署和用户验收；不以小修小补或测试通过代替完成声明。
 <!-- delivery-first:end -->
 
-Perch (formerly Compaxion) is a standalone desktop app with two native implementations: a macOS menu-bar app (`macos/`, Swift) and a Windows tray app (`windows/`, .NET/WPF). It launches and monitors the owner's Codex and Claude desktop accounts (replacing agent-desk), shows quotas and supports document handoff; Pox is its optional desktop-pet character. The repository is public under the MIT License, except the Pox artwork (see `LICENSE`). Work only in this repository; do not import the Pox Feishu server. Preferences moved from `com.pox.desktop` to `com.omnis.perch` through a one-time migration; keep that migration intact.
+Perch (formerly Compaxion) is a standalone desktop app with two native implementations: a macOS menu-bar app (`macos/`, Swift) and a Windows tray app (`windows/`, .NET/WPF). It launches and monitors the owner's Codex and Claude desktop accounts (replacing agent-desk), shows quotas and supports document handoff; Pox is its optional desktop-pet character. The repository is public under the MIT License, except the Pox artwork and third-party items listed in `NOTICE`. Work only in this repository; do not import the Pox Feishu server. Preferences moved from `com.pox.desktop` to `com.omnis.perch` through a one-time migration; keep that migration intact.
 
 
 ## 仓库结构

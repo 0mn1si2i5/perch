@@ -131,4 +131,4 @@ docs/     架构、验收与发布说明
 
 ## 许可证
 
-代码以 [MIT 许可证](LICENSE) 发布。Pox 角色及其美术素材保留版权，可随 Perch 原样分发；`macos/Vendor/` 下的第三方代码遵循各自的许可证；Codex、ChatGPT、Claude 的名称和图标归各自所有者。详见 [LICENSE](LICENSE)。
+代码以 [MIT 许可证](LICENSE) 发布。Pox 角色及其美术素材保留版权，可随 Perch 原样分发；`macos/Vendor/` 下的第三方代码遵循各自的许可证；Codex、ChatGPT、Claude 的名称和图标归各自所有者。详见 [LICENSE](LICENSE) 和 [NOTICE](NOTICE)。

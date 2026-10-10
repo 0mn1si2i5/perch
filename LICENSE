@@ -19,16 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Exceptions — the following are not covered by the MIT License above:
-
-- The Pox character and its artwork (shared/assets/pox-atlas.png and the
-  character design it depicts). Copyright (c) 2026 0mn1si2i5, all rights
-  reserved. You may redistribute it unmodified as part of Perch builds.
-- Third-party code under macos/Vendor/, which keeps its own license
-  (MediaRemote Adapter: BSD-3-Clause, see macos/Vendor/MediaRemoteAdapter/LICENSE).
-- Codex, ChatGPT and Claude names and client icons
-  (windows/src/Perch.App/Resources/ClientIcons/) belong to their owners and
-  are used only to identify the corresponding desktop clients.
