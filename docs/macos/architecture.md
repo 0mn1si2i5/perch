@@ -29,9 +29,14 @@ PerchModel 协调账号、任务、额度与动作，后台队列读取本机状
 
 Codex 使用所属账号的 app-server 查询额度，本地 rollout 尾部记录提供回退。Claude 使用所选桌面配置中当前账号的 profile 授权查询 usage 服务，并用客户端历史与 IndexedDB 额度事件回退。账号 UUID、组织与 scope 必须匹配；旧组织历史不阻断唯一有效的新登录。成功替换缓存；失败保留原始观测时间，不能用更旧的缓存覆盖实时快照。Claude 端点不是承诺稳定的公开集成 API，变更、授权过期或限流均明确显示原因。
 
-## Codex 子代理面板
+## 子代理面板
 
-codex-delegate 技能（`~/.claude/skills/codex-delegate/`）每次运行 `codex exec --json` 时在 `~/.codex-delegate/runs/<时间>-<标题>-<pid>/` 写入 `meta.json`、`brief.md`、`events.jsonl`、`stderr.log`、`last.md`，结束时写 `result.json`。`CODEX_DELEGATE_RUNS` 可改根目录。DelegateRunReader 只读这个目录：按偏移量增量读 `events.jsonl`，有 `result.json` 按退出码判定完成或失败，没有它且 `meta.json` 里的启动进程已退出则判为中断。只列出运行中和 24 小时内结束的最多 12 个任务。
+面板读两处运行记录，合在一起按目录名（以时间开头）从新到旧排：
+
+- Moot（`~/.moot/runs/<时间>-<标题>-<pid>/`，`MOOT_RUNS` 可改）：顶层有 `meeting.json`，每个席位每一轮在 `seats/<席位>/<序号>-<阶段>/` 下写 `meta.json`、`events.jsonl`、`last.md`、`result.json`。面板只显示序号最大的那一轮。`events.jsonl` 是 Moot 统一过的事件，每行一个 `{id, kind, status, text, detail?, paths?, tokens?}`，同一个 `id` 后写的覆盖先写的。`meta.json` 的 `adapter`（`codex`、`claude`、`agy`）显示为 Codex、Claude 或 Gemini。
+- codex-delegate 技能（`~/.codex-delegate/runs/<时间>-<标题>-<pid>/`，`CODEX_DELEGATE_RUNS` 可改）：每次运行 `codex exec --json` 时写入 `meta.json`、`brief.md`、`events.jsonl`、`stderr.log`、`last.md`，结束时写 `result.json`，`events.jsonl` 是 codex 的原始事件。
+
+DelegateRunReader 只读这两个目录：按偏移量增量读 `events.jsonl`，有 `result.json` 按退出码判定完成或失败，没有它且 `meta.json` 里的启动进程已退出则判为中断。只列出运行中和 24 小时内结束的最多 12 个任务。
 
 DelegatePanelController 持有一个不激活应用的浮动 NSPanel，所有桌面空间可见，位置按 `CodexDelegatePanel` 自动保存。面板显示时每秒轮询，隐藏时每 3 秒轮询，用来在出现新的运行中任务时自动弹出。偏好键：`delegatePanelVisible`、`delegatePanelAutoShow`（默认开）、`delegatePanelExpanded`。面板只读，不能停止或重跑任务。
 

@@ -236,7 +236,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
         }
         menu.addItem(.separator())
-        let delegate = NSMenuItem(title: delegatePanel.isVisible ? "隐藏 Codex 子代理面板" : "显示 Codex 子代理面板",
+        let delegate = NSMenuItem(title: delegatePanel.isVisible ? "隐藏子代理面板" : "显示子代理面板",
                                   action: #selector(toggleDelegatePanel), keyEquivalent: "")
         delegate.target = self
         menu.addItem(delegate)

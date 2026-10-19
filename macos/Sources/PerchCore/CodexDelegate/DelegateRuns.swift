@@ -1,7 +1,10 @@
 import Foundation
 
-/// One `codex exec` run started by the codex-delegate skill. The skill writes each run into its own
-/// directory under the runs root: meta.json, events.jsonl (codex --json), last.md and, once finished, result.json.
+/// One background run shown in the delegate panel. Two layouts are read:
+/// - codex-delegate: each run in its own directory with meta.json, events.jsonl (codex --json), last.md and,
+///   once finished, result.json.
+/// - Moot: meeting.json at the top and the same files per seat and turn under seats/<seat>/<n-phase>/;
+///   events.jsonl holds Moot's normalized events (one {"id","kind","status","text",…} per line).
 public struct DelegateRun: Identifiable, Equatable {
     public enum Kind: String { case worker, review }
     public enum State: Equatable {
@@ -18,6 +21,7 @@ public struct DelegateRun: Identifiable, Equatable {
     public let title: String
     public let workdir: String
     public let model: String
+    public let adapter: String
     public let startedAt: Date
     public var endedAt: Date?
     public var state: State
@@ -31,6 +35,14 @@ public struct DelegateRun: Identifiable, Equatable {
     public var isRunning: Bool { state == .running }
     /// The newest event worth showing on one line.
     public var latest: DelegateEvent? { events.last(where: { $0.kind != .reasoning }) ?? events.last }
+    /// Which CLI ran it. codex-delegate runs are always Codex; Moot writes the adapter into meta.json.
+    public var adapterName: String {
+        switch adapter {
+        case "claude": return "Claude"
+        case "agy": return "Gemini"
+        default: return "Codex"
+        }
+    }
 }
 
 public struct DelegateEvent: Identifiable, Equatable {
@@ -47,14 +59,17 @@ public struct DelegateEvent: Identifiable, Equatable {
 /// Reads the runs root incrementally: events.jsonl is read from the last offset, so polling every second
 /// stays cheap while a run is active. Not thread-safe: use one reader from one serial queue.
 public final class DelegateRunReader {
-    public static var defaultRoot: URL {
-        if let custom = ProcessInfo.processInfo.environment["CODEX_DELEGATE_RUNS"], !custom.isEmpty {
-            return URL(fileURLWithPath: custom, isDirectory: true)
+    public static var defaultRoots: [URL] {
+        let environment = ProcessInfo.processInfo.environment
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        func root(_ key: String, _ fallback: String) -> URL {
+            if let custom = environment[key], !custom.isEmpty { return URL(fileURLWithPath: custom, isDirectory: true) }
+            return home.appendingPathComponent(fallback, isDirectory: true)
         }
-        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex-delegate/runs", isDirectory: true)
+        return [root("MOOT_RUNS", ".moot/runs"), root("CODEX_DELEGATE_RUNS", ".codex-delegate/runs")]
     }
 
-    public let root: URL
+    public let roots: [URL]
     /// Finished runs older than this are not listed.
     public var keepFinished: TimeInterval = 24 * 3600
     public var maxRuns = 12
@@ -70,9 +85,13 @@ public final class DelegateRunReader {
     private var cache: [String: Cache] = [:]
     private let isAlive: (Int32) -> Bool
 
-    public init(root: URL = DelegateRunReader.defaultRoot, isAlive: @escaping (Int32) -> Bool = DelegateRunReader.processAlive) {
-        self.root = root
+    public init(roots: [URL] = DelegateRunReader.defaultRoots, isAlive: @escaping (Int32) -> Bool = DelegateRunReader.processAlive) {
+        self.roots = roots
         self.isAlive = isAlive
+    }
+
+    public convenience init(root: URL, isAlive: @escaping (Int32) -> Bool = DelegateRunReader.processAlive) {
+        self.init(roots: [root], isAlive: isAlive)
     }
 
     public static func processAlive(_ pid: Int32) -> Bool {
@@ -81,23 +100,49 @@ public final class DelegateRunReader {
     }
 
     public func read(now: Date = Date()) -> [DelegateRun] {
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []
-        // Directory names start with a sortable timestamp; newest first.
+        var candidates: [(name: String, dir: URL)] = []
+        for root in roots {
+            for name in (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? [] where !name.hasPrefix(".") {
+                candidates.append((name, root.appendingPathComponent(name, isDirectory: true)))
+            }
+        }
+        // Both layouts start directory names with a sortable timestamp; newest first across roots.
+        candidates.sort { $0.name > $1.name }
         var runs: [DelegateRun] = []
         var seen = Set<String>()
-        for name in names.sorted(by: >) where !name.hasPrefix(".") {
+        for candidate in candidates {
             guard runs.count < maxRuns else { break }
-            let dir = root.appendingPathComponent(name, isDirectory: true)
-            guard var entry = cache[name] ?? load(dir) else { continue }
-            seen.insert(name)
+            guard let dir = Self.runDirectory(candidate.dir) else { continue }
+            // Keyed by the turn directory: a Moot run moves to a new directory when a turn is added.
+            let key = dir.path
+            guard var entry = cache[key] ?? load(dir) else { continue }
+            seen.insert(key)
             if !entry.finished { update(&entry, dir: dir) }
-            cache[name] = entry
+            cache[key] = entry
             let run = entry.run
             if !run.isRunning, now.timeIntervalSince(run.endedAt ?? run.startedAt) > keepFinished { continue }
             runs.append(run)
         }
         cache = cache.filter { seen.contains($0.key) }
         return runs
+    }
+
+    /// The directory holding meta.json and events.jsonl: the run itself for codex-delegate, the newest
+    /// numbered turn for Moot (nil while a Moot run has no turn yet).
+    static func runDirectory(_ dir: URL) -> URL? {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: dir.appendingPathComponent("meeting.json").path) else { return dir }
+        let seats = dir.appendingPathComponent("seats", isDirectory: true)
+        var turns: [(order: Int, url: URL)] = []
+        for seat in (try? fm.contentsOfDirectory(atPath: seats.path)) ?? [] where !seat.hasPrefix(".") {
+            let seatDir = seats.appendingPathComponent(seat, isDirectory: true)
+            for turn in (try? fm.contentsOfDirectory(atPath: seatDir.path)) ?? [] {
+                guard let order = Int(turn.prefix { $0.isNumber }) else { continue }
+                let url = seatDir.appendingPathComponent(turn, isDirectory: true)
+                if fm.fileExists(atPath: url.appendingPathComponent("meta.json").path) { turns.append((order, url)) }
+            }
+        }
+        return turns.max { $0.order < $1.order }?.url
     }
 
     private func load(_ dir: URL) -> Cache? {
@@ -112,6 +157,7 @@ public final class DelegateRunReader {
             title: (meta["title"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? id,
             workdir: meta["workdir"] as? String ?? "",
             model: meta["model"] as? String ?? "",
+            adapter: meta["adapter"] as? String ?? "codex",
             startedAt: started, endedAt: nil, state: .running,
             events: [], changedFiles: [], commandCount: 0, tokens: nil, report: nil)
         return Cache(run: run, pid: (meta["pid"] as? NSNumber)?.int32Value ?? 0)
@@ -163,8 +209,11 @@ public final class DelegateRunReader {
     }
 
     func apply(_ line: Data, to run: inout DelegateRun) {
-        guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
-              let type = object["type"] as? String else { return }
+        guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { return }
+        guard let type = object["type"] as? String else {
+            if object["kind"] is String { applyMoot(object, to: &run) }
+            return
+        }
         switch type {
         case "item.started", "item.updated", "item.completed":
             guard let item = object["item"] as? [String: Any],
@@ -192,6 +241,36 @@ public final class DelegateRunReader {
             run.events.append(DelegateEvent(id: "error-\(run.events.count)", kind: .error, text: message, detail: nil, status: .failed))
         default:
             break
+        }
+    }
+
+    /// One Moot event. A later line with the same id replaces the earlier one (a command's start and end).
+    func applyMoot(_ object: [String: Any], to run: inout DelegateRun) {
+        guard let id = object["id"] as? String, let raw = object["kind"] as? String,
+              let kind = DelegateEvent.Kind(rawValue: raw) else { return }
+        if kind == .turn {
+            if let tokens = (object["tokens"] as? NSNumber)?.intValue { run.tokens = (run.tokens ?? 0) + tokens }
+            return
+        }
+        let status: DelegateEvent.Status
+        switch object["status"] as? String {
+        case "running": status = .running
+        case "failed": status = .failed
+        default: status = .ok
+        }
+        let paths = (object["paths"] as? [String]) ?? []
+        // Same as codex file changes: the changed paths are the detail when the event has none.
+        let detail = object["detail"] as? String ?? (kind == .fileChange && !paths.isEmpty ? paths.joined(separator: "\n") : nil)
+        var event = DelegateEvent(id: id, kind: kind, text: object["text"] as? String ?? "", detail: detail, status: status)
+        if let index = run.events.lastIndex(where: { $0.id == id }) {
+            if event.detail == nil { event.detail = run.events[index].detail }
+            run.events[index] = event
+        } else {
+            run.events.append(event)
+            if kind == .command { run.commandCount += 1 }
+        }
+        for path in paths where !run.changedFiles.contains(path) {
+            run.changedFiles.append(path)
         }
     }
 

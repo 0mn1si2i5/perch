@@ -22,6 +22,22 @@ final class DelegateRunsTests: XCTestCase {
         try handle.close()
     }
 
+    /// A Moot run: meeting.json at the top, one directory per seat and turn under seats/.
+    private func makeMootRun(_ root: URL, name: String, turn: String = "1-work", adapter: String = "claude", pid: Int32 = 4242) throws -> URL {
+        let run = root.appendingPathComponent(name)
+        let dir = run.appendingPathComponent("seats/jia/\(turn)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try #"{"version":1,"id":"\#(name)","mode":"delegate","state":"running","seats":[]}"#
+            .write(to: run.appendingPathComponent("meeting.json"), atomically: true, encoding: .utf8)
+        let meta = """
+        {"version":2,"format":"moot","id":"\(name)","run":"\(name)","seat":"jia","turn":"\(turn)","kind":"worker",\
+        "title":"Moot 任务","workdir":"/tmp/wt","adapter":"\(adapter)","model":"opus","startedAt":"2026-10-19T08:00:00Z","pid":\(pid)}
+        """
+        try meta.write(to: dir.appendingPathComponent("meta.json"), atomically: true, encoding: .utf8)
+        FileManager.default.createFile(atPath: dir.appendingPathComponent("events.jsonl").path, contents: nil)
+        return dir
+    }
+
     private let now = ISO8601DateFormatter().date(from: "2026-10-19T08:05:00Z")!
 
     func testReadsEventsIncrementallyIncludingPartialLines() throws {
@@ -93,6 +109,44 @@ final class DelegateRunsTests: XCTestCase {
         let runs = DelegateRunReader(root: root, isAlive: { _ in true }).read(now: now)
         XCTAssertEqual(runs.map(\.id), ["20261019-080000-live-2"])
         XCTAssertTrue(DelegateRunReader(root: root.appendingPathComponent("missing")).read().isEmpty)
+    }
+
+    func testReadsMootRunsWithNormalizedEvents() throws {
+        let root = try makeTempDir()
+        let dir = try makeMootRun(root, name: "20261019-080000-moot-1")
+        try append(dir, """
+        {"t":"2026-10-19T08:00:01Z","id":"sandbox","kind":"tool","status":"ok","text":"系统沙箱"}
+        {"t":"2026-10-19T08:00:02Z","id":"tu1","kind":"command","status":"running","text":"npm test"}
+        {"t":"2026-10-19T08:00:03Z","id":"tu1","kind":"command","status":"ok","text":"npm test","detail":"ok"}
+        {"t":"2026-10-19T08:00:04Z","id":"tu2","kind":"fileChange","status":"ok","text":"~ a.txt","paths":["/tmp/wt/a.txt"]}
+        {"t":"2026-10-19T08:00:05Z","id":"turn","kind":"turn","status":"ok","text":"本轮结束","tokens":1500}
+
+        """)
+        let run = try XCTUnwrap(DelegateRunReader(root: root, isAlive: { _ in true }).read(now: now).first)
+        XCTAssertEqual(run.id, "20261019-080000-moot-1")
+        XCTAssertEqual(run.title, "Moot 任务")
+        XCTAssertEqual(run.adapterName, "Claude")
+        XCTAssertEqual(run.events.map(\.text), ["系统沙箱", "npm test", "~ a.txt"])
+        XCTAssertEqual(run.events[1].status, .ok)
+        XCTAssertEqual(run.events[1].detail, "ok")
+        XCTAssertEqual(run.events[2].detail, "/tmp/wt/a.txt")
+        XCTAssertEqual(run.commandCount, 1)
+        XCTAssertEqual(run.changedFiles, ["/tmp/wt/a.txt"])
+        XCTAssertEqual(run.tokens, 1500)
+    }
+
+    func testMootRunShowsNewestTurnAndRootsAreMerged() throws {
+        let moot = try makeTempDir()
+        let legacy = try makeTempDir()
+        _ = try makeMootRun(moot, name: "20261019-080000-moot-1", turn: "1-work")
+        _ = try makeMootRun(moot, name: "20261019-080000-moot-1", turn: "2-fix", adapter: "agy")
+        _ = try makeMootRun(moot, name: "20261019-090000-noturn-3", turn: "draft")   // no numbered turn yet
+        _ = try makeRun(legacy, name: "20261019-070000-old-2")
+        let runs = DelegateRunReader(roots: [moot, legacy], isAlive: { _ in true }).read(now: now)
+        XCTAssertEqual(runs.map(\.id), ["20261019-080000-moot-1", "20261019-070000-old-2"])
+        XCTAssertEqual(runs.first?.directory.lastPathComponent, "2-fix")
+        XCTAssertEqual(runs.first?.adapterName, "Gemini")
+        XCTAssertEqual(runs.last?.adapterName, "Codex")
     }
 
     func testShortCommandUnwrapsShellQuoting() {
