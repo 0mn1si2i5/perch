@@ -1,7 +1,9 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 
@@ -32,6 +34,25 @@ public static class Program
             ShutdownMode = ShutdownMode.OnExplicitShutdown
         };
         string? temp = demo ? Path.Combine(Path.GetTempPath(), "perch-demo-" + Guid.NewGuid().ToString("N")) : null;
+        Panel? shown = null;
+        bool running = false;
+        // A file or clipboard error that escapes a handler is reported in the panel instead of closing Perch.
+        // Screenshot runs must fail and exit instead, so they keep the default behavior.
+        if (Option("--screenshot") == null)
+            app.DispatcherUnhandledException += (_, e) =>
+            {
+                if (shown == null || e.Exception is not (IOException or UnauthorizedAccessException or COMException))
+                    return;
+                e.Handled = true;
+                shown.Model.Notify(PanelModel.Describe(e.Exception));
+            };
+        TaskScheduler.UnobservedTaskException += (_, e) => e.SetObserved();
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            // Off the UI thread nothing can be recovered; say so before the process ends.
+            if (Option("--screenshot") == null)
+                MessageBox.Show("Perch 遇到意外错误，即将退出。账号和接力文档不受影响。", "Perch", MessageBoxButton.OK, MessageBoxImage.Error);
+        };
         try
         {
             var store = new Store(temp);
@@ -39,6 +60,7 @@ public static class Program
                 store.Preferences.PetCharacter = Option("--theme") == "pox" ? "pox" : "native";
             using var theme = new ThemeManager(() => store.Preferences.PetEnabled && store.Preferences.PetCharacter == "pox", Option("--theme"));
             var panel = new Panel(store, theme, demo, args.Contains("--keep-open") || Option("--screenshot") != null, args.Contains("--inspect"));
+            shown = panel;
             panel.Model.Page = Option("--page") ?? "accounts";
             using var tray = demo && !args.Contains("--tray-menu") ? null : new Tray(panel);
             var wait = demo ? null : ThreadPool.RegisterWaitForSingleObject(show, (_, _) => app.Dispatcher.BeginInvoke(panel.OpenPanel), null, -1, false);
@@ -49,6 +71,8 @@ public static class Program
             };
             if (args.Contains("--show") || demo || store.Accounts.Count == 0)
                 panel.OpenPanel();
+            // The tray now listens; notices held during startup can reach it.
+            app.Dispatcher.BeginInvoke(panel.Model.Ready);
             panel.DemoPet(int.TryParse(Option("--pet-pose"), out int pose) ? pose : null, args.Contains("--pet-complete"));
             if (args.Contains("--tray-menu"))
                 panel.Dispatcher.BeginInvoke(() => tray?.ShowMenu());
@@ -71,6 +95,7 @@ public static class Program
                 timer.Start();
             }
 
+            running = true;
             app.Run();
         }
         catch (Exception e)
@@ -81,6 +106,8 @@ public static class Program
                 File.WriteAllText(Path.Combine(dir, "error.txt"), e.ToString());
                 Environment.ExitCode = 1;
             }
+            else if (running)
+                MessageBox.Show("Perch 遇到意外错误，已退出。账号和接力文档不受影响。", "Perch", MessageBoxButton.OK, MessageBoxImage.Error);
             else
                 MessageBox.Show(e is IOException ? e.Message : "Perch 无法启动，请检查本机数据目录。原始文件已保留。", "Perch", MessageBoxButton.OK, MessageBoxImage.Error);
         }

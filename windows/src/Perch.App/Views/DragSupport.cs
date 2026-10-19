@@ -124,7 +124,7 @@ public static class DragSupport
                 model.Store.Preferences.SessionOrder[account.Value.Id] = ids;
             }
 
-            model.Store.Save();
+            model.Run(model.Store.Save);
         };
     }
 }

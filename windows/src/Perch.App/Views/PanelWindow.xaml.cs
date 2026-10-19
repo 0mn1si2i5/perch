@@ -86,7 +86,8 @@ public partial class Panel : Window, IDisposable
         }
 
         UpdatePet();
-        Loaded += async (_, _) => await Model.Start();
+        // Poll from launch, not from the first panel open, so the pet and tray follow tasks right away.
+        Dispatcher.InvokeAsync(Model.Start);
     }
 
     private void ApplyTheme()
@@ -238,7 +239,7 @@ public partial class Panel : Window, IDisposable
     }
 
     public void TogglePet() => Model.TogglePet.Execute(null);
-    public void ResetPet() => pet?.ResetPosition();
+    public void ResetPet() => Model.Run(() => pet?.ResetPosition());
     public void DemoPet(int? pose, bool complete)
     {
         if (!Model.Demo || pet == null)
