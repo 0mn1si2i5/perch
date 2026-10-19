@@ -1,8 +1,10 @@
 import Foundation
 
 public enum AppKind: String, Codable, CaseIterable {
-    case codex, claude, gemini, geminiApp, antigravity, deepseek, custom, api
+    case codex, claude, gemini, geminiApp, antigravity, deepseek
     public static let desktopClients: [AppKind] = [.codex, .claude]
+    /// Account types earlier versions stored: API providers and custom clients. `AccountStore.load` moves them to a backup file.
+    static let removedRawValues: Set<String> = ["api", "custom"]
     public var hasQuota: Bool { Self.desktopClients.contains(self) }
     public var displayName: String {
         switch self {
@@ -12,8 +14,6 @@ public enum AppKind: String, Codable, CaseIterable {
         case .geminiApp: return "Gemini"
         case .antigravity: return "Antigravity"
         case .deepseek: return "DeepSeek Harness"
-        case .custom: return "自定义客户端"
-        case .api: return "API 供应商"
         }
     }
 
@@ -44,21 +44,20 @@ public struct Account: Codable, Identifiable, Equatable {
     /// CODEX_HOME for Codex; equal to profilePath for Claude.
     public var sessionRoot: String
     public var localProvider: LocalProviderConfiguration?
-    public var apiProvider: APIProviderConfiguration?
     public var createdAt: Date
     public var lastLaunchedAt: Date?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, app = "appId", profilePath, sessionRoot, createdAt, lastLaunchedAt, localProvider, apiProvider
+        case id, name, app = "appId", profilePath, sessionRoot, createdAt, lastLaunchedAt, localProvider
     }
 
     public init(id: String, name: String, app: AppKind, profilePath: String,
                 sessionRoot: String, createdAt: Date, lastLaunchedAt: Date?,
-                localProvider: LocalProviderConfiguration? = nil, apiProvider: APIProviderConfiguration? = nil) {
+                localProvider: LocalProviderConfiguration? = nil) {
         self.id = id; self.name = name; self.app = app
         self.profilePath = profilePath; self.sessionRoot = sessionRoot
         self.createdAt = createdAt; self.lastLaunchedAt = lastLaunchedAt
-        self.localProvider = localProvider; self.apiProvider = apiProvider
+        self.localProvider = localProvider
     }
 }
 

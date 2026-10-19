@@ -64,58 +64,33 @@ public enum CodexAppServer {
         }
     }
 
-    private final class OutcomeBox { var result: Result<Answer, Failure>? }
-
-    /// Serialises writes to the child's stdin with closing it; once closed, sends are no-ops.
-    private final class StdinWriter {
-        private let handle: FileHandle
-        private let lock = NSLock()
-        private var closed = false
-        init(_ handle: FileHandle) { self.handle = handle }
-
-        func send(_ message: [String: Any]) {
-            guard let data = try? JSONSerialization.data(withJSONObject: message) else { return }
-            lock.lock(); defer { lock.unlock() }
-            if !closed { try? handle.write(contentsOf: data + Data([10])) }
-        }
-
-        func close() {
-            lock.lock(); defer { lock.unlock() }
-            if !closed { closed = true; try? handle.close() }
-        }
-    }
-    private static let ignoreBrokenPipe: Void = { signal(SIGPIPE, SIG_IGN) }()
-
-    /// Starts `codex app-server`, runs the exchange and ends the process. Blocks for at most `timeout` seconds.
+    /// Starts `codex app-server`, runs the exchange and ends the process group. Blocks for at most `timeout`
+    /// seconds plus a short grace period; call it on a DispatchQueue, never on the main thread.
     public static func query(cli: String, codexHome: String, timeout: TimeInterval = 10) -> Result<Answer, Failure> {
-        _ = ignoreBrokenPipe   // a child that exits early must not take Perch down with SIGPIPE
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: cli)
-        process.arguments = ["app-server", "--listen", "stdio://"]
         var environment = ProcessInfo.processInfo.environment
         environment["CODEX_HOME"] = codexHome
-        process.environment = environment
-        let input = Pipe(), output = Pipe()
-        process.standardInput = input
-        process.standardOutput = output
-        process.standardError = FileHandle.nullDevice   // may contain local paths; never read
-        do { try process.run() } catch { return .failure(.startFailed) }
-
-        let writer = StdinWriter(input.fileHandleForWriting)
-        let send = writer.send
+        let child: ChildProcess
+        do {
+            // stderr may contain local paths; it goes to /dev/null and is never read.
+            child = try ChildProcess(executable: cli, arguments: ["app-server", "--listen", "stdio://"], environment: environment,
+                                     currentDirectory: nil, input: true, captureErrors: false)
+        } catch { return .failure(.startFailed) }
+        // Closing stdin first lets a well-behaved server exit; anything left in its group is then stopped.
+        defer { child.finish() }
+        func send(_ message: [String: Any]) {
+            guard let data = try? JSONSerialization.data(withJSONObject: message) else { return }
+            child.write(data + Data([10]))
+        }
         send(Exchange.initialize)
-
-        let box = OutcomeBox()
-        let finished = DispatchSemaphore(value: 0)
-        let reader = output.fileHandleForReading
-        DispatchQueue.global(qos: .utility).async {
-            defer { finished.signal() }
-            var exchange = Exchange(), buffer = Data()
-            while true {
-                let chunk = reader.availableData
-                if chunk.isEmpty { box.result = .failure(.exited); return }   // end of file: the process quit
+        let deadline = Date().addingTimeInterval(timeout)
+        var exchange = Exchange(), buffer = Data()
+        while true {
+            switch ChildProcess.read([child.stdout], until: deadline) {
+            case .timedOut: return .failure(.timedOut)
+            case .end: return .failure(.exited)   // end of file: the process quit
+            case .data(_, let chunk):
                 buffer.append(chunk)
-                if buffer.count > 4 << 20 { box.result = .failure(.unreadable); return }
+                if buffer.count > 4 << 20 { return .failure(.unreadable) }
                 while let end = buffer.firstIndex(of: 10) {
                     let line = Data(buffer[buffer.startIndex..<end])
                     buffer.removeSubrange(buffer.startIndex...end)
@@ -123,21 +98,9 @@ public enum CodexAppServer {
                     guard let message = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { continue }
                     let step = exchange.receive(message)
                     step.send.forEach(send)
-                    if let done = step.done { box.result = done; return }
+                    if let done = step.done { return done }
                 }
             }
         }
-
-        let waited = finished.wait(timeout: .now() + timeout)
-        if process.isRunning { process.terminate() }
-        let pid = process.processIdentifier
-        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 1) {
-            if process.isRunning { kill(pid, SIGKILL) }
-        }
-        // Closing stdin also on timeout gives a child that outlives the kill (e.g. a wrapper's
-        // grandchild) EOF, so it exits, releases stdout and lets the reader finish.
-        writer.close()
-        if waited == .timedOut { return .failure(.timedOut) }
-        return box.result ?? .failure(.exited)
     }
 }

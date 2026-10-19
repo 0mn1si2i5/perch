@@ -43,14 +43,13 @@ enum Diagnose {
                     line += " quotaCached=\(summary(.windows(cache.windows))) observed=\(QuotaFormat.resetTimestamp(cache.observedAt))"
                 }
                 switch ClaudeQuota.live(dataDir: URL(fileURLWithPath: account.profilePath)) {
-                case .success(let value): line += " quotaLive=\(summary(value))"
+                case .success(let answer): line += " quotaLive=\(summary(answer.value))"
                 case .failure(let failure): line += " quotaLive=失败(\(failure.reason))"
                 }
             }
             if account.localProvider != nil {
                 line += " localSessions=\(LocalProviderSessions.recent(account).count) quota=unsupported"
             }
-            if account.apiProvider != nil { line += " apiConfigured=true quota=unsupported" }
             print(HandoffDocument.redactingEmails(line))
         }
         let media = MediaMonitor()

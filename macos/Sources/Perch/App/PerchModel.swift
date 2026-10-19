@@ -20,15 +20,14 @@ extension Launcher {
 final class PerchModel: ObservableObject {
     @Published var accounts: [Account] = []
     @Published var localCandidates: [LocalProviderCandidate] = []
-    @Published var apiModels: [String: [String]] = [:]
-    @Published var apiChecks: [String: String] = [:]
-    @Published var checkingAPI: Set<String> = []
+    @Published var localLaunchUpdates: [LocalLaunchUpdate] = []
     @Published var localSessions: [String: [LocalProviderSession]] = [:]
-    var apiCheckTokens: [String: UUID] = [:]
     @Published private(set) var snapshots: [String: CodexSnapshot] = [:]
     @Published private(set) var claudeSessions: [String: [ClaudeSession]] = [:]
     @Published private(set) var runningIDs: Set<String> = []
     @Published private(set) var skippedImports: [String] = []
+    /// Set when earlier API provider or custom client accounts were moved out of the account list.
+    @Published private(set) var removedAccountsBackup: URL?
     @Published var message: String? {
         didSet { scheduleMessageDismissal() }
     }
@@ -74,6 +73,9 @@ final class PerchModel: ObservableObject {
     private var claudeCodeReaders: [String: ClaudeSessionReader] = [:]
     private let sessionOrder: SessionOrderStore
     private var readers: [String: CodexReader] = [:]
+    private var localReaders: [String: LocalProviderSessionReader] = [:]
+    /// Claude account → the organization its last live query used. History samples are matched against it.
+    private var claudeOrganizations: [String: String] = [:]
     private var trackers: [String: CompletionTracker] = [:]
     private let worker = DispatchQueue(label: "com.omnis.perch.poll", qos: .utility)
     private var reading = false
@@ -131,13 +133,30 @@ final class PerchModel: ObservableObject {
     func panelClosed() {
         panelVisible = false
         dismissMessage()
+        schedulePolling()
+    }
+
+    /// Local reads run every 5 seconds while the panel is open and every 20 seconds while it is hidden.
+    static func pollInterval(panelVisible: Bool) -> TimeInterval { panelVisible ? 5 : 20 }
+
+    /// The current read interval, or nil before `start()`.
+    var pollingInterval: TimeInterval? { timer?.timeInterval }
+
+    private func schedulePolling() {
+        guard timer != nil else { return }
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: Self.pollInterval(panelVisible: panelVisible), repeats: true) { [weak self] _ in
+            self?.poll()
+        }
     }
 
     func start() {
         reload()
         handoffLog = handoffs.recentLog(limit: .max)
         poll()
-        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.poll() }
+        timer = Timer.scheduledTimer(withTimeInterval: Self.pollInterval(panelVisible: panelVisible), repeats: true) { [weak self] _ in
+            self?.poll()
+        }
         quotaTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
             guard let self, self.automaticallySyncQuota else { return }
             self.refreshQuotas()
@@ -149,18 +168,13 @@ final class PerchModel: ObservableObject {
         do { try store.load() } catch { message = "账号列表读取失败：\(error.localizedDescription)" }
         accounts = store.accounts
         skippedImports = store.skippedImports
+        removedAccountsBackup = FileManager.default.fileExists(atPath: store.removedAccountsURL.path) ? store.removedAccountsURL : nil
     }
 
     func refreshDiscovered() {
         // Discovery is now explicitly requested in New Account; previous banner dismissals
         // must not hide candidates from a user-initiated search.
         discovered = store.unclaimedDefaults()
-    }
-
-    func dismissDiscovered(_ app: AppKind) {
-        let dismissed = (UserDefaults.standard.stringArray(forKey: "dismissedDefaults") ?? []) + [app.rawValue]
-        UserDefaults.standard.set(dismissed, forKey: "dismissedDefaults")
-        refreshDiscovered()
     }
 
     /// Adds the Dock instance's default data as an account, named by the user.
@@ -214,8 +228,13 @@ final class PerchModel: ObservableObject {
     // MARK: Quota
 
     func panelOpened() {
+        let wasHidden = !panelVisible
         panelVisible = true
         scheduleMessageDismissal()
+        if wasHidden, timer != nil {
+            poll()   // the hidden interval can leave the list 20 seconds old
+            schedulePolling()
+        }
         refreshQuotas()
     }
 
@@ -225,6 +244,8 @@ final class PerchModel: ObservableObject {
 
     func refreshQuota(_ account: Account, manual: Bool = true) {
         if supportsProviderUsage(account) {
+            // The Gemini app reports the same Antigravity quota; agy only runs when the owner asks for it.
+            if account.app == .antigravity && !manual { return }
             guard !dataMissing(account), !refreshingQuotas.contains(account.id) else { return }
             if manual { quotaThrottle.reset(account.id) }
             guard quotaThrottle.allow(account.id, now: Date()) else { return }
@@ -241,19 +262,24 @@ final class PerchModel: ObservableObject {
         let live = quotaThrottle.allow(account.id, now: now)
         if live { refreshingQuotas.insert(account.id) }
         let rollouts = (snapshots[account.id]?.tasks ?? []).sorted { $0.updatedAt > $1.updatedAt }.compactMap(\.rolloutPath).prefix(5)
+        let organizations = claudeOrganizations
         quotaQueue.async { [weak self] in
+            let dataDir = URL(fileURLWithPath: account.profilePath)
+            let owner = account.app == .claude ? ClaudeQuota.signedInAccount(dataDir: dataDir) : nil
+            // History samples are kept per organization; never show another account's organization.
             let cache = account.app == .claude
-                ? ClaudeQuotaCache.latest(dataDir: URL(fileURLWithPath: account.profilePath))
+                ? ClaudeQuotaCache.latest(dataDir: dataDir, organization: owner.flatMap { organizations[$0] },
+                                          excluding: Set(organizations.filter { $0.key != owner }.values))
                 : QuotaCache.latest(rollouts: Array(rollouts))
             DispatchQueue.main.async {
                 guard let self, self.accounts.contains(where: { $0.id == account.id && $0.profilePath == account.profilePath }) else { return }
                 if account.app == .claude {
-                    let current = self.quotas[account.id]
+                    let current = QuotaDisplay.claude(self.quotas[account.id], signedIn: owner)
                     if let cache, current == nil || cache.observedAt > (current?.observedAt ?? .distantPast) {
-                        var display = QuotaDisplay.claude(cache)
+                        var display = QuotaDisplay.claude(cache, owner: owner)
                         display.liveFailure = current?.liveFailure
                         self.setQuota(display, for: account.id)
-                    } else if current == nil { self.setQuota(.claude(nil), for: account.id) }
+                    } else if current == nil { self.setQuota(.claude(nil, owner: owner), for: account.id) }
                 } else {
                     let display = QuotaDisplay.withCache(self.quotas[account.id], cache)
                     self.setQuota(display ?? (live ? .empty : nil), for: account.id)
@@ -268,7 +294,9 @@ final class PerchModel: ObservableObject {
                     guard self.accounts.contains(where: { $0.id == account.id && $0.profilePath == account.profilePath }) else { return }
                     if case .failure(.rateLimited(let delay)) = result { self.quotaRetryAfter[account.id] = Date().addingTimeInterval(delay) }
                     else { self.quotaRetryAfter[account.id] = nil }
-                    self.setQuota((self.quotas[account.id] ?? .claude(nil)).applyingClaude(result, now: Date()), for: account.id)
+                    if case .success(let answer) = result { self.claudeOrganizations[answer.account] = answer.organization }
+                    let current = QuotaDisplay.claude(self.quotas[account.id], signedIn: owner) ?? .claude(nil, owner: owner)
+                    self.setQuota(current.applyingClaude(result, now: Date()), for: account.id)
                 }
             } else {
                 let result = CodexQuota.live(account)
@@ -294,6 +322,7 @@ final class PerchModel: ObservableObject {
         let accounts = self.accounts
         let codex = accounts.filter { $0.app == .codex }.map { ($0.id, reader(for: $0)) }
         let claude = accounts.filter { $0.app == .claude }.map { ($0.id, claudeReader(for: $0), claudeCodeReader(for: $0)) }
+        let providers = accounts.filter { $0.localProvider != nil }.map { ($0.id, localReader(for: $0)) }
         worker.async { [weak self] in
             let processes = ProcessMatcher.snapshot() ?? []
             let running = Set(accounts.filter {
@@ -309,7 +338,7 @@ final class PerchModel: ObservableObject {
                 let code = (codeReader?.recent() ?? []).filter { !desktopIDs.contains($0.id) }
                 sessions[id] = Array((desktop + code).sorted { $0.updatedAt > $1.updatedAt }.prefix(30))
             }
-            let local = Dictionary(uniqueKeysWithValues: accounts.filter { $0.localProvider != nil }.map { ($0.id, LocalProviderSessions.recent($0)) })
+            let local = Dictionary(uniqueKeysWithValues: providers.map { ($0.0, $0.1.recent()) })
             DispatchQueue.main.async {
                 if let self {
                     let valid = local.filter { key, _ in accounts.first { $0.id == key } == self.accounts.first { $0.id == key } }
@@ -344,6 +373,14 @@ final class PerchModel: ObservableObject {
         if let reader = readers[account.sessionRoot] { return reader }
         let reader = CodexReader(home: URL(fileURLWithPath: account.sessionRoot))
         readers[account.sessionRoot] = reader
+        return reader
+    }
+
+    private func localReader(for account: Account) -> LocalProviderSessionReader {
+        let key = account.app.rawValue + ":" + account.sessionRoot
+        if let reader = localReaders[key] { return reader }
+        let reader = LocalProviderSessionReader(account: account)
+        localReaders[key] = reader
         return reader
     }
 
@@ -514,7 +551,7 @@ final class PerchModel: ObservableObject {
         let alert = NSAlert()
         alert.messageText = "删除账号“\(account.name)”？"
         let box = NSButton(checkboxWithTitle: "同时把数据目录移到废纸篓", target: nil, action: nil)
-        if store.isDefaultData(account) || account.localProvider != nil || account.apiProvider != nil {
+        if store.isDefaultData(account) || account.localProvider != nil {
             // The Dock instance's data is never offered for the Trash.
             alert.informativeText = "只删除 Perch 里的账号。直接打开 \(account.app.displayName) 时使用的数据不受影响。"
         } else {
@@ -526,21 +563,7 @@ final class PerchModel: ObservableObject {
         NSApp.activate()
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         do {
-            if account.apiProvider != nil {
-                let credentials = ProviderCredentialStore()
-                let previousKey = try credentials.read(for: account.id)
-                try credentials.delete(for: account.id)
-                do { try store.delete(id: account.id, moveDataToTrash: false) }
-                catch {
-                    if let previousKey {
-                        do { try credentials.set(previousKey, for: account.id) }
-                        catch { message = "删除未完成，密钥恢复失败；请重新配置密钥。"; return }
-                    }
-                    throw error
-                }
-            } else { try store.delete(id: account.id, moveDataToTrash: box.state == .on) }
-            apiModels[account.id] = nil
-            apiChecks[account.id] = nil
+            try store.delete(id: account.id, moveDataToTrash: box.state == .on)
         } catch {
             message = "删除失败：\(error.localizedDescription)"
         }
@@ -625,8 +648,6 @@ final class PerchModel: ObservableObject {
             case .gemini, .geminiApp: symbol = "sparkles"
             case .antigravity: symbol = "a.circle.fill"
             case .deepseek: symbol = "d.circle.fill"
-            case .api: symbol = "network"
-            case .custom: symbol = "app.connected.to.app.below.fill"
             default: symbol = "app"
             }
             guard let fallback = NSImage(systemSymbolName: symbol, accessibilityDescription: app.displayName) else { return nil }
@@ -643,7 +664,7 @@ final class PerchModel: ObservableObject {
     }
 
     func dataMissing(_ account: Account) -> Bool {
-        account.apiProvider == nil && !account.profilePath.isEmpty && !FileManager.default.fileExists(atPath: account.profilePath)
+        !FileManager.default.fileExists(atPath: account.profilePath)
     }
 
     func rows(for account: Account) -> [SessionRow] {
@@ -663,10 +684,8 @@ final class PerchModel: ObservableObject {
             return snapshot.available ? "还没有对话" : snapshot.detail
         case .claude:
             return claudeSessions[account.id] == nil ? "正在读取…" : "还没有本地会话"
-        case .api: return "可检查模型列表；额度请在供应商控制台查看"
         case .gemini, .antigravity, .deepseek: return "还没有本地会话"
         case .geminiApp: return "Gemini 内的 Antigravity；与 CLI 分别保留启动入口"
-        case .custom: return "自定义启动入口；登录与额度请在客户端查看"
         }
     }
 

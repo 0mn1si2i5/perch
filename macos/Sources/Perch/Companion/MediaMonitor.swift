@@ -22,26 +22,21 @@ final class MediaMonitor {
         }
         busy = true
         queue.async { [weak self] in
-            let process = Process()
-            let output = Pipe()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
-            process.arguments = [script.path, framework.path, "get", "--no-artwork", "--allow-missing-title"]
-            process.standardOutput = output
-            process.standardError = FileHandle.nullDevice
             // Never pass Codex credentials or the host's process environment to the helper.
-            process.environment = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LANG": "en_US.UTF-8"]
+            let run = Subprocess.run("/usr/bin/perl", [script.path, framework.path, "get", "--no-artwork", "--allow-missing-title"],
+                                     environment: ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LANG": "en_US.UTF-8"],
+                                     timeout: 3, outputLimit: 64 * 1024)
             let result: MediaSnapshot
-            do {
-                try process.run()
-                let timeout = DispatchWorkItem { if process.isRunning { process.terminate() } }
-                DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 3, execute: timeout)
-                let data = output.fileHandleForReading.readDataToEndOfFile()
-                process.waitUntilExit()
-                timeout.cancel()
-                if process.terminationStatus != 0 {
+            switch run {
+            case .failure(.launchFailed):
+                result = MediaSnapshot(source: "媒体组件暂不可用")
+            case .failure:
+                result = MediaSnapshot(source: "系统媒体状态暂不可用")
+            case .success(let output):
+                let data = output.stdout
+                if output.status != 0 {
                     result = MediaSnapshot(source: "系统媒体状态暂不可用")
-                } else if data.count < 64 * 1024,
-                          let json = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]),
+                } else if let json = try? JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]),
                           let values = json as? [String: Any] {
                     let playing = values["playing"] as? Bool ?? false
                     let id = values["parentApplicationBundleIdentifier"] as? String ?? values["bundleIdentifier"] as? String ?? ""
@@ -61,8 +56,6 @@ final class MediaMonitor {
                 } else {
                     result = MediaSnapshot(source: "未检测到正在播放的媒体")
                 }
-            } catch {
-                result = MediaSnapshot(source: "媒体组件暂不可用")
             }
             DispatchQueue.main.async {
                 self?.busy = false

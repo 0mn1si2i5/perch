@@ -24,18 +24,15 @@ public struct LaunchCommand: Equatable {
         return LaunchCommand(arguments: arguments)
     }
 
+    /// Blocking until `open` returns (at most 30 seconds); call off the main thread.
     public func run() throws {
-        let process = Process()
-        let errors = Pipe()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = arguments
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = errors
-        try process.run()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            let text = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-            throw LaunchError.openFailed(text.trimmingCharacters(in: .whitespacesAndNewlines))
+        switch Subprocess.run(executable, arguments, timeout: 30, outputLimit: 64 << 10, captureErrors: true) {
+        case .failure(.timedOut): throw LaunchError.openFailed("open 命令超时")
+        case .failure: throw LaunchError.openFailed("")
+        case .success(let output):
+            guard output.status == 0 else {
+                throw LaunchError.openFailed(String(decoding: output.stderr, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))
+            }
         }
     }
 }

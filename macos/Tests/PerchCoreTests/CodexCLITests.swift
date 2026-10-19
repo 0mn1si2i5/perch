@@ -11,7 +11,7 @@ final class CodexCLITests: XCTestCase {
             + native("/p/lib/node_modules/@openai/codex") + native("/q/lib/node_modules/@openai/codex")
             + native("/h/.npm-global/lib/node_modules/@openai/codex")
             + native("/opt/homebrew/lib/node_modules/@openai/codex") + native("/usr/local/lib/node_modules/@openai/codex")
-            + ["/p/bin/codex", "/q/bin/codex", "/h/.local/bin/codex", "/h/.npm-global/bin/codex",
+            + ["/p/bin/codex", "/q/bin/codex", "/h/.local/bin/codex", "/h/.npm-global/bin/codex", "/h/.bun/bin/codex",
                "/opt/homebrew/bin/codex", "/usr/local/bin/codex",
                "/Applications/ChatGPT.app/Contents/Resources/codex", "/h/Applications/ChatGPT.app/Contents/Resources/codex",
                "/Applications/Codex.app/Contents/Resources/codex", "/h/Applications/Codex.app/Contents/Resources/codex"]

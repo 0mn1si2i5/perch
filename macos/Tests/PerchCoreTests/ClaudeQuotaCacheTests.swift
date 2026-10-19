@@ -85,6 +85,18 @@ final class ClaudeQuotaCacheTests: XCTestCase {
         XCTAssertNil(ClaudeQuotaCache.latest(dataDir: dir.appendingPathComponent("missing"), now: now))
     }
 
+    func testHistoryIsKeptPerOrganization() throws {
+        let dir = try makeTempDir(); cleanup.append(dir)
+        let now = Date(timeIntervalSince1970: 1_791_450_000)
+        let older = (now.timeIntervalSince1970 - 3600) * 1000, newer = (now.timeIntervalSince1970 - 600) * 1000
+        let history = #"{"version":2,"samples":[{"t":\#(older),"org":"org-b","u":{"fh":10,"sd":20}},{"t":\#(newer),"org":"org-a","u":{"fh":70,"sd":60}}]}"#
+        try history.write(to: dir.appendingPathComponent("plan-usage-history.json"), atomically: true, encoding: .utf8)
+        XCTAssertEqual(ClaudeQuotaCache.latest(dataDir: dir, now: now)?.windows.last?.usedPercent, 60)
+        XCTAssertEqual(ClaudeQuotaCache.latest(dataDir: dir, organization: "org-b", now: now)?.windows.last?.usedPercent, 20)
+        XCTAssertEqual(ClaudeQuotaCache.latest(dataDir: dir, excluding: ["org-a"], now: now)?.windows.last?.usedPercent, 20)
+        XCTAssertNil(ClaudeQuotaCache.latest(dataDir: dir, organization: "org-c", now: now))
+    }
+
     func testNewerHistoryRetainsSameCycleResetWithoutRevivingExpiredFiveHourUsage() throws {
         let dir = try makeTempDir(); cleanup.append(dir)
         let now = ISO8601.parse("2026-10-09T09:00:00Z")!

@@ -23,10 +23,7 @@ public enum CodexCLI {
             let prefix = (dir as NSString).deletingLastPathComponent
             addRoot((prefix as NSString).appendingPathComponent("lib/node_modules/@openai/codex"))
         }
-        add("\(home)/.local/bin/codex")
-        add("\(home)/.npm-global/bin/codex")
-        add("/opt/homebrew/bin/codex")
-        add("/usr/local/bin/codex")
+        for dir in ToolPaths.userDirectories(home: home) { add((dir as NSString).appendingPathComponent("codex")) }
         // Recent ChatGPT desktop builds bundle Codex; older installs have Codex.app instead.
         add("/Applications/ChatGPT.app/Contents/Resources/codex")
         add("\(home)/Applications/ChatGPT.app/Contents/Resources/codex")

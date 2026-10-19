@@ -8,12 +8,11 @@ public enum ProviderError: LocalizedError, Equatable {
 }
 
 public enum LocalLaunchKind: String, Codable, CaseIterable {
-    case terminal, application, website
+    case terminal, application
     public var displayName: String {
         switch self {
         case .terminal: return "终端命令"
         case .application: return "macOS 应用"
-        case .website: return "网页"
         }
     }
 }
@@ -31,21 +30,16 @@ public struct LocalProviderConfiguration: Codable, Equatable {
 
     public func validate() throws {
         guard !target.isEmpty, !([target, workingDirectory] + arguments).contains(where: { $0.contains("\0") }) else {
-            throw ProviderError.invalid("请填写有效的启动位置")
+            throw ProviderError.invalid("启动位置无效")
         }
         switch kind {
         case .terminal:
             guard target.hasPrefix("/"), FileManager.default.isExecutableFile(atPath: target) else {
-                throw ProviderError.invalid("请选择可执行文件的绝对路径")
+                throw ProviderError.invalid("找不到可执行文件 \(target)")
             }
         case .application:
             guard target.hasPrefix("/"), target.hasSuffix(".app"), FileManager.default.fileExists(atPath: target) else {
-                throw ProviderError.invalid("请选择本机 .app 应用")
-            }
-        case .website:
-            guard let url = URLComponents(string: target), ["https", "http"].contains(url.scheme),
-                  url.host != nil, url.user == nil, url.password == nil else {
-                throw ProviderError.invalid("请填写 HTTP 或 HTTPS 网页地址，不要在地址中放入凭据")
+                throw ProviderError.invalid("找不到应用 \(target)")
             }
         }
         if !workingDirectory.isEmpty {
@@ -68,10 +62,30 @@ public struct LocalProviderCandidate: Identifiable, Equatable {
     }
 }
 
+/// An added provider whose client a scan found at another launch location. Its data directory is unchanged.
+public struct LocalLaunchUpdate: Identifiable, Equatable {
+    public var id: String { account.id }
+    public let account: Account
+    public let configuration: LocalProviderConfiguration
+    public init(account: Account, configuration: LocalProviderConfiguration) {
+        self.account = account; self.configuration = configuration
+    }
+}
+
 public enum LocalProviderDiscovery {
+    /// The configuration a scanned candidate offers an added account with the same data directory, when the launch
+    /// location differs. Arguments and working directory are kept unless the launch kind changes.
+    public static func launchUpdate(for account: Account, candidate: LocalProviderCandidate) -> LocalLaunchUpdate? {
+        guard let current = account.localProvider, account.app == candidate.app, account.profilePath == candidate.profilePath else { return nil }
+        let found = candidate.configuration
+        guard found.kind != current.kind || found.target != current.target else { return nil }
+        var updated = found
+        if found.kind == current.kind { updated = current; updated.target = found.target }
+        return LocalLaunchUpdate(account: account, configuration: updated)
+    }
+
     public static func executable(_ name: String, home: String = NSHomeDirectory(), path: String = ProcessInfo.processInfo.environment["PATH"] ?? "") -> String? {
-        let directories = [home + "/.local/bin", home + "/.npm-global/bin", home + "/.bun/bin", "/opt/homebrew/bin", "/usr/local/bin"]
-            + path.split(separator: ":").map(String.init)
+        let directories = ToolPaths.userDirectories(home: home) + path.split(separator: ":").map(String.init)
         return directories.map { ($0 as NSString).appendingPathComponent(name) }.first {
             $0.hasPrefix("/") && FileManager.default.isExecutableFile(atPath: $0)
         }

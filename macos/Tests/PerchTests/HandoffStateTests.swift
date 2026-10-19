@@ -77,4 +77,81 @@ final class HandoffStateTests: XCTestCase {
                        "Omnix · 新对话")
         XCTAssertTrue(notices.contains { $0.contains("Omnix 新建另一个对话") }, notices.joined(separator: "\n"))
     }
+
+    /// A model whose launcher cannot start anything, created before handoffs/ exists, as on a fresh install.
+    private func failingTargetModel(_ root: URL) throws -> (PerchModel, Account, Account, NSPasteboard) {
+        let store = AccountStore(root: root, agentDeskProfiles: root.appendingPathComponent("missing"))
+        try store.load()
+        let source = try store.create(name: "Source", app: .codex)
+        let target = try store.create(name: "Target", app: .claude)
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("perch-test-\(UUID().uuidString)"))
+        // No process list: the launcher refuses to start the target.
+        let model = PerchModel(store: store, launcher: Launcher(activate: { _ in false }, processes: { nil }),
+                               pasteboard: pasteboard, notificationSender: { _, _, reply in reply(true) })
+        XCTAssertFalse(FileManager.default.fileExists(atPath: model.handoffs.directory.path))
+        return (model, source, target, pasteboard)
+    }
+
+    private func attempt(_ model: PerchModel) {
+        model.continueHandoff()
+        let finished = expectation(for: NSPredicate { _, _ in !model.completingHandoff && model.handoffLog.count == 1 },
+                                   evaluatedWith: nil)
+        wait(for: [finished], timeout: 5)
+        XCTAssertNotNil(model.pendingHandoff)
+    }
+
+    private func copies(_ model: PerchModel) throws -> [String] {
+        try FileManager.default.contentsOfDirectory(atPath: model.handoffs.directory.path).filter { $0.hasSuffix(".md") }
+    }
+
+    /// The target fails to open; retrying twice must not save another copy or add another log line.
+    func testRetryAfterTargetLaunchFailureReusesCopyAndRecord() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (model, source, target, pasteboard) = try failingTargetModel(root)
+        defer { pasteboard.releaseGlobally() }
+        let row = SessionRow(kind: .codex(CodexTask(id: UUID().uuidString, title: "重试任务", status: .completed,
+                                                    turnID: "t", updatedAt: Date(), source: "vscode")))
+        model.handoff(row, from: source, to: target)
+        let pending = try XCTUnwrap(model.pendingHandoff)
+        try "# 交接\n下一步：继续。".write(to: model.handoffs.preparedURL(for: pending), atomically: true, encoding: .utf8)
+
+        for _ in 1...3 { attempt(model) }
+        XCTAssertEqual(try copies(model).count, 1)
+        XCTAssertEqual(model.handoffs.recentLog(limit: .max).count, 1)
+        let entry = try XCTUnwrap(model.handoffLog.first)
+        XCTAssertEqual(entry.result, "文档已准备，目标启动失败")
+        XCTAssertEqual(entry.documentPath, model.pendingHandoff?.documentPath)
+        XCTAssertEqual(entry.recordID, model.pendingHandoff?.recordID)
+        XCTAssertEqual(try model.handoffs.pendingPreparation()?.documentPath, entry.documentPath)
+    }
+
+    /// After a failed attempt the agent rewrites the draft; the retry must paste the new text, not the old copy.
+    func testRetryCopiesTheDraftAgainWhenItWasRewritten() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (model, source, target, pasteboard) = try failingTargetModel(root)
+        defer { pasteboard.releaseGlobally() }
+        let row = SessionRow(kind: .codex(CodexTask(id: UUID().uuidString, title: "改写任务", status: .completed,
+                                                    turnID: "t", updatedAt: Date(), source: "vscode")))
+        model.handoff(row, from: source, to: target)
+        let draft = model.handoffs.preparedURL(for: try XCTUnwrap(model.pendingHandoff))
+        try "# 旧版\n旧的下一步。".write(to: draft, atomically: true, encoding: .utf8)
+        attempt(model)
+        let first = try XCTUnwrap(model.pendingHandoff?.documentPath)
+
+        // Age the first copy so the rewritten draft is clearly newer, then copy the prompt again for the same handoff.
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-60)], ofItemAtPath: first)
+        model.handoff(row, from: source, to: target)
+        try "# 新版\n新的下一步。".write(to: draft, atomically: true, encoding: .utf8)
+        attempt(model)
+        XCTAssertTrue(pasteboard.string(forType: .string)?.contains("新的下一步。") == true)
+        XCTAssertFalse(pasteboard.string(forType: .string)?.contains("旧的下一步。") == true)
+        XCTAssertNotEqual(model.pendingHandoff?.documentPath, first)
+        XCTAssertEqual(try copies(model).count, 2)
+        XCTAssertEqual(model.handoffs.recentLog(limit: .max).count, 1, "the same handoff keeps one record")
+
+        attempt(model)
+        XCTAssertEqual(try copies(model).count, 2, "an unchanged draft reuses the newest copy")
+    }
 }

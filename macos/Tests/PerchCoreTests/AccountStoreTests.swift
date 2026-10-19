@@ -154,4 +154,41 @@ final class AccountStoreTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: store2.fileURL.path),
                       "accounts.json should exist after successful import")
     }
+
+    func testRemovedProviderAccountsMoveToBackupOnce() throws {
+        let first = AccountStore(root: root, agentDeskProfiles: root.appendingPathComponent("absent"))
+        try first.load()
+        let codex = try first.create(name: "Codex", app: .codex)
+        var file = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: first.fileURL)) as? [String: Any])
+        var rows = try XCTUnwrap(file["accounts"] as? [[String: Any]])
+        rows += [
+            ["id": "api", "name": "API", "appId": "api", "profilePath": "", "sessionRoot": "", "createdAt": "2026-01-01T00:00:00Z",
+             "apiProvider": ["displayName": "Fixture", "baseURL": "https://example.com/v1"]],
+            ["id": "custom", "name": "Custom", "appId": "custom", "profilePath": "", "sessionRoot": "", "createdAt": "2026-01-01T00:00:00Z",
+             "localProvider": ["kind": "terminal", "target": "/usr/bin/true"]],
+            ["id": "site", "name": "Site", "appId": "gemini", "profilePath": "", "sessionRoot": "", "createdAt": "2026-01-01T00:00:00Z",
+             "localProvider": ["kind": "website", "target": "https://example.com"]]
+        ]
+        file["accounts"] = rows
+        try JSONSerialization.data(withJSONObject: file).write(to: first.fileURL)
+
+        let store = AccountStore(root: root, agentDeskProfiles: root.appendingPathComponent("absent"))
+        try store.load()
+        XCTAssertEqual(store.accounts.map(\.id), [codex.id])
+        let backup = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: store.removedAccountsURL)) as? [String: Any])
+        let removed = try XCTUnwrap(backup["accounts"] as? [[String: Any]])
+        XCTAssertEqual(removed.compactMap { $0["id"] as? String }, ["api", "custom", "site"])
+        XCTAssertEqual((removed[0]["apiProvider"] as? [String: Any])?["baseURL"] as? String, "https://example.com/v1")
+        let attributes = try FileManager.default.attributesOfItem(atPath: store.removedAccountsURL.path)
+        XCTAssertEqual(attributes[.posixPermissions] as? Int, 0o600)
+        let saved = try String(contentsOf: store.fileURL, encoding: .utf8)
+        XCTAssertFalse(saved.contains("apiProvider"))
+        XCTAssertFalse(saved.contains("website"))
+
+        let again = AccountStore(root: root, agentDeskProfiles: root.appendingPathComponent("absent"))
+        try again.load()
+        XCTAssertEqual(again.accounts.map(\.id), [codex.id])
+        let unchanged = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: again.removedAccountsURL)) as? [String: Any])
+        XCTAssertEqual((unchanged["accounts"] as? [[String: Any]])?.count, 3)
+    }
 }

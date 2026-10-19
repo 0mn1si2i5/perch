@@ -38,7 +38,7 @@ struct SessionRow: Identifiable {
         case .local(let session): return session.status
         }
     }
-    var updatedAt: Date {
+    var updatedAt: Date? {
         switch kind {
         case .codex(let task): return task.updatedAt
         case .claude(let session): return session.updatedAt
@@ -58,6 +58,7 @@ struct SessionRow: Identifiable {
     /// Every row shows its status; the time is shown beside it, never instead of it.
     var age: String {
         let now = Date()
+        guard let updatedAt else { return "时间未知" }
         // A file touched a moment ago can be a hair ahead of `now`; "0 秒后" reads wrong.
         if abs(now.timeIntervalSince(updatedAt)) < 60 { return "刚刚" }
         return Self.relative.localizedString(for: updatedAt, relativeTo: now)

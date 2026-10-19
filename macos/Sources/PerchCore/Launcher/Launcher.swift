@@ -28,19 +28,15 @@ public struct Launcher {
     }
 
     public func launch(_ account: Account) -> LaunchOutcome {
-        if let api = account.apiProvider {
-            do {
-                try api.validate()
-                guard !api.dashboardURL.isEmpty else { return .failed("尚未配置供应商控制台地址") }
-                try run(LaunchCommand(arguments: [api.dashboardURL]))
-                return .launched
-            } catch { return .failed(error.localizedDescription) }
-        }
         if let local = account.localProvider {
             do {
                 if local.kind == .application, let running = processes(),
                    let owner = LocalProviderLauncher.applicationProcess(account, processes: running), activate(owner.pid) {
                     return .activated(pid: owner.pid)
+                }
+                // There is no editor for the launch location; a moved client is found again by scanning.
+                do { try local.validate() } catch {
+                    return .failed(error.localizedDescription + "。如果客户端换了位置，在新建页点“自动获取可用供应商”后选“更新启动位置”，或删除后重新扫描添加。")
                 }
                 if local.kind == .terminal, let running = processes(), LocalProviderLauncher.isRunning(account, processes: running) {
                     try run(LaunchCommand(arguments: ["-a", "Terminal"]))

@@ -11,16 +11,25 @@ public struct QuotaDisplay: Equatable {
     public var liveFailed: Bool { liveFailure != nil }
     /// Identifies Claude so missing cached windows can be labelled without affecting Codex.
     public var isClaude: Bool
+    /// The Claude account the value was recorded for.
+    public var owner: String?
 
-    public init(value: QuotaValue?, observedAt: Date?, cached: Bool, liveFailure: String?, isClaude: Bool = false) {
+    public init(value: QuotaValue?, observedAt: Date?, cached: Bool, liveFailure: String?, isClaude: Bool = false,
+                owner: String? = nil) {
         self.value = value; self.observedAt = observedAt; self.cached = cached; self.liveFailure = liveFailure
-        self.isClaude = isClaude
+        self.isClaude = isClaude; self.owner = owner
     }
 
     /// A Claude account: the newest usage the desktop client recorded, or nothing found.
-    public static func claude(_ cache: CachedQuota?) -> QuotaDisplay {
+    public static func claude(_ cache: CachedQuota?, owner: String? = nil) -> QuotaDisplay {
         QuotaDisplay(value: cache.map { .windows($0.windows) }, observedAt: cache?.observedAt, cached: true,
-                     liveFailure: nil, isClaude: true)
+                     liveFailure: nil, isClaude: true, owner: owner)
+    }
+
+    /// What to build on while the client is signed in to `owner`; nil when the display belongs to another login.
+    public static func claude(_ display: QuotaDisplay?, signedIn owner: String?) -> QuotaDisplay? {
+        guard let display, display.owner == owner else { return nil }
+        return display
     }
 
     public static let empty = QuotaDisplay(value: nil, observedAt: nil, cached: true, liveFailure: nil)
@@ -33,10 +42,11 @@ public struct QuotaDisplay: Equatable {
                             liveFailure: current?.liveFailure)
     }
 
-    public func applyingClaude(_ live: Result<QuotaValue, ClaudeQuota.Failure>, now: Date) -> QuotaDisplay {
+    public func applyingClaude(_ live: Result<ClaudeQuota.Answer, ClaudeQuota.Failure>, now: Date) -> QuotaDisplay {
         switch live {
-        case .success(let value):
-            return QuotaDisplay(value: value, observedAt: now, cached: false, liveFailure: nil, isClaude: true)
+        case .success(let answer):
+            return QuotaDisplay(value: answer.value, observedAt: now, cached: false, liveFailure: nil, isClaude: true,
+                                owner: answer.account)
         case .failure(let failure):
             var copy = self
             copy.liveFailure = failure.reason

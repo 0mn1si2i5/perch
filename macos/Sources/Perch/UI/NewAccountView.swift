@@ -13,6 +13,10 @@ struct NewAccountView: View {
         perch.localCandidates.filter { matchesSearch($0.name) || matchesSearch($0.app.displayName) }
     }
 
+    private var launchUpdates: [LocalLaunchUpdate] {
+        perch.localLaunchUpdates.filter { matchesSearch($0.account.name) || matchesSearch($0.account.app.displayName) }
+    }
+
     private var desktopCandidates: [AppKind] {
         perch.discovered.filter { matchesSearch($0.displayName) }
     }
@@ -29,26 +33,10 @@ struct NewAccountView: View {
             Divider()
             Text("手动添加").font(.system(size: 12, weight: .semibold))
             Picker("类型", selection: $app) {
-                ForEach(AppKind.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                ForEach(AppKind.desktopClients, id: \.self) { Text($0.displayName).tag($0) }
             }
             .pickerStyle(.menu)
-
-            switch app {
-            case .codex, .claude:
-                desktopAccount
-            case .gemini, .geminiApp, .antigravity, .deepseek:
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("点击上方“自动获取可用供应商”查找本机已有的 \(app.displayName)，或手动填写启动入口。")
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Button("手动添加启动入口…") { app = .custom }
-                    Button("取消", action: close)
-                }
-            case .custom:
-                LocalProviderEditorView(perch: perch, close: close)
-            case .api:
-                APIProviderEditorView(perch: perch, close: close)
-            }
+            desktopAccount
         }
     }
 
@@ -57,12 +45,30 @@ struct NewAccountView: View {
             Text("选择要添加的本机供应商")
                 .font(.system(size: 12, weight: .medium))
             TextField("搜索供应商名称", text: $search).textFieldStyle(.roundedBorder)
-            if localCandidates.isEmpty && desktopCandidates.isEmpty {
+            if localCandidates.isEmpty && desktopCandidates.isEmpty && launchUpdates.isEmpty {
                 Text(search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                      ? "没有发现新的可用入口。已添加的供应商可在账号列表中查看。"
                      : "没有匹配的供应商。")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(launchUpdates) { update in
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(update.account.name).font(.system(size: 12, weight: .medium))
+                    Text("启动位置已变化")
+                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                    Text("原来：\(update.account.localProvider?.target ?? "")")
+                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                        .lineLimit(2).truncationMode(.middle).help(update.account.localProvider?.target ?? "")
+                    Text("现在：\(update.configuration.target)")
+                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                        .lineLimit(2).truncationMode(.middle).help(update.configuration.target)
+                    Button("更新启动位置") { _ = perch.updateLocalLaunch(update) }
+                        .controlSize(.small)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
             }
             ForEach(desktopCandidates, id: \.self) { candidate in
                 desktopCandidate(candidate)

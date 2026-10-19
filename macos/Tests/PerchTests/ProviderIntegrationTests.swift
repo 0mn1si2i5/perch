@@ -5,7 +5,7 @@ import PerchCore
 @testable import Perch
 
 final class ProviderIntegrationTests: XCTestCase {
-    func testProviderEditingPersistsAlongsideDesktopAccountsWithoutInventingQuota() throws {
+    func testImportedProvidersPersistAlongsideDesktopAccountsWithoutInventingQuota() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("perch-provider-integration-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
         let store = makeStore(root)
@@ -15,52 +15,79 @@ final class ProviderIntegrationTests: XCTestCase {
         let claude = try store.create(name: "Existing Claude", app: .claude, now: now)
         let model = makeModel(store)
 
-        let website = LocalProviderConfiguration(kind: .website, target: "https://example.com/chat")
-        XCTAssertTrue(model.saveLocalProvider(existing: nil, name: "  Web entry  ", profilePath: "", configuration: website))
-        let local = try XCTUnwrap(model.accounts.first { $0.app == .custom })
-        XCTAssertEqual(local.name, "Web entry")
-        XCTAssertFalse(model.dataMissing(local))
-        XCTAssertTrue(model.rows(for: local).isEmpty)
-        model.refreshQuota(local)
-        XCTAssertNil(model.quotas[local.id])
-        XCTAssertFalse(model.refreshingQuotas.contains(local.id))
+        let cliData = root.appendingPathComponent("gemini-home")
+        try FileManager.default.createDirectory(at: cliData, withIntermediateDirectories: true)
+        XCTAssertTrue(model.importLocal(LocalProviderCandidate(name: "Gemini CLI", app: .gemini, profilePath: cliData.path,
+                                                               configuration: .init(kind: .terminal, target: "/usr/bin/true"))))
+        let gemini = try XCTUnwrap(model.accounts.first { $0.app == .gemini })
+        XCTAssertFalse(model.dataMissing(gemini))
+        XCTAssertFalse(model.supportsProviderUsage(gemini), "Gemini CLI quota queries were removed")
+        model.refreshQuota(gemini)
+        XCTAssertNil(model.quotas[gemini.id])
+        XCTAssertFalse(model.refreshingQuotas.contains(gemini.id))
 
-        let configuration = APIProviderConfiguration(displayName: "Local API", baseURL: "http://127.0.0.1:11434/v1", model: "example-model")
-        // New credentials-free metadata, then a same-endpoint edit: neither path reads or writes Keychain.
-        XCTAssertTrue(model.saveAPIProvider(existing: nil, name: "Local API", configuration: configuration, key: nil, removeKey: false))
-        let api = try XCTUnwrap(model.accounts.first { $0.app == .api })
-        XCTAssertFalse(model.dataMissing(api))
-        XCTAssertTrue(model.rows(for: api).isEmpty)
-        model.refreshQuota(api)
-        XCTAssertNil(model.quotas[api.id])
-        XCTAssertFalse(model.refreshingQuotas.contains(api.id))
-        model.apiModels[api.id] = ["example-model", "another-model"]
-        model.apiChecks[api.id] = "Synthetic prior check"
-        var edited = configuration
-        edited.model = "another-model"
-        XCTAssertTrue(model.saveAPIProvider(existing: api, name: "Renamed API", configuration: edited, key: nil, removeKey: false))
-        XCTAssertNil(model.apiModels[api.id], "Saving changed metadata invalidates the prior connection result")
-        XCTAssertNil(model.apiChecks[api.id])
-
-        let persistedBeforeFailure = try Data(contentsOf: store.fileURL)
-        let invalidWebsite = LocalProviderConfiguration(kind: .website, target: "file:///tmp/provider-test")
-        XCTAssertFalse(model.saveLocalProvider(existing: local, name: "Invalid change", profilePath: "", configuration: invalidWebsite))
-        XCTAssertEqual(try Data(contentsOf: store.fileURL), persistedBeforeFailure)
+        // The Antigravity CLI is never queried in the background; a manual refresh runs it once.
+        let agyData = root.appendingPathComponent("antigravity-cli")
+        try FileManager.default.createDirectory(at: agyData, withIntermediateDirectories: true)
+        XCTAssertTrue(model.importLocal(LocalProviderCandidate(name: "Antigravity CLI", app: .antigravity, profilePath: agyData.path,
+                                                               configuration: .init(kind: .terminal, target: "/usr/bin/true"))))
+        let antigravity = try XCTUnwrap(model.accounts.first { $0.app == .antigravity })
+        model.refreshQuotas()
+        XCTAssertFalse(model.refreshingQuotas.contains(antigravity.id))
+        XCTAssertNil(model.providerUsageErrors[antigravity.id])
+        model.refreshQuota(antigravity)
+        XCTAssertTrue(model.refreshingQuotas.contains(antigravity.id))
+        let answered = expectation(for: NSPredicate { _, _ in model.providerUsageErrors[antigravity.id] != nil }, evaluatedWith: nil)
+        wait(for: [answered], timeout: 5)
+        XCTAssertTrue(model.providerUsageErrors[antigravity.id]?.contains("默认登录目录") == true)
 
         let reloaded = makeStore(root)
         try reloaded.load()
         XCTAssertEqual(reloaded.accounts.count, 4)
         XCTAssertEqual(reloaded.accounts.first { $0.id == codex.id }, codex)
         XCTAssertEqual(reloaded.accounts.first { $0.id == claude.id }, claude)
-        XCTAssertEqual(reloaded.accounts.first { $0.id == local.id }?.localProvider, website)
-        XCTAssertEqual(reloaded.accounts.first { $0.id == api.id }?.apiProvider, edited)
-        XCTAssertEqual(reloaded.accounts.first { $0.id == api.id }?.name, "Renamed API")
-        XCTAssertTrue(codex.app.hasQuota)
-        XCTAssertTrue(claude.app.hasQuota)
-        XCTAssertFalse(local.app.hasQuota)
-        XCTAssertFalse(api.app.hasQuota)
-        XCTAssertEqual(model.accounts.first { $0.id == codex.id }, codex)
-        XCTAssertEqual(model.accounts.first { $0.id == claude.id }, claude)
+        XCTAssertEqual(reloaded.accounts.first { $0.id == gemini.id }?.localProvider, gemini.localProvider)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: reloaded.removedAccountsURL.path))
+    }
+
+    func testRescanOffersMovedLaunchLocationAndUpdatesTheAccountInPlace() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("perch-provider-move-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fm = FileManager.default
+        let data = root.appendingPathComponent(".gemini/antigravity-cli")
+        let bin = root.appendingPathComponent(".local/bin")
+        try fm.createDirectory(at: data, withIntermediateDirectories: true)
+        try fm.createDirectory(at: bin, withIntermediateDirectories: true)
+        func executable(_ url: URL) throws {
+            try Data("#!/bin/sh\nexit 0\n".utf8).write(to: url)
+            try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
+        }
+        let oldTarget = root.appendingPathComponent("old/agy")
+        try fm.createDirectory(at: oldTarget.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try executable(oldTarget)
+        let store = makeStore(root)
+        try store.load()
+        let model = makeModel(store)
+        XCTAssertTrue(model.importLocal(LocalProviderCandidate(name: "Antigravity CLI", app: .antigravity, profilePath: data.path,
+                                                               configuration: .init(kind: .terminal, target: oldTarget.path))))
+        let account = try XCTUnwrap(model.accounts.first)
+
+        // The client moves: the old path is gone and agy now lives in ~/.local/bin.
+        try fm.removeItem(at: oldTarget)
+        try executable(bin.appendingPathComponent("agy"))
+        model.scanLocalProviders()
+        XCTAssertFalse(model.localCandidates.contains { $0.app == .antigravity }, "the same data directory is not offered twice")
+        let update = try XCTUnwrap(model.localLaunchUpdates.first)
+        XCTAssertEqual(update.account.id, account.id)
+        XCTAssertEqual(update.configuration.target, bin.appendingPathComponent("agy").path)
+
+        XCTAssertTrue(model.updateLocalLaunch(update))
+        XCTAssertEqual(model.accounts.map(\.id), [account.id])
+        XCTAssertEqual(model.accounts.first?.localProvider?.target, bin.appendingPathComponent("agy").path)
+        XCTAssertTrue(model.localLaunchUpdates.isEmpty)
+        let reloaded = makeStore(root)
+        try reloaded.load()
+        XCTAssertEqual(reloaded.accounts.first?.localProvider?.target, bin.appendingPathComponent("agy").path)
     }
 
     @MainActor
@@ -72,20 +99,12 @@ final class ProviderIntegrationTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
         let store = makeStore(root)
         try store.load()
-        let local = try store.saveProvider(Account(id: "preview-local", name: "示例本机 CLI", app: .custom,
-                                                   profilePath: "", sessionRoot: "", createdAt: Date(), lastLaunchedAt: nil,
-                                                   localProvider: .init(kind: .terminal, target: "/usr/bin/true", arguments: ["--example"], workingDirectory: root.path)))
-        let api = try store.saveProvider(Account(id: "preview-api", name: "示例 API 账号", app: .api,
-                                                 profilePath: "", sessionRoot: "", createdAt: Date(), lastLaunchedAt: nil,
-                                                 apiProvider: .init(displayName: "示例供应商", baseURL: "https://api.example.com/v1", model: "example-model")))
+        let local = try store.importLocal(LocalProviderCandidate(name: "示例 Gemini CLI", app: .gemini, profilePath: root.path,
+            configuration: .init(kind: .terminal, target: "/usr/bin/true", arguments: ["--example"], workingDirectory: root.path)))
         let model = makeModel(store)
-        model.apiModels[api.id] = ["example-model", "example-model-large"]
-        model.apiChecks[api.id] = "示例状态：已获取 2 个模型；尚未验证推理或额度"
         let directory = URL(fileURLWithPath: output)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         _ = NSApplication.shared
-        try render(APIProviderEditorView(perch: model, account: api) {}, to: directory.appendingPathComponent("api-editor.png"))
-        try render(LocalProviderEditorView(perch: model, account: local) {}, to: directory.appendingPathComponent("local-editor.png"))
         try render(NewAccountView(perch: model) {}, to: directory.appendingPathComponent("new-account.png"))
         let usageAccount = Account(id: "preview-usage", name: "示例 Antigravity", app: .antigravity,
                                    profilePath: "", sessionRoot: "", createdAt: Date(), lastLaunchedAt: nil,
@@ -102,10 +121,8 @@ final class ProviderIntegrationTests: XCTestCase {
                 .init(label: "充值余额", value: "CNY 20.12345678"),
                 .init(label: "赠送余额", value: "CNY 1.25")
             ], summary: "DeepSeek 账户余额", authenticationVerified: true), error: nil, refreshing: false)
-            ProviderUsageView(usage: nil, error: "Gemini CLI 个人账号服务已迁移至 Antigravity；请使用 Antigravity 查询额度和运行模型", refreshing: false)
         }, to: directory.appendingPathComponent("provider-usage.png"))
         try render(VStack(spacing: 8) {
-            AccountCard(perch: model, account: api)
             AccountCard(perch: model, account: local)
         }, to: directory.appendingPathComponent("provider-cards.png"))
     }
