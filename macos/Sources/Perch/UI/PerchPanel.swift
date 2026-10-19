@@ -109,7 +109,6 @@ struct PerchPanel: View {
     private var cards: some View {
         VStack(spacing: 8) {
             HandoffPreparationView(perch: perch)
-            ForEach(perch.discovered, id: \.self) { app in DiscoveredRow(perch: perch, app: app) }
             if perch.accounts.isEmpty {
                 Text("还没有账号。点下面的“新建账号”添加一个。").font(.system(size: 11)).foregroundStyle(.secondary)
             }
@@ -198,38 +197,5 @@ struct DragChip: View {
             .padding(.horizontal, 10).padding(.vertical, 5)
             .background(.regularMaterial, in: Capsule())
             .foregroundStyle(.primary)
-    }
-}
-
-/// Offers a client that was opened from the Dock (its default data exists) but has no account yet.
-struct DiscoveredRow: View {
-    @ObservedObject var perch: PerchModel
-    let app: AppKind
-
-    var body: some View {
-        HStack(spacing: 8) {
-            if let icon = perch.icon(for: app) { Image(nsImage: icon).resizable().frame(width: 18, height: 18) }
-            let existing = perch.accounts.filter { $0.app == app }
-            Text(existing.isEmpty ? "发现直接打开的 \(app.displayName)" : "发现直接打开的 \(app.displayName)，它是哪个账号？")
-                .font(.system(size: 11)).fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 4)
-            if existing.isEmpty {
-                Button("添加为账号") { perch.addDiscovered(app) }.controlSize(.small)
-            } else {
-                // Usually it is an account the user already has, so offer those first; a new account comes last.
-                Menu("选择账号") {
-                    ForEach(existing) { account in
-                        Button(account.name) { perch.useDefaultData(account) }
-                    }
-                    Divider()
-                    Button("新账号…") { perch.addDiscovered(app) }
-                }
-                .menuStyle(.borderedButton).controlSize(.small).fixedSize()
-            }
-            Button { perch.dismissDiscovered(app) } label: { Image(systemName: "xmark") }
-                .buttonStyle(.plain).foregroundStyle(.tertiary).help("不再提示")
-        }
-        .padding(8)
-        .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
     }
 }

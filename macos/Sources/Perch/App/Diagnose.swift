@@ -35,7 +35,7 @@ enum Diagnose {
                 case .success(let value): line += " quotaLive=\(summary(value))"
                 case .failure(let failure): line += " quotaLive=失败(\(failure.reason))"
                 }
-            } else {
+            } else if account.app == .claude {
                 let sessions = ClaudeDesktopSessionReader(profileRoot: URL(fileURLWithPath: account.profilePath)).recent(appRunning: running)
                 let states = Dictionary(grouping: sessions, by: { $0.status.rawValue }).mapValues(\.count)
                 line += " sessions=\(sessions.count) states=\(states)"
@@ -47,6 +47,10 @@ enum Diagnose {
                 case .failure(let failure): line += " quotaLive=失败(\(failure.reason))"
                 }
             }
+            if account.localProvider != nil {
+                line += " localSessions=\(LocalProviderSessions.recent(account).count) quota=unsupported"
+            }
+            if account.apiProvider != nil { line += " apiConfigured=true quota=unsupported" }
             print(HandoffDocument.redactingEmails(line))
         }
         let media = MediaMonitor()

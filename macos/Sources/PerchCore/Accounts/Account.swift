@@ -1,8 +1,21 @@
 import Foundation
 
 public enum AppKind: String, Codable, CaseIterable {
-    case codex, claude
-    public var displayName: String { self == .codex ? "Codex" : "Claude" }
+    case codex, claude, gemini, geminiApp, antigravity, deepseek, custom, api
+    public static let desktopClients: [AppKind] = [.codex, .claude]
+    public var hasQuota: Bool { Self.desktopClients.contains(self) }
+    public var displayName: String {
+        switch self {
+        case .codex: return "Codex"
+        case .claude: return "Claude"
+        case .gemini: return "Gemini CLI"
+        case .geminiApp: return "Gemini"
+        case .antigravity: return "Antigravity"
+        case .deepseek: return "DeepSeek Harness"
+        case .custom: return "自定义客户端"
+        case .api: return "API 供应商"
+        }
+    }
 
     /// Where the client keeps its data when opened normally (Dock, Finder), without `--user-data-dir`.
     public func defaultProfilePath(home: String = NSHomeDirectory()) -> String {
@@ -30,18 +43,22 @@ public struct Account: Codable, Identifiable, Equatable {
     public var profilePath: String
     /// CODEX_HOME for Codex; equal to profilePath for Claude.
     public var sessionRoot: String
+    public var localProvider: LocalProviderConfiguration?
+    public var apiProvider: APIProviderConfiguration?
     public var createdAt: Date
     public var lastLaunchedAt: Date?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, app = "appId", profilePath, sessionRoot, createdAt, lastLaunchedAt
+        case id, name, app = "appId", profilePath, sessionRoot, createdAt, lastLaunchedAt, localProvider, apiProvider
     }
 
     public init(id: String, name: String, app: AppKind, profilePath: String,
-                sessionRoot: String, createdAt: Date, lastLaunchedAt: Date?) {
+                sessionRoot: String, createdAt: Date, lastLaunchedAt: Date?,
+                localProvider: LocalProviderConfiguration? = nil, apiProvider: APIProviderConfiguration? = nil) {
         self.id = id; self.name = name; self.app = app
         self.profilePath = profilePath; self.sessionRoot = sessionRoot
         self.createdAt = createdAt; self.lastLaunchedAt = lastLaunchedAt
+        self.localProvider = localProvider; self.apiProvider = apiProvider
     }
 }
 

@@ -6,22 +6,129 @@ struct NewAccountView: View {
     let close: () -> Void
     @State private var name = ""
     @State private var app: AppKind = .codex
+    @State private var hasScanned = false
+    @State private var search = ""
+
+    private var localCandidates: [LocalProviderCandidate] {
+        perch.localCandidates.filter { matchesSearch($0.name) || matchesSearch($0.app.displayName) }
+    }
+
+    private var desktopCandidates: [AppKind] {
+        perch.discovered.filter { matchesSearch($0.displayName) }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Picker("客户端", selection: $app) {
+            Button("自动获取可用供应商") {
+                perch.scanLocalProviders()
+                perch.refreshDiscovered()
+                hasScanned = true
+            }
+            if hasScanned { scanResults }
+
+            Divider()
+            Text("手动添加").font(.system(size: 12, weight: .semibold))
+            Picker("类型", selection: $app) {
                 ForEach(AppKind.allCases, id: \.self) { Text($0.displayName).tag($0) }
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.menu)
+
+            switch app {
+            case .codex, .claude:
+                desktopAccount
+            case .gemini, .geminiApp, .antigravity, .deepseek:
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("点击上方“自动获取可用供应商”查找本机已有的 \(app.displayName)，或手动填写启动入口。")
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("手动添加启动入口…") { app = .custom }
+                    Button("取消", action: close)
+                }
+            case .custom:
+                LocalProviderEditorView(perch: perch, close: close)
+            case .api:
+                APIProviderEditorView(perch: perch, close: close)
+            }
+        }
+    }
+
+    private var scanResults: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("选择要添加的本机供应商")
+                .font(.system(size: 12, weight: .medium))
+            TextField("搜索供应商名称", text: $search).textFieldStyle(.roundedBorder)
+            if localCandidates.isEmpty && desktopCandidates.isEmpty {
+                Text(search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                     ? "没有发现新的可用入口。已添加的供应商可在账号列表中查看。"
+                     : "没有匹配的供应商。")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(desktopCandidates, id: \.self) { candidate in
+                desktopCandidate(candidate)
+            }
+            ForEach(localCandidates) { candidate in
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(candidate.name).font(.system(size: 12, weight: .medium))
+                    Text(candidate.configuration.target)
+                        .font(.system(size: 10)).foregroundStyle(.secondary)
+                        .lineLimit(2).truncationMode(.middle).help(candidate.configuration.target)
+                    if !candidate.profilePath.isEmpty {
+                        Text(candidate.profilePath)
+                            .font(.system(size: 10)).foregroundStyle(.secondary)
+                            .lineLimit(2).truncationMode(.middle).help(candidate.profilePath)
+                    }
+                    Button("添加到 Perch") { _ = perch.importLocal(candidate) }
+                        .controlSize(.small)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
+                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+            }
+        }
+    }
+
+    private func desktopCandidate(_ candidate: AppKind) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(candidate.displayName).font(.system(size: 12, weight: .medium))
+            Text("直接打开客户端时使用的本机数据")
+                .font(.system(size: 10)).foregroundStyle(.secondary)
+            HStack {
+                Button("添加到 Perch") { perch.addDiscovered(candidate) }
+                let existing = perch.accounts.filter { $0.app == candidate }
+                if !existing.isEmpty {
+                    Menu("关联已有账号") {
+                        ForEach(existing) { account in
+                            Button(account.name) { perch.useDefaultData(account) }
+                        }
+                    }
+                    .menuStyle(.borderedButton)
+                }
+            }
+            .controlSize(.small)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var desktopAccount: some View {
+        VStack(alignment: .leading, spacing: 12) {
             TextField("名称，例如 Omnix", text: $name).textFieldStyle(.roundedBorder)
-            Text("创建后会立刻启动一次客户端，请在里面登录。").font(.system(size: 11)).foregroundStyle(.secondary)
+            Text("创建后会立刻启动一次客户端，请在里面登录。")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
             HStack {
                 Button("取消", action: close)
                 Spacer()
                 Button("创建并启动") { if perch.create(name: name, app: app) { close() } }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
+    }
+
+    private func matchesSearch(_ value: String) -> Bool {
+        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        return query.isEmpty || value.localizedCaseInsensitiveContains(query)
     }
 }

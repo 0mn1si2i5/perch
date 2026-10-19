@@ -18,7 +18,13 @@ extension Launcher {
 
 /// Accounts, per-account Codex tasks, Claude sessions and the actions the panel offers.
 final class PerchModel: ObservableObject {
-    @Published private(set) var accounts: [Account] = []
+    @Published var accounts: [Account] = []
+    @Published var localCandidates: [LocalProviderCandidate] = []
+    @Published var apiModels: [String: [String]] = [:]
+    @Published var apiChecks: [String: String] = [:]
+    @Published var checkingAPI: Set<String> = []
+    @Published var localSessions: [String: [LocalProviderSession]] = [:]
+    var apiCheckTokens: [String: UUID] = [:]
     @Published private(set) var snapshots: [String: CodexSnapshot] = [:]
     @Published private(set) var claudeSessions: [String: [ClaudeSession]] = [:]
     @Published private(set) var runningIDs: Set<String> = []
@@ -41,7 +47,9 @@ final class PerchModel: ObservableObject {
     @Published private(set) var discovered: [AppKind] = []
     /// Current quota snapshots for both clients.
     @Published private(set) var quotas: [String: QuotaDisplay] = [:]
-    @Published private(set) var refreshingQuotas: Set<String> = []
+    @Published var refreshingQuotas: Set<String> = []
+    @Published var providerUsage: [String: ProviderUsage] = [:]
+    @Published var providerUsageErrors: [String: String] = [:]
     @Published var automaticallySyncQuota = UserDefaults.standard.object(forKey: "automaticallySyncQuota") as? Bool ?? true {
         didSet { UserDefaults.standard.set(automaticallySyncQuota, forKey: "automaticallySyncQuota") }
     }
@@ -58,7 +66,7 @@ final class PerchModel: ObservableObject {
     /// All Codex tasks across accounts, plus at most one task whose completion was observed this poll.
     var onTasks: (([CodexTask], CodexTask?) -> Void)?
 
-    private let store: AccountStore
+    let store: AccountStore
     private let launcher: Launcher
     private var claudeReaders: [String: ClaudeDesktopSessionReader] = [:]
     private var claudeCodeReaders: [String: ClaudeSessionReader] = [:]
@@ -137,12 +145,12 @@ final class PerchModel: ObservableObject {
         do { try store.load() } catch { message = "账号列表读取失败：\(error.localizedDescription)" }
         accounts = store.accounts
         skippedImports = store.skippedImports
-        refreshDiscovered()
     }
 
-    private func refreshDiscovered() {
-        let dismissed = Set(UserDefaults.standard.stringArray(forKey: "dismissedDefaults") ?? [])
-        discovered = store.unclaimedDefaults().filter { !dismissed.contains($0.rawValue) }
+    func refreshDiscovered() {
+        // Discovery is now explicitly requested in New Account; previous banner dismissals
+        // must not hide candidates from a user-initiated search.
+        discovered = store.unclaimedDefaults()
     }
 
     func dismissDiscovered(_ app: AppKind) {
@@ -212,7 +220,14 @@ final class PerchModel: ObservableObject {
     }
 
     func refreshQuota(_ account: Account, manual: Bool = true) {
-        guard !dataMissing(account), !refreshingQuotas.contains(account.id) else { return }
+        if supportsProviderUsage(account) {
+            guard !dataMissing(account), !refreshingQuotas.contains(account.id) else { return }
+            if manual { quotaThrottle.reset(account.id) }
+            guard quotaThrottle.allow(account.id, now: Date()) else { return }
+            refreshProviderUsage(account)
+            return
+        }
+        guard account.app.hasQuota, !dataMissing(account), !refreshingQuotas.contains(account.id) else { return }
         let now = Date()
         if let retry = quotaRetryAfter[account.id], retry > now {
             if manual { message = "Claude 正在限制查询，请在 \(QuotaFormat.resetTimestamp(retry)) 后重试。" }
@@ -277,7 +292,10 @@ final class PerchModel: ObservableObject {
         let claude = accounts.filter { $0.app == .claude }.map { ($0.id, claudeReader(for: $0), claudeCodeReader(for: $0)) }
         worker.async { [weak self] in
             let processes = ProcessMatcher.snapshot() ?? []
-            let running = Set(accounts.filter { ProcessMatcher.owner(of: $0.profilePath, in: processes) != nil }.map(\.id))
+            let running = Set(accounts.filter {
+                $0.localProvider != nil ? LocalProviderLauncher.isRunning($0, processes: processes)
+                    : ($0.app.hasQuota && ProcessMatcher.owner(of: $0.profilePath, in: processes) != nil)
+            }.map(\.id))
             var snapshots: [String: CodexSnapshot] = [:]
             for (id, reader) in codex { snapshots[id] = reader.read(appRunning: running.contains(id)) }
             var sessions: [String: [ClaudeSession]] = [:]
@@ -287,7 +305,13 @@ final class PerchModel: ObservableObject {
                 let code = (codeReader?.recent() ?? []).filter { !desktopIDs.contains($0.id) }
                 sessions[id] = Array((desktop + code).sorted { $0.updatedAt > $1.updatedAt }.prefix(30))
             }
-            DispatchQueue.main.async { self?.apply(snapshots: snapshots, running: running, sessions: sessions, readAccounts: accounts) }
+            let local = Dictionary(uniqueKeysWithValues: accounts.filter { $0.localProvider != nil }.map { ($0.id, LocalProviderSessions.recent($0)) })
+            DispatchQueue.main.async {
+                if let self {
+                    let valid = local.filter { key, _ in accounts.first { $0.id == key } == self.accounts.first { $0.id == key } }
+                    if self.localSessions != valid { self.localSessions = valid }
+                }
+                self?.apply(snapshots: snapshots, running: running, sessions: sessions, readAccounts: accounts) }
         }
     }
 
@@ -391,6 +415,10 @@ final class PerchModel: ObservableObject {
     func open(_ row: SessionRow, in account: Account, then completion: ((LaunchOutcome) -> Void)? = nil) {
         launch(account) { outcome in
             defer { completion?(outcome) }
+            if case .local = row.kind {
+                if case .failed = outcome {} else { self.message = "已打开客户端，请在客户端选择会话。" }
+                return
+            }
             guard case .activated = outcome else { return }
             switch row.kind {
             case .codex(let task):
@@ -404,6 +432,8 @@ final class PerchModel: ObservableObject {
                     }
                 }
                 return
+            case .local:
+                self.message = "已打开客户端，请在客户端选择会话。"
             case .claude:
                 self.message = row.isClaudeCode
                     ? "已调出 Claude；这是本机 Code 历史，目前不支持可靠直达桌面会话。"
@@ -480,7 +510,7 @@ final class PerchModel: ObservableObject {
         let alert = NSAlert()
         alert.messageText = "删除账号“\(account.name)”？"
         let box = NSButton(checkboxWithTitle: "同时把数据目录移到废纸篓", target: nil, action: nil)
-        if store.isDefaultData(account) {
+        if store.isDefaultData(account) || account.localProvider != nil || account.apiProvider != nil {
             // The Dock instance's data is never offered for the Trash.
             alert.informativeText = "只删除 Perch 里的账号。直接打开 \(account.app.displayName) 时使用的数据不受影响。"
         } else {
@@ -492,7 +522,21 @@ final class PerchModel: ObservableObject {
         NSApp.activate()
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         do {
-            try store.delete(id: account.id, moveDataToTrash: box.state == .on)
+            if account.apiProvider != nil {
+                let credentials = ProviderCredentialStore()
+                let previousKey = try credentials.read(for: account.id)
+                try credentials.delete(for: account.id)
+                do { try store.delete(id: account.id, moveDataToTrash: false) }
+                catch {
+                    if let previousKey {
+                        do { try credentials.set(previousKey, for: account.id) }
+                        catch { message = "删除未完成，密钥恢复失败；请重新配置密钥。"; return }
+                    }
+                    throw error
+                }
+            } else { try store.delete(id: account.id, moveDataToTrash: box.state == .on) }
+            apiModels[account.id] = nil
+            apiChecks[account.id] = nil
         } catch {
             message = "删除失败：\(error.localizedDescription)"
         }
@@ -554,8 +598,36 @@ final class PerchModel: ObservableObject {
     /// The installed client's own icon, as shown in Finder.
     func icon(for app: AppKind) -> NSImage? {
         if let cached = appIcons[app] { return cached }
-        guard let url = AppLocator.locate(app) else { return nil }
-        let image = NSWorkspace.shared.icon(forFile: url.path)
+        let names: [String]
+        switch app {
+        case .gemini, .geminiApp: names = ["Gemini.app"]
+        case .antigravity: names = ["Antigravity.app"]
+        case .deepseek: names = ["DSH Desktop.app"]
+        default: names = []
+        }
+        let installed = AppLocator.locate(app) ?? AppLocator.searchRoots().flatMap { root in
+            names.map { root.appendingPathComponent($0) }
+        }.first { FileManager.default.fileExists(atPath: $0.path) }
+        let image: NSImage
+        if let installed {
+            image = NSWorkspace.shared.icon(forFile: installed.path)
+        } else if app == .antigravity,
+                  let url = Bundle.main.url(forResource: "antigravity", withExtension: "png", subdirectory: "providers"),
+                  let logo = NSImage(contentsOf: url) {
+            image = logo
+        } else {
+            let symbol: String
+            switch app {
+            case .gemini, .geminiApp: symbol = "sparkles"
+            case .antigravity: symbol = "a.circle.fill"
+            case .deepseek: symbol = "d.circle.fill"
+            case .api: symbol = "network"
+            case .custom: symbol = "app.connected.to.app.below.fill"
+            default: symbol = "app"
+            }
+            guard let fallback = NSImage(systemSymbolName: symbol, accessibilityDescription: app.displayName) else { return nil }
+            image = fallback
+        }
         appIcons[app] = image
         return image
     }
@@ -567,7 +639,7 @@ final class PerchModel: ObservableObject {
     }
 
     func dataMissing(_ account: Account) -> Bool {
-        !FileManager.default.fileExists(atPath: account.profilePath)
+        account.apiProvider == nil && !account.profilePath.isEmpty && !FileManager.default.fileExists(atPath: account.profilePath)
     }
 
     func rows(for account: Account) -> [SessionRow] {
@@ -575,6 +647,7 @@ final class PerchModel: ObservableObject {
         switch account.app {
         case .codex: rows = (snapshots[account.id]?.tasks ?? []).map { SessionRow(kind: .codex($0)) }
         case .claude: rows = (claudeSessions[account.id] ?? []).map { SessionRow(kind: .claude($0)) }
+        default: rows = (localSessions[account.id] ?? []).map { SessionRow(kind: .local($0)) }
         }
         return sessionOrder.ordered(rows, accountID: account.id, id: { $0.id })
     }
@@ -586,6 +659,10 @@ final class PerchModel: ObservableObject {
             return snapshot.available ? "还没有对话" : snapshot.detail
         case .claude:
             return claudeSessions[account.id] == nil ? "正在读取…" : "还没有本地会话"
+        case .api: return "可检查模型列表；额度请在供应商控制台查看"
+        case .gemini, .antigravity, .deepseek: return "还没有本地会话"
+        case .geminiApp: return "Gemini 内的 Antigravity；与 CLI 分别保留启动入口"
+        case .custom: return "自定义启动入口；登录与额度请在客户端查看"
         }
     }
 

@@ -4,6 +4,7 @@ import PerchCore
 struct AccountCard: View {
     @ObservedObject var perch: PerchModel
     let account: Account
+    @State private var editing = false
     @State private var expanded = false
     @State private var targeted = false
 
@@ -20,8 +21,11 @@ struct AccountCard: View {
                 Spacer(minLength: 4)
                 if !missing, let quota = perch.quotas[account.id] {
                     QuotaFreshnessView(quota: quota)
+                } else if !missing, perch.supportsProviderUsage(account) {
+                    QuotaFreshnessView(quota: ProviderUsagePresentation.display(
+                        usage: perch.providerUsage[account.id], error: perch.providerUsageErrors[account.id]))
                 }
-                if !missing {
+                if !missing, account.app.hasQuota || perch.supportsProviderUsage(account) {
                     Button { perch.refreshQuota(account) } label: {
                         Image(systemName: "arrow.clockwise")
                             .opacity(perch.refreshingQuotas.contains(account.id) ? 0.4 : 1)
@@ -32,17 +36,38 @@ struct AccountCard: View {
                     .accessibilityLabel("同步 \(account.name) 的额度")
                 }
                 if missing {
-                    Button("重新定位") { perch.relocate(account) }.controlSize(.small)
+                    Button("配置") { if account.localProvider != nil { editing = true } else { perch.relocate(account) } }.controlSize(.small)
                 } else {
-                    Button(running ? "前台" : "启动") { perch.launch(account) }.controlSize(.small)
+                    Button(launchLabel(running: running)) { perch.launch(account) }.controlSize(.small)
+                        .disabled(account.apiProvider?.dashboardURL.isEmpty == true)
                 }
+            }
+            if let api = account.apiProvider {
+                Text(api.displayName + " · " + api.protocolKind.displayName).font(.system(size: 10)).foregroundStyle(.secondary)
+                if !api.model.isEmpty { Text(api.model).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1) }
+                HStack {
+                    Button(perch.checkingAPI.contains(account.id) ? "检查中…" : "检查连接") { perch.checkAPI(account) }
+                        .disabled(perch.checkingAPI.contains(account.id))
+                    Button("配置…") { editing = true }
+                }.controlSize(.small)
+                if let status = perch.apiChecks[account.id] {
+                    Text(status).font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            if perch.localWebURL(account) != nil {
+                Button("打开本机网页") { perch.openLocalWeb(account) }.controlSize(.small)
+                Text("先启动服务，再打开网页。登录在客户端完成。").font(.system(size: 10)).foregroundStyle(.secondary)
             }
             if !missing, let quota = perch.quotas[account.id] {
                 QuotaRowView(quota: quota)
             }
+            if !missing, perch.supportsProviderUsage(account) {
+                ProviderUsageView(usage: perch.providerUsage[account.id], error: perch.providerUsageErrors[account.id],
+                                  refreshing: perch.refreshingQuotas.contains(account.id))
+            }
             if missing {
                 Text("数据目录不存在").font(.system(size: 11)).foregroundStyle(.orange)
-            } else if rows.isEmpty {
+            } else if rows.isEmpty, account.app != .geminiApp {
                 Text(perch.emptyText(for: account)).font(.system(size: 11)).foregroundStyle(.secondary)
             }
             let active = rows.filter(\.isActive)
@@ -74,10 +99,27 @@ struct AccountCard: View {
         } isTargeted: { targeted = $0 }
         .contextMenu {
             Button("改名…") { perch.rename(account) }
-            if !perch.isDefaultData(account) {
+            if account.localProvider != nil || account.apiProvider != nil {
+                Button("供应商配置…") { editing = true }
+            }
+            if account.apiProvider != nil { Button("复制连接配置") { perch.copyAPIConfiguration(account) } }
+            if account.app.hasQuota, !perch.isDefaultData(account) {
                 Button("改用直接打开的 \(account.app.displayName)…") { perch.useDefaultData(account) }
             }
             Button("删除…") { perch.delete(account) }
         }
+        .sheet(isPresented: $editing) {
+            ScrollView { ProviderEditorView(perch: perch, account: account) { editing = false }.padding(20) }
+                .frame(width: 360, height: 550)
+                .safeAreaInset(edge: .bottom) {
+                    if let message = perch.message { Text(message).font(.system(size: 11)).foregroundStyle(.orange).padding(10) }
+                }
+        }
+    }
+    private func launchLabel(running: Bool) -> String {
+        if account.apiProvider != nil { return "控制台" }
+        if account.app == .deepseek, account.localProvider?.kind == .terminal { return running ? "终端" : "启动服务" }
+        if account.localProvider?.kind == .terminal { return running ? "终端" : "启动" }
+        return running ? "前台" : "启动"
     }
 }

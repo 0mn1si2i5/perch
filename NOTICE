@@ -10,3 +10,7 @@ The MIT License in LICENSE covers the Perch source code. The following are not c
 - Codex, ChatGPT and Claude names and client icons
   (windows/src/Perch.App/Resources/ClientIcons/) belong to their owners and
   are used only to identify the corresponding desktop clients.
+- The Antigravity identification icon (shared/assets/providers/antigravity.png)
+  belongs to Google. Source: https://www.antigravity.google/assets/image/antigravity-logo.png
+  It is used only to identify the corresponding provider; no endorsement is implied.
+  Gemini and DeepSeek icons are read from installed application bundles at runtime.

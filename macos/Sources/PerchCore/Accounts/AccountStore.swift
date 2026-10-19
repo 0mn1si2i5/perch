@@ -57,6 +57,7 @@ public final class AccountStore {
     }
 
     public func create(name: String, app: AppKind, now: Date = Date()) throws -> Account {
+        guard AppKind.desktopClients.contains(app) else { throw ProviderError.invalid("请使用供应商配置添加这个客户端") }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw AccountError.emptyName }
         let id = UUID().uuidString.lowercased()
@@ -114,10 +115,43 @@ public final class AccountStore {
 
     /// Clients that have been used normally (their default data exists) but no account points at that data.
     public func unclaimedDefaults() -> [AppKind] {
-        AppKind.allCases.filter { app in
+        AppKind.desktopClients.filter { app in
             let path = app.defaultProfilePath(home: home)
             return FileManager.default.fileExists(atPath: path) && !accounts.contains { $0.profilePath == path }
         }
+    }
+
+    /// New provider accounts reference existing data. They never create, move or delete client data.
+    @discardableResult
+    public func saveProvider(_ account: Account) throws -> Account {
+        guard loaded else { throw AccountError.notLoaded }
+        guard !account.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw AccountError.emptyName }
+        if let local = account.localProvider {
+            guard account.apiProvider == nil, !AppKind.desktopClients.contains(account.app), account.app != .api else {
+                throw ProviderError.invalid("客户端配置与账号类型不一致")
+            }
+            try local.validate()
+        } else if let api = account.apiProvider {
+            guard account.app == .api else { throw ProviderError.invalid("API 配置与账号类型不一致") }
+            try api.validate()
+        } else { throw ProviderError.invalid("缺少供应商配置") }
+        if account.localProvider != nil, accounts.contains(where: {
+            $0.id != account.id && $0.app == account.app && $0.profilePath == account.profilePath
+                && $0.localProvider == account.localProvider
+        }) { throw AccountError.alreadyAdded }
+        let previous = accounts
+        if let index = accounts.firstIndex(where: { $0.id == account.id }) { accounts[index] = account }
+        else { accounts.append(account) }
+        do { try save() } catch { accounts = previous; throw error }
+        return account
+    }
+
+    @discardableResult
+    public func importLocal(_ candidate: LocalProviderCandidate) throws -> Account {
+        guard !accounts.contains(where: { $0.app == candidate.app && $0.profilePath == candidate.profilePath }) else { throw AccountError.alreadyAdded }
+        return try saveProvider(Account(id: UUID().uuidString.lowercased(), name: candidate.name, app: candidate.app,
+                                 profilePath: candidate.profilePath, sessionRoot: candidate.profilePath,
+                                 createdAt: Date(), lastLaunchedAt: nil, localProvider: candidate.configuration))
     }
 
     public func markLaunched(id: String, at date: Date) throws {
@@ -128,9 +162,9 @@ public final class AccountStore {
     public func delete(id: String, moveDataToTrash: Bool) throws {
         guard let index = accounts.firstIndex(where: { $0.id == id }) else { throw AccountError.notFound }
         let account = accounts.remove(at: index)
-        try save()
+        do { try save() } catch { accounts.insert(account, at: index); throw error }
         // The client's own default data is what the Dock instance uses; deleting the account only forgets it.
-        if moveDataToTrash, !isDefaultData(account), FileManager.default.fileExists(atPath: account.profilePath) {
+        if moveDataToTrash, account.localProvider == nil, account.apiProvider == nil, !isDefaultData(account), FileManager.default.fileExists(atPath: account.profilePath) {
             try FileManager.default.trashItem(at: URL(fileURLWithPath: account.profilePath), resultingItemURL: nil)
         }
     }
@@ -199,7 +233,7 @@ public final class AccountStore {
         for profile in profiles {
             let name = profile["name"] as? String ?? "未命名"
             let raw = profile["appId"] as? String ?? "?"
-            guard let app = AppKind(rawValue: raw),
+            guard let app = AppKind(rawValue: raw), AppKind.desktopClients.contains(app),
                   let id = profile["id"] as? String,
                   let profilePath = profile["profilePath"] as? String,
                   let sessionRoot = profile["sessionRoot"] as? String else {

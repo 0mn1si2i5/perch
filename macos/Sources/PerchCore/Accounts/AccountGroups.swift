@@ -26,7 +26,7 @@ public enum AccountGroups {
 
     private static func complete(_ order: [AppKind], seen: [AppKind]) -> [AppKind] {
         var apps: [AppKind] = []
-        for app in order + seen + AppKind.allCases where !apps.contains(app) { apps.append(app) }
+        for app in order + seen + AppKind.desktopClients where !apps.contains(app) { apps.append(app) }
         return apps
     }
 }
