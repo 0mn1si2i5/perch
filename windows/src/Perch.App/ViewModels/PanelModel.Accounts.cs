@@ -134,6 +134,6 @@ public sealed partial class PanelModel
         Store.Add(new Account { App = client.App, Name = Label(client.App) + " 默认账号", ProfilePath = client.DefaultProfile, SessionRoot = client.DefaultSessions, Default = true });
         MergeAccounts();
         if (AutoQuota)
-            Run(RefreshAll);
+            _ = Background(RefreshAll);
     }
 }

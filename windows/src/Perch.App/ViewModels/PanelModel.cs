@@ -32,10 +32,9 @@ public sealed partial class PanelModel : Observable, IDisposable
     {
         get;
     }
-    public bool Interacting
-    {
-        get; private set;
-    }
+    // Counts user-started operations (dialogs, launches) that keep the panel open; background refreshes do not count.
+    private int interacting;
+    public bool Interacting => interacting > 0;
     public bool Sorting
     {
         get; set;
@@ -225,7 +224,7 @@ public sealed partial class PanelModel : Observable, IDisposable
         set
         {
             Store.Preferences.AutoQuota = value;
-            Store.Save();
+            Run(Store.Save);
             Changed();
         }
     }
@@ -381,7 +380,7 @@ public sealed partial class PanelModel : Observable, IDisposable
     {
         if (Demo)
             return;
-        await Execute(async () =>
+        await Background(async () =>
         {
             await Clients.Discover();
             icons.Clear();
@@ -399,7 +398,7 @@ public sealed partial class PanelModel : Observable, IDisposable
     {
         if (Demo || !started || !AutoQuota)
             return;
-        Run(async () =>
+        _ = Background(async () =>
         {
             foreach (var account in Store.Accounts.ToArray())
                 await Refresh(account, false);
@@ -407,11 +406,11 @@ public sealed partial class PanelModel : Observable, IDisposable
     }
 
     public void SetVisible(bool panel, bool pet) => pollTimer.Interval = TimeSpan.FromSeconds(panel || pet ? 5 : 20);
-    private void Configure()
+    private void Configure() => Run(() =>
     {
         Store.Save();
         ConfigurationChanged?.Invoke();
-    }
+    });
 
     private void Navigate(string destination) => Page = Page == destination ? "accounts" : destination;
     public void Notify(string value)
@@ -430,7 +429,7 @@ public sealed partial class PanelModel : Observable, IDisposable
     public async void Run(Func<Task> action) => await Execute(action);
     private async Task Execute(Func<Task> action)
     {
-        Interacting = true;
+        interacting++;
         CommandManager.InvalidateRequerySuggested();
         try
         {
@@ -438,14 +437,29 @@ public sealed partial class PanelModel : Observable, IDisposable
         }
         catch (Exception e)
         {
-            Notify(e is IOException or InvalidOperationException ? e.Message : "操作失败，请稍后重试。");
+            Notify(Describe(e));
         }
         finally
         {
-            Interacting = false;
+            interacting--;
             CommandManager.InvalidateRequerySuggested();
         }
     }
+
+    // Polling and automatic quota refreshes report errors without holding the panel open.
+    private async Task Background(Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception e)
+        {
+            Notify(Describe(e));
+        }
+    }
+
+    public static string Describe(Exception e) => e is IOException or InvalidOperationException or UnauthorizedAccessException ? e.Message : "操作失败，请稍后重试。";
 
     private async Task Poll()
     {
@@ -462,7 +476,7 @@ public sealed partial class PanelModel : Observable, IDisposable
             MergeAccounts();
             ConfigurationChanged?.Invoke();
             if (AutoQuota && DateTimeOffset.UtcNow - lastQuota > TimeSpan.FromMinutes(5))
-                Run(RefreshAll);
+                _ = Background(RefreshAll);
         }
         catch
         {
@@ -531,12 +545,12 @@ public sealed partial class PanelModel : Observable, IDisposable
         {
             var app = client.App;
             var existing = Discovered.FirstOrDefault(d => d.App == app);
-            discoveries.Add(existing ?? new DiscoveredModel(app, "发现直接打开的 " + Label(app), Store.Accounts.Any(a => a.App == app), new(() => AddDefault(client)), new(() =>
+            discoveries.Add(existing ?? new DiscoveredModel(app, "发现直接打开的 " + Label(app), Store.Accounts.Any(a => a.App == app), new(() => Run(() => AddDefault(client))), new(() => Run(() =>
             {
                 Store.Preferences.DismissedDefaults.Add(app);
                 Store.Save();
                 MergeAccounts();
-            })));
+            }))));
         }
 
         if (Demo && discoveries.Count == 0)

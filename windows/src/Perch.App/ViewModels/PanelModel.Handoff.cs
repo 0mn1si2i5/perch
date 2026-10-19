@@ -101,11 +101,11 @@ public sealed partial class PanelModel
         Changed(nameof(PendingHint));
         Changed(nameof(HistoryMore));
         Changed(nameof(HasHistoryMore));
-        var records = Handoffs.History.Take(allHistory ? int.MaxValue : 5).Select(r => History.FirstOrDefault(h => h.Id == r.Id) ?? new HistoryModel(r.Id, $"{r.Created.LocalDateTime:MM-dd HH:mm} {Route(r.SourceName, r.TargetName, r.SameAccount)}", r.Scope == Handoffs.SplitScope ? "拆出需求 · " + r.Title : r.Title, r.Path, new(() => Run(() => Reveal(r.Path))), new(() =>
+        var records = Handoffs.History.Take(allHistory ? int.MaxValue : 5).Select(r => History.FirstOrDefault(h => h.Id == r.Id) ?? new HistoryModel(r.Id, $"{r.Created.LocalDateTime:MM-dd HH:mm} {Route(r.SourceName, r.TargetName, r.SameAccount)}", r.Scope == Handoffs.SplitScope ? "拆出需求 · " + r.Title : r.Title, r.Path, new(() => Run(() => Reveal(r.Path))), new(() => Run(() =>
         {
             Handoffs.Forget(r.Id);
             UpdateHandoffs();
-        })));
+        }))));
         Merge(History, records);
         if (Handoffs.TakeRecoveryDetail() is { } recovery)
             Notify(recovery);
