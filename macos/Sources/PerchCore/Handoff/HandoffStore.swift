@@ -25,8 +25,8 @@ public struct HandoffLogEntry: Codable, Equatable, Identifiable {
     public var isSplit: Bool { method == HandoffScope.split.method }
 
     public init(time: Date, source: String, target: String, conversation: String, method: String, result: String,
-                documentPath: String? = nil, sourceID: String? = nil, targetID: String? = nil) {
-        self.recordID = UUID().uuidString; self.documentPath = documentPath
+                documentPath: String? = nil, sourceID: String? = nil, targetID: String? = nil, recordID: String? = nil) {
+        self.recordID = recordID ?? UUID().uuidString; self.documentPath = documentPath
         self.sourceID = sourceID; self.targetID = targetID
         self.time = time; self.source = source; self.target = target
         self.conversation = conversation; self.method = method; self.result = result
@@ -94,6 +94,12 @@ public final class HandoffStore {
         defer { try? handle.close() }
         try handle.seekToEnd()
         try handle.write(contentsOf: line)
+    }
+
+    /// Replaces the entry with the same id, or adds it. A retried handoff keeps one record with its latest result.
+    public func saveLog(_ entry: HandoffLogEntry) throws {
+        try removeLogEntry(id: entry.id)
+        try appendLog(entry)
     }
 
     /// The newest entries first.

@@ -21,6 +21,10 @@ public struct HandoffPreparation: Codable, Equatable, Identifiable {
     public let title: String
     public let createdAt: Date
     public let scope: HandoffScope
+    /// Set by the first delivery attempt that read the document: its saved copy and its log record.
+    /// A retry after the target failed to open reuses both.
+    public var documentPath: String?
+    public var recordID: String?
 
     public var staysInAccount: Bool { sourceID == targetID }
 
@@ -31,7 +35,9 @@ public struct HandoffPreparation: Codable, Equatable, Identifiable {
         self.conversationID = conversationID; self.title = title; self.scope = scope; self.createdAt = createdAt
     }
 
-    private enum CodingKeys: String, CodingKey { case id, sourceID, targetID, conversationID, title, createdAt, scope }
+    private enum CodingKeys: String, CodingKey {
+        case id, sourceID, targetID, conversationID, title, createdAt, scope, documentPath, recordID
+    }
 
     /// Pending records written before `scope` existed are whole-task handoffs.
     public init(from decoder: Decoder) throws {
@@ -43,6 +49,8 @@ public struct HandoffPreparation: Codable, Equatable, Identifiable {
         title = try values.decode(String.self, forKey: .title)
         createdAt = try values.decode(Date.self, forKey: .createdAt)
         scope = try values.decodeIfPresent(HandoffScope.self, forKey: .scope) ?? .task
+        documentPath = try values.decodeIfPresent(String.self, forKey: .documentPath)
+        recordID = try values.decodeIfPresent(String.self, forKey: .recordID)
     }
 }
 
@@ -130,9 +138,28 @@ extension HandoffStore {
         try Self.makePrivateDirectory(directory)
         try Self.makePrivateDirectory(directory.appendingPathComponent("drafts"))
         try Self.makePrivateDirectory(preparedURL(for: preparation).deletingLastPathComponent())
+        try write(preparation)
+        return preparation
+    }
+
+    /// Stores the saved copy and log record on the pending handoff, so a retry does not add another of either.
+    public func recordAttempt(_ preparation: HandoffPreparation) throws {
+        guard try pendingPreparation()?.id == preparation.id else { return }
+        try write(preparation)
+    }
+
+    /// The copy an earlier attempt saved, when it is still in the handoff folder.
+    public func savedCopy(_ preparation: HandoffPreparation) -> (url: URL, markdown: String)? {
+        guard let path = preparation.documentPath else { return nil }
+        let url = URL(fileURLWithPath: path).standardizedFileURL
+        guard url.deletingLastPathComponent() == directory.standardizedFileURL,
+              let markdown = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        return (url, markdown)
+    }
+
+    private func write(_ preparation: HandoffPreparation) throws {
         try JSONEncoder().encode(preparation).write(to: preparationFile, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: preparationFile.path)
-        return preparation
     }
 
     public func preparedURL(for preparation: HandoffPreparation) -> URL {

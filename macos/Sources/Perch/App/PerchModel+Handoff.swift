@@ -127,13 +127,21 @@ extension PerchModel {
                 if let file = existingFile {
                     return try handoffs.copyDocument(file, fileName: HandoffDocument.fileName(title: preparation.title, at: Date()))
                 }
+                if let copy = handoffs.savedCopy(preparation) { return copy }
                 return try handoffs.copyPreparedDocument(preparation)
             }
             DispatchQueue.main.async {
                 guard let self else { return }
                 switch saved {
                 case .success(let document):
-                    self.deliver(document.markdown, file: document.url, preparation: preparation, from: source, to: target)
+                    var attempt = preparation
+                    attempt.documentPath = document.url.path
+                    attempt.recordID = attempt.recordID ?? UUID().uuidString
+                    do {
+                        try handoffs.recordAttempt(attempt)
+                        if self.pendingHandoff?.id == attempt.id { self.pendingHandoff = attempt }
+                    } catch { self.notify(title: "待接力状态写入失败", body: error.localizedDescription) }
+                    self.deliver(document.markdown, file: document.url, preparation: attempt, from: source, to: target)
                 case .failure(let error):
                     self.completingHandoff = false
                     self.message = error.localizedDescription
@@ -166,8 +174,8 @@ extension PerchModel {
             }
             let entry = HandoffLogEntry(time: Date(), source: source.name, target: target.name,
                 conversation: preparation.conversationID, method: preparation.scope.method, result: result,
-                documentPath: file.path, sourceID: source.id, targetID: target.id)
-            do { try self.handoffs.appendLog(entry) }
+                documentPath: file.path, sourceID: source.id, targetID: target.id, recordID: preparation.recordID)
+            do { try self.handoffs.saveLog(entry) }
             catch { self.notify(title: "接力记录写入失败", body: error.localizedDescription) }
             self.handoffLog = self.handoffs.recentLog(limit: .max)
         }
