@@ -128,8 +128,8 @@ extension PerchModel {
     func copyAPIConfiguration(_ account: Account) {
         guard let configuration = account.apiProvider,
               let data = try? JSONEncoder().encode(configuration), let text = String(data: data, encoding: .utf8) else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
         message = "连接配置已复制（不含密钥）"
     }
 

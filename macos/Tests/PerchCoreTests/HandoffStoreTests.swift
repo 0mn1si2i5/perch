@@ -107,4 +107,23 @@ final class HandoffStoreTests: XCTestCase {
         XCTAssertNil(store.document(for: invalid))
     }
 
+
+    func testLogKeepsAccountIDsAndOlderEntriesStillDecode() throws {
+        let root = try makeTempDir(); cleanup.append(root)
+        let store = HandoffStore(root: root)
+        try FileManager.default.createDirectory(at: store.directory, withIntermediateDirectories: true)
+        let legacy = #"{"conversation":"c","method":"文档接力","result":"已交付","source":"A","target":"B","time":"2026-10-01T00:00:00Z"}"#
+        try Data((legacy + "\n").utf8).write(to: store.directory.appendingPathComponent("log.jsonl"))
+        try store.appendLog(HandoffLogEntry(time: Date(timeIntervalSince1970: 1_900_000_000), source: "A", target: "A",
+                                            conversation: "c", method: HandoffScope.split.method, result: "文档已准备，待粘贴发送",
+                                            sourceID: "id-a", targetID: "id-a"))
+        let log = store.recentLog()
+        XCTAssertEqual(log.count, 2)
+        XCTAssertTrue(log[0].staysInAccount)
+        XCTAssertTrue(log[0].isSplit)
+        XCTAssertEqual(log[0].sourceID, "id-a")
+        XCTAssertNil(log[1].sourceID)
+        XCTAssertFalse(log[1].staysInAccount, "同名账号不能当成同一个账号")
+        XCTAssertFalse(log[1].isSplit)
+    }
 }

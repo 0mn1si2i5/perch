@@ -1,6 +1,18 @@
 import Foundation
 
+/// What the new conversation takes over.
+public enum HandoffScope: String, Codable {
+    /// The whole task moves; the source conversation is done with it.
+    case task
+    /// One requirement is split off; the source conversation keeps its own task.
+    case split
+
+    /// Stored as the log entry's method.
+    public var method: String { self == .task ? "文档接力" : "拆出需求" }
+}
+
 /// Metadata for a user-driven handoff, never a transcript or a model request.
+/// The target may be the source account itself: the document then goes to a new conversation there.
 public struct HandoffPreparation: Codable, Equatable, Identifiable {
     public let id: UUID
     public let sourceID: String
@@ -8,16 +20,62 @@ public struct HandoffPreparation: Codable, Equatable, Identifiable {
     public let conversationID: String
     public let title: String
     public let createdAt: Date
+    public let scope: HandoffScope
 
-    public init(sourceID: String, targetID: String, conversationID: String, title: String, createdAt: Date = Date()) {
+    public var staysInAccount: Bool { sourceID == targetID }
+
+    public init(sourceID: String, targetID: String, conversationID: String, title: String,
+                scope: HandoffScope = .task, createdAt: Date = Date()) {
         id = UUID()
         self.sourceID = sourceID; self.targetID = targetID
-        self.conversationID = conversationID; self.title = title; self.createdAt = createdAt
+        self.conversationID = conversationID; self.title = title; self.scope = scope; self.createdAt = createdAt
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, sourceID, targetID, conversationID, title, createdAt, scope }
+
+    /// Pending records written before `scope` existed are whole-task handoffs.
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(UUID.self, forKey: .id)
+        sourceID = try values.decode(String.self, forKey: .sourceID)
+        targetID = try values.decode(String.self, forKey: .targetID)
+        conversationID = try values.decode(String.self, forKey: .conversationID)
+        title = try values.decode(String.self, forKey: .title)
+        createdAt = try values.decode(Date.self, forKey: .createdAt)
+        scope = try values.decodeIfPresent(HandoffScope.self, forKey: .scope) ?? .task
     }
 }
 
 extension HandoffDocument {
-    public static func preparationPrompt(savedAt file: URL) -> String {
+    public static func preparationPrompt(savedAt file: URL, scope: HandoffScope = .task) -> String {
+        scope == .split ? splitPrompt(savedAt: file) : taskPrompt(savedAt: file)
+    }
+
+    /// Ends with an open label, so the owner types the requirement right after pasting.
+    static func splitPrompt(savedAt file: URL) -> String {
+        """
+        请把当前对话里一项需要单独处理的需求整理成 Markdown 交接文档，交给一个新对话从头接手。只整理这一项，不执行它，也不继续原任务；原对话之后还会继续原来的工作。
+
+        要拆出的需求写在本消息末尾。末尾没有写时，选最近讨论中明确说要单独处理的那一项，并在文档第一行写明选的是哪一项；无法确定就不要写文件，直接问我。
+
+        请写入以下绝对路径（含空格，使用时请正确引用）：
+        \(file.standardizedFileURL.path)
+
+        按需包含四部分，无关项可省略：
+        1. 需求：要做什么、为什么单独处理、完成标准、关键约束和已授权范围。
+        2. 相关现状：与这项需求有关的文件、已有结论和已排除的方案；不写原任务的整体进展。
+        3. 接续上下文：工作目录绝对路径、关键文件；代码任务注明当前分支／提交。原对话还会继续改同一个仓库时，说明哪些未提交改动与这项需求有关，并建议新对话使用单独的分支或工作树。
+        4. 下一步：建议的第一步、真实阻塞及仍需用户决定的问题。
+
+        通常 300–800 字，以接手后能直接开始为准。用当前事实和必要路径／命令代替聊天复述，省略原任务的无关背景、长日志、原始对话和凭据。不确定的标“未确认”。
+
+        写完后只回复文件路径和一行摘要，然后停下，等我继续原任务。如无法写文件，请说明未写入并返回完整 Markdown，供我手动保存。
+
+        要拆出的需求：
+        """
+    }
+
+    static func taskPrompt(savedAt file: URL) -> String {
         """
         请为当前对话整理一份供另一位 agent 接手的 Markdown 交接文档。只整理交接，不继续执行原任务。
 
@@ -64,9 +122,11 @@ extension HandoffStore {
     }
 
     /// Allocate a unique private directory, but never create a pretend handoff document.
-    public func prepare(sourceID: String, targetID: String, conversationID: String, title: String) throws -> HandoffPreparation {
+    public func prepare(sourceID: String, targetID: String, conversationID: String, title: String,
+                        scope: HandoffScope = .task) throws -> HandoffPreparation {
         guard try pendingPreparation() == nil else { throw PreparationError.alreadyPending }
-        let preparation = HandoffPreparation(sourceID: sourceID, targetID: targetID, conversationID: conversationID, title: title)
+        let preparation = HandoffPreparation(sourceID: sourceID, targetID: targetID, conversationID: conversationID,
+                                             title: title, scope: scope)
         try Self.makePrivateDirectory(directory)
         try Self.makePrivateDirectory(directory.appendingPathComponent("drafts"))
         try Self.makePrivateDirectory(preparedURL(for: preparation).deletingLastPathComponent())

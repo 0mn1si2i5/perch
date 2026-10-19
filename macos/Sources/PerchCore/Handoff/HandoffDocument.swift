@@ -2,11 +2,12 @@ import Foundation
 
 /// Formatting shared by the manual document-copy workflow. No conversation or model is read.
 public enum HandoffDocument {
-    /// The fixed first line of what goes on the clipboard.
-    public static let clipboardPreamble = "这是从另一个账号接力过来的任务，请先阅读下面的交接文档，核对实际环境与当前状态后继续。"
+    /// The fixed first line of what goes on the clipboard. The target can be a new conversation in the same account.
+    public static let clipboardPreamble = "这是从另一个对话接力过来的任务，请先阅读下面的交接文档，核对实际环境与当前状态后继续。"
+    public static let splitClipboardPreamble = "这是从另一个对话拆出来的独立需求，请先阅读下面的交接文档，核对实际环境与当前状态后开始。原对话仍在继续它自己的任务。"
     /// Keep the body usable even if a receiving client cannot access the local file.
-    public static func clipboard(markdown: String, savedAt file: URL) -> String {
-        clipboardPreamble + "\n\n交接文档绝对路径：\n" + file.standardizedFileURL.path
+    public static func clipboard(markdown: String, savedAt file: URL, scope: HandoffScope = .task) -> String {
+        (scope == .split ? splitClipboardPreamble : clipboardPreamble) + "\n\n交接文档绝对路径：\n" + file.standardizedFileURL.path
             + "\n\n以下是文档正文；如无法读取文件，请使用这份正文。\n\n" + markdown
     }
 

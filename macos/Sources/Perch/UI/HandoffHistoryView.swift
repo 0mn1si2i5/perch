@@ -30,9 +30,10 @@ struct HandoffHistoryView: View {
                 HStack(alignment: .top, spacing: 8) {
                     Button { perch.openHandoff(entry) } label: {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("\(Self.time.string(from: entry.time))  \(entry.source) → \(entry.target)")
+                            Text("\(Self.time.string(from: entry.time))  "
+                                 + PerchModel.handoffRoute(source: entry.source, target: entry.target, sameAccount: entry.staysInAccount))
                                 .font(.system(size: 11)).foregroundStyle(.primary)
-                            Text("\(entry.result)")
+                            Text(entry.isSplit ? "拆出需求 · \(entry.result)" : entry.result)
                                 .font(.system(size: 10)).foregroundStyle(.secondary)
                         }
                         .fixedSize(horizontal: false, vertical: true)

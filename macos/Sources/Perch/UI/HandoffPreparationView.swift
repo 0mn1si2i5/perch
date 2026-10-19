@@ -21,9 +21,12 @@ struct HandoffPreparationView: View {
                 Text(pending.title).lineLimit(1).help(pending.title)
                 let source = perch.accounts.first { $0.id == pending.sourceID }?.name ?? "源账号已移除"
                 let target = perch.accounts.first { $0.id == pending.targetID }?.name ?? "目标账号已移除"
-                Text("\(source) → \(target)").lineLimit(1).foregroundStyle(.secondary)
-                    .help("\(source) → \(target)")
-                Text("在源对话粘贴提示词并发送，文档生成后继续。")
+                let route = PerchModel.handoffRoute(source: source, target: target, sameAccount: pending.staysInAccount)
+                    + (pending.scope == .split ? " · 拆出需求" : "")
+                Text(route).lineLimit(1).foregroundStyle(.secondary).help(route)
+                Text(pending.scope == .split
+                     ? "在源对话粘贴提示词，在末尾写上要拆出的需求再发送；文档生成后继续。"
+                     : "在源对话粘贴提示词并发送，文档生成后继续。")
                     .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 HStack {
                     Button("复制提示词") { perch.copyPreparationPrompt() }
