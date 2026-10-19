@@ -31,7 +31,7 @@ final class DelegateRunsTests: XCTestCase {
             .write(to: run.appendingPathComponent("meeting.json"), atomically: true, encoding: .utf8)
         let meta = """
         {"version":2,"format":"moot","id":"\(name)","run":"\(name)","seat":"jia","turn":"\(turn)","kind":"worker",\
-        "title":"Moot 任务","workdir":"/tmp/wt","adapter":"\(adapter)","model":"opus","startedAt":"2026-10-19T08:00:00Z","pid":\(pid)}
+        "title":"Moot 任务","workdir":"/tmp/wt","adapter":"\(adapter)","model":"opus","startedAt":"2026-10-19T08:00:00.250Z","pid":\(pid)}
         """
         try meta.write(to: dir.appendingPathComponent("meta.json"), atomically: true, encoding: .utf8)
         FileManager.default.createFile(atPath: dir.appendingPathComponent("events.jsonl").path, contents: nil)
@@ -133,6 +133,12 @@ final class DelegateRunsTests: XCTestCase {
         XCTAssertEqual(run.commandCount, 1)
         XCTAssertEqual(run.changedFiles, ["/tmp/wt/a.txt"])
         XCTAssertEqual(run.tokens, 1500)
+        // Moot writes JavaScript's toISOString(), with milliseconds.
+        XCTAssertEqual(run.startedAt, ISO8601DateFormatter().date(from: "2026-10-19T08:00:00Z")!.addingTimeInterval(0.25))
+        try #"{"exitCode":0,"endedAt":"2026-10-19T08:03:00.500Z"}"#.write(to: dir.appendingPathComponent("result.json"), atomically: true, encoding: .utf8)
+        let finished = try XCTUnwrap(DelegateRunReader(root: root, isAlive: { _ in false }).read(now: now).first)
+        XCTAssertEqual(finished.state, .succeeded)
+        XCTAssertEqual(finished.endedAt, ISO8601DateFormatter().date(from: "2026-10-19T08:03:00Z")!.addingTimeInterval(0.5))
     }
 
     func testMootRunShowsNewestTurnAndRootsAreMerged() throws {

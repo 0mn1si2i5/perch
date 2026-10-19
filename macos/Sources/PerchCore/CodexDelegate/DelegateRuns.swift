@@ -335,7 +335,11 @@ public final class DelegateRunReader {
         return command
     }
 
+    /// codex-delegate writes whole seconds; Moot writes JavaScript's toISOString(), with milliseconds.
     static func parseDate(_ text: String) -> Date? {
-        ISO8601DateFormatter().date(from: text)
+        if let date = ISO8601DateFormatter().date(from: text) { return date }
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return fractional.date(from: text)
     }
 }
