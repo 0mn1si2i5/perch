@@ -20,15 +20,13 @@ extension Launcher {
 final class PerchModel: ObservableObject {
     @Published var accounts: [Account] = []
     @Published var localCandidates: [LocalProviderCandidate] = []
-    @Published var apiModels: [String: [String]] = [:]
-    @Published var apiChecks: [String: String] = [:]
-    @Published var checkingAPI: Set<String> = []
     @Published var localSessions: [String: [LocalProviderSession]] = [:]
-    var apiCheckTokens: [String: UUID] = [:]
     @Published private(set) var snapshots: [String: CodexSnapshot] = [:]
     @Published private(set) var claudeSessions: [String: [ClaudeSession]] = [:]
     @Published private(set) var runningIDs: Set<String> = []
     @Published private(set) var skippedImports: [String] = []
+    /// Set when earlier API provider or custom client accounts were moved out of the account list.
+    @Published private(set) var removedAccountsBackup: URL?
     @Published var message: String? {
         didSet { scheduleMessageDismissal() }
     }
@@ -149,18 +147,13 @@ final class PerchModel: ObservableObject {
         do { try store.load() } catch { message = "账号列表读取失败：\(error.localizedDescription)" }
         accounts = store.accounts
         skippedImports = store.skippedImports
+        removedAccountsBackup = FileManager.default.fileExists(atPath: store.removedAccountsURL.path) ? store.removedAccountsURL : nil
     }
 
     func refreshDiscovered() {
         // Discovery is now explicitly requested in New Account; previous banner dismissals
         // must not hide candidates from a user-initiated search.
         discovered = store.unclaimedDefaults()
-    }
-
-    func dismissDiscovered(_ app: AppKind) {
-        let dismissed = (UserDefaults.standard.stringArray(forKey: "dismissedDefaults") ?? []) + [app.rawValue]
-        UserDefaults.standard.set(dismissed, forKey: "dismissedDefaults")
-        refreshDiscovered()
     }
 
     /// Adds the Dock instance's default data as an account, named by the user.
@@ -225,6 +218,8 @@ final class PerchModel: ObservableObject {
 
     func refreshQuota(_ account: Account, manual: Bool = true) {
         if supportsProviderUsage(account) {
+            // The Gemini app reports the same Antigravity quota; agy only runs when the owner asks for it.
+            if account.app == .antigravity && !manual { return }
             guard !dataMissing(account), !refreshingQuotas.contains(account.id) else { return }
             if manual { quotaThrottle.reset(account.id) }
             guard quotaThrottle.allow(account.id, now: Date()) else { return }
@@ -514,7 +509,7 @@ final class PerchModel: ObservableObject {
         let alert = NSAlert()
         alert.messageText = "删除账号“\(account.name)”？"
         let box = NSButton(checkboxWithTitle: "同时把数据目录移到废纸篓", target: nil, action: nil)
-        if store.isDefaultData(account) || account.localProvider != nil || account.apiProvider != nil {
+        if store.isDefaultData(account) || account.localProvider != nil {
             // The Dock instance's data is never offered for the Trash.
             alert.informativeText = "只删除 Perch 里的账号。直接打开 \(account.app.displayName) 时使用的数据不受影响。"
         } else {
@@ -526,21 +521,7 @@ final class PerchModel: ObservableObject {
         NSApp.activate()
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         do {
-            if account.apiProvider != nil {
-                let credentials = ProviderCredentialStore()
-                let previousKey = try credentials.read(for: account.id)
-                try credentials.delete(for: account.id)
-                do { try store.delete(id: account.id, moveDataToTrash: false) }
-                catch {
-                    if let previousKey {
-                        do { try credentials.set(previousKey, for: account.id) }
-                        catch { message = "删除未完成，密钥恢复失败；请重新配置密钥。"; return }
-                    }
-                    throw error
-                }
-            } else { try store.delete(id: account.id, moveDataToTrash: box.state == .on) }
-            apiModels[account.id] = nil
-            apiChecks[account.id] = nil
+            try store.delete(id: account.id, moveDataToTrash: box.state == .on)
         } catch {
             message = "删除失败：\(error.localizedDescription)"
         }
@@ -625,8 +606,6 @@ final class PerchModel: ObservableObject {
             case .gemini, .geminiApp: symbol = "sparkles"
             case .antigravity: symbol = "a.circle.fill"
             case .deepseek: symbol = "d.circle.fill"
-            case .api: symbol = "network"
-            case .custom: symbol = "app.connected.to.app.below.fill"
             default: symbol = "app"
             }
             guard let fallback = NSImage(systemSymbolName: symbol, accessibilityDescription: app.displayName) else { return nil }
@@ -643,7 +622,7 @@ final class PerchModel: ObservableObject {
     }
 
     func dataMissing(_ account: Account) -> Bool {
-        account.apiProvider == nil && !account.profilePath.isEmpty && !FileManager.default.fileExists(atPath: account.profilePath)
+        !FileManager.default.fileExists(atPath: account.profilePath)
     }
 
     func rows(for account: Account) -> [SessionRow] {
@@ -663,10 +642,8 @@ final class PerchModel: ObservableObject {
             return snapshot.available ? "还没有对话" : snapshot.detail
         case .claude:
             return claudeSessions[account.id] == nil ? "正在读取…" : "还没有本地会话"
-        case .api: return "可检查模型列表；额度请在供应商控制台查看"
         case .gemini, .antigravity, .deepseek: return "还没有本地会话"
         case .geminiApp: return "Gemini 内的 Antigravity；与 CLI 分别保留启动入口"
-        case .custom: return "自定义启动入口；登录与额度请在客户端查看"
         }
     }
 

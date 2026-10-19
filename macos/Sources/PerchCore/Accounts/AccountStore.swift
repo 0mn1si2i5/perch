@@ -45,10 +45,14 @@ public final class AccountStore {
 
     public func load() throws {
         if FileManager.default.fileExists(atPath: fileURL.path) {
-            let file = try Self.decoder.decode(AccountFile.self, from: Data(contentsOf: fileURL))
+            let (data, removed) = try Self.separatingRemoved(Data(contentsOf: fileURL))
+            let file = try Self.decoder.decode(AccountFile.self, from: data)
             accounts = file.accounts
             skippedImports = file.skippedImports
+            // Back up before rewriting accounts.json, so a failed backup leaves the old file as it was.
+            if !removed.isEmpty { try backUpRemoved(removed) }
             loaded = true
+            if !removed.isEmpty { try save() }
         } else {
             (accounts, skippedImports) = try Self.importAgentDesk(agentDeskProfiles)
             loaded = true
@@ -56,8 +60,38 @@ public final class AccountStore {
         }
     }
 
+    /// API providers and custom clients from earlier versions, kept unchanged. Their Keychain keys are not touched.
+    public var removedAccountsURL: URL { root.appendingPathComponent("removed-accounts.json") }
+
+    /// Splits accounts of removed types (and the website launch kind only custom clients used) out of accounts.json.
+    static func separatingRemoved(_ data: Data) throws -> (kept: Data, removed: [[String: Any]]) {
+        guard var file = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let rows = file["accounts"] as? [[String: Any]] else { return (data, []) }
+        func isRemoved(_ row: [String: Any]) -> Bool {
+            AppKind.removedRawValues.contains(row["appId"] as? String ?? "") || row["apiProvider"] != nil
+                || (row["localProvider"] as? [String: Any])?["kind"] as? String == "website"
+        }
+        let removed = rows.filter(isRemoved)
+        guard !removed.isEmpty else { return (data, []) }
+        file["accounts"] = rows.filter { !isRemoved($0) }
+        return (try JSONSerialization.data(withJSONObject: file), removed)
+    }
+
+    private func backUpRemoved(_ removed: [[String: Any]]) throws {
+        var rows: [[String: Any]] = []
+        if let data = try? Data(contentsOf: removedAccountsURL),
+           let file = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let previous = file["accounts"] as? [[String: Any]] { rows = previous }
+        let known = Set(rows.compactMap { $0["id"] as? String })
+        rows += removed.filter { !known.contains($0["id"] as? String ?? "") }
+        let data = try JSONSerialization.data(withJSONObject: ["version": 1, "accounts": rows],
+                                              options: [.prettyPrinted, .sortedKeys])
+        try data.write(to: removedAccountsURL, options: .atomic)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: removedAccountsURL.path)
+    }
+
     public func create(name: String, app: AppKind, now: Date = Date()) throws -> Account {
-        guard AppKind.desktopClients.contains(app) else { throw ProviderError.invalid("请使用供应商配置添加这个客户端") }
+        guard AppKind.desktopClients.contains(app) else { throw ProviderError.invalid("请用“自动获取可用供应商”添加这个客户端") }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw AccountError.emptyName }
         let id = UUID().uuidString.lowercased()
@@ -121,37 +155,19 @@ public final class AccountStore {
         }
     }
 
-    /// New provider accounts reference existing data. They never create, move or delete client data.
-    @discardableResult
-    public func saveProvider(_ account: Account) throws -> Account {
-        guard loaded else { throw AccountError.notLoaded }
-        guard !account.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw AccountError.emptyName }
-        if let local = account.localProvider {
-            guard account.apiProvider == nil, !AppKind.desktopClients.contains(account.app), account.app != .api else {
-                throw ProviderError.invalid("客户端配置与账号类型不一致")
-            }
-            try local.validate()
-        } else if let api = account.apiProvider {
-            guard account.app == .api else { throw ProviderError.invalid("API 配置与账号类型不一致") }
-            try api.validate()
-        } else { throw ProviderError.invalid("缺少供应商配置") }
-        if account.localProvider != nil, accounts.contains(where: {
-            $0.id != account.id && $0.app == account.app && $0.profilePath == account.profilePath
-                && $0.localProvider == account.localProvider
-        }) { throw AccountError.alreadyAdded }
-        let previous = accounts
-        if let index = accounts.firstIndex(where: { $0.id == account.id }) { accounts[index] = account }
-        else { accounts.append(account) }
-        do { try save() } catch { accounts = previous; throw error }
-        return account
-    }
-
+    /// Local provider accounts reference existing data. They never create, move or delete client data.
     @discardableResult
     public func importLocal(_ candidate: LocalProviderCandidate) throws -> Account {
+        guard loaded else { throw AccountError.notLoaded }
+        guard !AppKind.desktopClients.contains(candidate.app) else { throw ProviderError.invalid("客户端配置与账号类型不一致") }
         guard !accounts.contains(where: { $0.app == candidate.app && $0.profilePath == candidate.profilePath }) else { throw AccountError.alreadyAdded }
-        return try saveProvider(Account(id: UUID().uuidString.lowercased(), name: candidate.name, app: candidate.app,
-                                 profilePath: candidate.profilePath, sessionRoot: candidate.profilePath,
-                                 createdAt: Date(), lastLaunchedAt: nil, localProvider: candidate.configuration))
+        try candidate.configuration.validate()
+        let account = Account(id: UUID().uuidString.lowercased(), name: candidate.name, app: candidate.app,
+                              profilePath: candidate.profilePath, sessionRoot: candidate.profilePath,
+                              createdAt: Date(), lastLaunchedAt: nil, localProvider: candidate.configuration)
+        accounts.append(account)
+        do { try save() } catch { accounts.removeLast(); throw error }
+        return account
     }
 
     public func markLaunched(id: String, at date: Date) throws {
@@ -164,7 +180,7 @@ public final class AccountStore {
         let account = accounts.remove(at: index)
         do { try save() } catch { accounts.insert(account, at: index); throw error }
         // The client's own default data is what the Dock instance uses; deleting the account only forgets it.
-        if moveDataToTrash, account.localProvider == nil, account.apiProvider == nil, !isDefaultData(account), FileManager.default.fileExists(atPath: account.profilePath) {
+        if moveDataToTrash, account.localProvider == nil, !isDefaultData(account), FileManager.default.fileExists(atPath: account.profilePath) {
             try FileManager.default.trashItem(at: URL(fileURLWithPath: account.profilePath), resultingItemURL: nil)
         }
     }

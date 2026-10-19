@@ -23,21 +23,20 @@ public enum NativeGeminiUsage {
             throw ProviderUsageError.unsupported("仅支持本机 Gemini 应用的默认登录目录")
         }
         let helper = bundle.bundleURL.appendingPathComponent("Contents/Helpers/agy").path
-        let port = try await Task.detached(priority: .utility) {
-            let snapshot = try command("/bin/ps", ["-axo", "pid=,ppid=,uid=,command="])
-            let candidates = helperCandidates(snapshot: String(decoding: snapshot, as: UTF8.self),
-                                              helper: helper, appExecutable: executable.path, uid: getuid())
-            for candidate in candidates {
-                guard processPath(candidate.pid) == helper, processPath(candidate.parent) == executable.path else { continue }
-                let sockets = try command("/usr/sbin/lsof", ["-nP", "-a", "-p", String(candidate.pid),
-                    "-iTCP:" + String(candidate.port), "-sTCP:LISTEN", "-Fn"])
-                let lines = String(decoding: sockets, as: UTF8.self).split(separator: "\n")
-                if lines.contains(Substring("n127.0.0.1:" + String(candidate.port))) { return candidate.port }
+        let snapshot = try await command("/bin/ps", ["-axo", "pid=,ppid=,uid=,command="])
+        let candidates = helperCandidates(snapshot: String(decoding: snapshot, as: UTF8.self),
+                                          helper: helper, appExecutable: executable.path, uid: getuid())
+        for candidate in candidates {
+            guard processPath(candidate.pid) == helper, processPath(candidate.parent) == executable.path else { continue }
+            let sockets = try await command("/usr/sbin/lsof", ["-nP", "-a", "-p", String(candidate.pid),
+                "-iTCP:" + String(candidate.port), "-sTCP:LISTEN", "-Fn"])
+            try Task.checkCancellation()
+            let lines = String(decoding: sockets, as: UTF8.self).split(separator: "\n")
+            if lines.contains(Substring("n127.0.0.1:" + String(candidate.port))) {
+                return URL(string: "http://127.0.0.1:\(candidate.port)")!
             }
-            throw ProviderUsageError.unsupported(openApp)
-        }.value
-        try Task.checkCancellation()
-        return URL(string: "http://127.0.0.1:\(port)")!
+        }
+        throw ProviderUsageError.unsupported(openApp)
     }
 
     struct Helper: Equatable { let pid: Int32; let parent: Int32; let port: Int }
@@ -80,16 +79,10 @@ public enum NativeGeminiUsage {
         let object = try json(data)
         guard let response = object["response"] as? [String: Any], let groups = response["groups"] as? [[String: Any]] else { throw invalidResponse }
         // Gemini's native host deliberately hides third-party models in its Models & Usage UI.
-        let metrics = groups.prefix(20).flatMap { group -> [ProviderUsageMetric] in
-            guard let buckets = group["buckets"] as? [[String: Any]] else { return [] }
-            return buckets.prefix(20).compactMap { bucket in
-                guard let id = bucket["bucketId"] as? String, id.hasPrefix("gemini-"),
-                      let value = bucket["remainingFraction"] as? NSNumber, CFGetTypeID(value) != CFBooleanGetTypeID(),
-                      value.doubleValue.isFinite, (0...1).contains(value.doubleValue) else { return nil }
-                let window = bucket["window"] as? String ?? ""
-                let label = window == "weekly" ? "每周" : window == "5h" ? "5 小时" : String((bucket["displayName"] as? String ?? window).prefix(80))
-                return .init(label: GoogleProviderUsage.poolLabel(id) + " · " + label, remainingPercent: value.doubleValue * 100,
-                             resetsAt: (bucket["resetTime"] as? String).flatMap(ISO8601.parse))
+        let metrics = groups.prefix(20).flatMap { group in
+            (group["buckets"] as? [[String: Any]] ?? []).prefix(20).compactMap { bucket in
+                AntigravityBucket.metric(id: bucket["bucketId"], window: bucket["window"], name: bucket["displayName"],
+                                         remaining: bucket["remainingFraction"], reset: bucket["resetTime"])
             }
         }
         guard !metrics.isEmpty else { throw ProviderUsageError.unsupported("Gemini 当前登录没有返回可查询的 Antigravity 额度") }
@@ -103,14 +96,7 @@ public enum NativeGeminiUsage {
     }
 
     private final class Client {
-        let session: URLSession
-        init() {
-            let config = URLSessionConfiguration.ephemeral
-            config.timeoutIntervalForRequest = 15; config.timeoutIntervalForResource = 20
-            config.urlCache = nil; config.urlCredentialStorage = nil; config.httpCookieStorage = nil
-            config.httpShouldSetCookies = false
-            session = URLSession(configuration: config, delegate: NoProviderRedirects(), delegateQueue: nil)
-        }
+        let session = PrivateHTTP.session(timeout: 15, resourceTimeout: 20)
         deinit { session.invalidateAndCancel() }
         func csrf(_ endpoint: URL) async throws -> String { try csrfToken(await send(URLRequest(url: endpoint), limit: 65_536)) }
         func rpc(_ name: String, body: [String: Any], endpoint: URL, csrf: String) async throws -> Data {
@@ -148,39 +134,10 @@ public enum NativeGeminiUsage {
         return String(cString: buffer)
     }
 
-    private static func command(_ executable: String, _ arguments: [String]) throws -> Data {
-        let process = Process(), pipe = Pipe(), finished = DispatchSemaphore(value: 0), drained = DispatchSemaphore(value: 0)
-        let output = NativeProcessOutput()
-        process.executableURL = URL(fileURLWithPath: executable); process.arguments = arguments
-        process.standardInput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice; process.standardOutput = pipe
-        process.terminationHandler = { _ in finished.signal() }
-        try process.run()
-        DispatchQueue.global(qos: .utility).async {
-            defer { drained.signal() }
-            while true {
-                let data = pipe.fileHandleForReading.availableData
-                if data.isEmpty { break }
-                output.append(data)
-            }
+    private static func command(_ executable: String, _ arguments: [String]) async throws -> Data {
+        guard case .success(let output) = await Subprocess.run(executable, arguments, timeout: 4, outputLimit: 2_097_152) else {
+            throw ProviderUsageError.requestFailed("无法检查 Gemini 本地服务，请稍后重试")
         }
-        let timeout = finished.wait(timeout: .now() + 4) == .timedOut
-        if timeout {
-            process.terminate()
-            if finished.wait(timeout: .now() + 0.5) == .timedOut, process.isRunning { kill(process.processIdentifier, SIGKILL) }
-        }
-        _ = drained.wait(timeout: .now() + 1)
-        guard !timeout, let data = output.data else { throw ProviderUsageError.requestFailed("无法检查 Gemini 本地服务，请稍后重试") }
-        return data
+        return output.stdout
     }
-}
-
-private final class NativeProcessOutput: @unchecked Sendable {
-    private let lock = NSLock()
-    private var buffer = Data()
-    private var overflow = false
-    func append(_ data: Data) {
-        lock.lock(); defer { lock.unlock() }
-        if buffer.count + data.count <= 2_097_152 { buffer.append(data) } else { overflow = true }
-    }
-    var data: Data? { lock.lock(); defer { lock.unlock() }; return overflow ? nil : buffer }
 }

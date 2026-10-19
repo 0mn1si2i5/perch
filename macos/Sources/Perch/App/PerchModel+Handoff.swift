@@ -5,7 +5,7 @@ import PerchCore
 extension PerchModel {
     /// Other accounts a conversation can move to; the source account itself is offered separately as a new conversation.
     func handoffTargets(from source: Account) -> [Account] {
-        accounts.filter { $0.id != source.id && $0.apiProvider == nil }
+        accounts.filter { $0.id != source.id }
     }
 
     /// "A → B", or "A · 新对话" when the document stays in the same account.

@@ -29,26 +29,10 @@ struct NewAccountView: View {
             Divider()
             Text("手动添加").font(.system(size: 12, weight: .semibold))
             Picker("类型", selection: $app) {
-                ForEach(AppKind.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                ForEach(AppKind.desktopClients, id: \.self) { Text($0.displayName).tag($0) }
             }
             .pickerStyle(.menu)
-
-            switch app {
-            case .codex, .claude:
-                desktopAccount
-            case .gemini, .geminiApp, .antigravity, .deepseek:
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("点击上方“自动获取可用供应商”查找本机已有的 \(app.displayName)，或手动填写启动入口。")
-                        .font(.system(size: 11)).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Button("手动添加启动入口…") { app = .custom }
-                    Button("取消", action: close)
-                }
-            case .custom:
-                LocalProviderEditorView(perch: perch, close: close)
-            case .api:
-                APIProviderEditorView(perch: perch, close: close)
-            }
+            desktopAccount
         }
     }
 

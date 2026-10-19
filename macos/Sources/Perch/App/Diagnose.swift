@@ -50,7 +50,6 @@ enum Diagnose {
             if account.localProvider != nil {
                 line += " localSessions=\(LocalProviderSessions.recent(account).count) quota=unsupported"
             }
-            if account.apiProvider != nil { line += " apiConfigured=true quota=unsupported" }
             print(HandoffDocument.redactingEmails(line))
         }
         let media = MediaMonitor()

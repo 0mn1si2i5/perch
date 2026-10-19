@@ -21,10 +21,10 @@ enum ProviderDiagnostics {
         }
         print("discovered=\(candidates.count) accounts=\(store.accounts.count)")
         let processes = ProcessMatcher.snapshot() ?? []
-        for account in store.accounts where account.localProvider != nil || account.apiProvider != nil {
+        for account in store.accounts where account.localProvider != nil {
             let sessions = LocalProviderSessions.recent(account)
             let running = LocalProviderLauncher.isRunning(account, processes: processes)
-            let valid = Result { try account.localProvider?.validate(); try account.apiProvider?.validate() }
+            let valid = Result { try account.localProvider?.validate() }
             let configured: Bool
             if case .success = valid { configured = true } else { configured = false }
             print("provider=\(account.app.rawValue) configuration=\(configured) sessions=\(sessions.count) localRunning=\(running)")

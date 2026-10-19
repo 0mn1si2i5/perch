@@ -8,12 +8,11 @@ public enum ProviderError: LocalizedError, Equatable {
 }
 
 public enum LocalLaunchKind: String, Codable, CaseIterable {
-    case terminal, application, website
+    case terminal, application
     public var displayName: String {
         switch self {
         case .terminal: return "终端命令"
         case .application: return "macOS 应用"
-        case .website: return "网页"
         }
     }
 }
@@ -41,11 +40,6 @@ public struct LocalProviderConfiguration: Codable, Equatable {
         case .application:
             guard target.hasPrefix("/"), target.hasSuffix(".app"), FileManager.default.fileExists(atPath: target) else {
                 throw ProviderError.invalid("请选择本机 .app 应用")
-            }
-        case .website:
-            guard let url = URLComponents(string: target), ["https", "http"].contains(url.scheme),
-                  url.host != nil, url.user == nil, url.password == nil else {
-                throw ProviderError.invalid("请填写 HTTP 或 HTTPS 网页地址，不要在地址中放入凭据")
             }
         }
         if !workingDirectory.isEmpty {

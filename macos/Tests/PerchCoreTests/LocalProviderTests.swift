@@ -97,12 +97,9 @@ final class LocalProviderTests: XCTestCase {
                                                configuration: .init(kind: .terminal, target: "/bin/echo"))
         let local = try store.importLocal(candidate)
         XCTAssertThrowsError(try store.importLocal(candidate))
-        let api = Account(id: "api", name: "API", app: .api, profilePath: "", sessionRoot: "", createdAt: Date(), lastLaunchedAt: nil,
-                          apiProvider: .init(baseURL: "https://example.com/v1"))
-        try store.saveProvider(api)
         try store.load()
-        XCTAssertEqual(store.accounts.map(\.id), [legacy.id, local.id, api.id])
-        XCTAssertNil(store.accounts[0].apiProvider)
+        XCTAssertEqual(store.accounts.map(\.id), [legacy.id, local.id])
+        XCTAssertNil(store.accounts[0].localProvider)
         XCTAssertEqual(store.accounts[1].localProvider, candidate.configuration)
         try store.delete(id: local.id, moveDataToTrash: true)
         XCTAssertEqual(try String(contentsOf: sentinel, encoding: .utf8), "test-fixture")
@@ -117,14 +114,13 @@ final class LocalProviderTests: XCTestCase {
         let decoded = try AccountStore.decoder.decode(Account.self, from: Data(json.utf8))
         XCTAssertEqual(decoded.app, .codex)
         XCTAssertNil(decoded.localProvider)
-        XCTAssertNil(decoded.apiProvider)
     }
 
     func testTerminalScriptActuallyPreservesLiteralArgumentsAndCleansMarker() throws {
         let root = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: root) }
         let payload = "hello ' \" $HOME $(touch SHOULD_NOT_EXIST); `id`\nsecond line"
-        let account = Account(id: "../../escape", name: "Test", app: .custom, profilePath: root.path, sessionRoot: root.path,
+        let account = Account(id: "../../escape", name: "Test", app: .antigravity, profilePath: root.path, sessionRoot: root.path,
                               createdAt: Date(), lastLaunchedAt: nil,
                               localProvider: .init(kind: .terminal, target: "/usr/bin/printf", arguments: ["%s", payload], workingDirectory: root.path))
         let command = try LocalProviderLauncher.command(for: account, directory: root)
@@ -158,15 +154,5 @@ final class LocalProviderTests: XCTestCase {
         try Data("42\n".utf8).write(to: url.appendingPathExtension("pid"))
         XCTAssertFalse(LocalProviderLauncher.isRunning(account, processes: [.init(pid: 42, args: "/bin/sleep 60")], directory: root))
         XCTAssertTrue(LocalProviderLauncher.isRunning(account, processes: [.init(pid: 42, args: "/bin/zsh " + url.path)], directory: root))
-    }
-
-    func testAPIAndCustomWebsiteRouteWithoutFakeDesktopDirectories() {
-        var commands: [LaunchCommand] = []
-        let launcher = Launcher(activate: { _ in XCTFail(); return false }, processes: { XCTFail(); return nil }, run: { commands.append($0) })
-        let api = Account(id: "api", name: "API", app: .api, profilePath: "", sessionRoot: "", createdAt: Date(), lastLaunchedAt: nil,
-                          apiProvider: .init(baseURL: "https://example.com/v1", dashboardURL: "https://example.com"))
-        XCTAssertEqual(launcher.launch(api), .launched)
-        XCTAssertEqual(commands.first?.arguments, ["https://example.com"])
-        XCTAssertThrowsError(try LocalProviderConfiguration(kind: .website, target: "file:///etc/passwd").validate())
     }
 }

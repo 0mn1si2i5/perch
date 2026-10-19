@@ -43,7 +43,7 @@ final class NativeGeminiUsageTests: XCTestCase {
     }
 
     func testRejectsOtherProfileBeforeAnyConnection() async {
-        let account = Account(id: "fixture", name: "Native", app: .custom, profilePath: "/tmp/other-profile",
+        let account = Account(id: "fixture", name: "Native", app: .geminiApp, profilePath: "/tmp/other-profile",
             sessionRoot: "/tmp/other-profile", createdAt: Date(), lastLaunchedAt: nil,
             localProvider: .init(kind: .application, target: "/Applications/Gemini.app"))
         do { _ = try await NativeGeminiUsage.query(account); XCTFail("Expected unsupported profile") }

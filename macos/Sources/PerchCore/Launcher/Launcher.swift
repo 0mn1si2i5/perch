@@ -28,14 +28,6 @@ public struct Launcher {
     }
 
     public func launch(_ account: Account) -> LaunchOutcome {
-        if let api = account.apiProvider {
-            do {
-                try api.validate()
-                guard !api.dashboardURL.isEmpty else { return .failed("尚未配置供应商控制台地址") }
-                try run(LaunchCommand(arguments: [api.dashboardURL]))
-                return .launched
-            } catch { return .failed(error.localizedDescription) }
-        }
         if let local = account.localProvider {
             do {
                 if local.kind == .application, let running = processes(),

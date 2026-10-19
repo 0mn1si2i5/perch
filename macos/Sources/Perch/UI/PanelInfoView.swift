@@ -14,8 +14,8 @@ struct PanelInfoView: View {
                     .foregroundStyle(.secondary)
             }
             item("供应商入口", symbol: "point.3.connected.trianglepath.dotted") {
-                Text("在“新建账号”中添加本机 Gemini、Antigravity、DeepSeek Harness，也可配置自定义启动入口或 API 供应商。")
-                Text("本机入口沿用现有登录；成功启动不代表登录已验证。API 可检查模型列表连接，不执行模型推理。")
+                Text("在“新建账号”中点“自动获取可用供应商”，添加本机 Gemini 应用、Gemini CLI、Antigravity、DeepSeek Harness。")
+                Text("本机入口沿用现有登录；成功启动不代表登录已验证。")
                     .foregroundStyle(.secondary)
             }
             item("文档接力", symbol: "doc.on.clipboard") {
@@ -33,8 +33,13 @@ struct PanelInfoView: View {
                     Text("Claude 额度使用对应账号授权，仅在内存中使用。首次手动同步可能需要钥匙串授权；后台不弹提示。")
                     Text("Codex 单实例可直接定位对话；多实例时只调出所属客户端。Claude 目前只调出客户端，需自行选择会话。")
                     Text("Claude 桌面会话按账号目录读取。“Code”表示本机 Claude Code 历史，仅显示在默认客户端卡片；其登录账号可能与桌面客户端不同。")
-                    Text("新增本机供应商只引用已有目录，不复制登录凭据。自定义入口的配置目录仅供引用；启动参数需按工具要求填写。")
-                    Text("API 密钥保存在 macOS 钥匙串。Gemini CLI、Antigravity 与 DeepSeek Harness 读取本机会话索引；其他自定义入口不读取会话。新增供应商暂不读取额度；API 配置账号不参与文档接力。")
+                    Text("本机供应商只引用已有目录，不复制登录凭据。Gemini CLI、Antigravity 与 DeepSeek Harness 读取本机会话索引。")
+                    Text("Antigravity 额度以 Gemini 应用为准。Antigravity CLI 卡片只在点刷新时运行一次 agy 查询，后台不运行。")
+                    if let backup = perch.removedAccountsBackup {
+                        Text("API 供应商和自定义客户端已移除，原来的这类账号保存在：")
+                        Text(backup.path).textSelection(.enabled)
+                        Text("它们的 API 密钥仍在钥匙串里，Perch 不会删除。要清理，打开“钥匙串访问”，搜索 com.omnis.perch.api-provider，删除找到的条目。")
+                    }
                     if !perch.skippedImports.isEmpty {
                         Text("旧账号导入时跳过：\(perch.skippedImports.joined(separator: "、"))。该导入流程仅支持 Codex 与 Claude；其他供应商可在“新建账号”中添加。")
                     }

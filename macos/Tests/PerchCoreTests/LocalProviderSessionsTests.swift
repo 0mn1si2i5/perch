@@ -79,7 +79,7 @@ final class LocalProviderSessionsTests: XCTestCase {
 
     func testMissingSourcesRemainAbsent() throws {
         let root = try fixture()
-        for app in [AppKind.antigravity, .gemini, .deepseek, .codex, .api] {
+        for app in [AppKind.antigravity, .gemini, .deepseek, .codex] {
             XCTAssertTrue(LocalProviderSessions.recent(account(app, root)).isEmpty)
         }
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("conversation_summaries.db").path))

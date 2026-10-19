@@ -40,3 +40,22 @@ public enum ProviderUsageError: LocalizedError {
         }
     }
 }
+
+/// Antigravity reports Google model allowances as buckets. The CLI and the Gemini app use the same shape with
+/// different key names. Only `gemini-` buckets (the Google pool) are shown; third-party model allowances are not.
+enum AntigravityBucket {
+    static func metric(id: Any?, window: Any?, name: Any?, remaining: Any?, reset: Any?) -> ProviderUsageMetric? {
+        guard let id = id as? String, id.hasPrefix("gemini-"),
+              let number = remaining as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+              number.doubleValue.isFinite, (0...1).contains(number.doubleValue) else { return nil }
+        let window = window as? String ?? ""
+        let label = window == "weekly" ? "每周" : window == "5h" ? "5 小时" : String((name as? String ?? window).prefix(80))
+        return .init(label: poolLabel(id) + " · " + label, remainingPercent: number.doubleValue * 100,
+                     resetsAt: (reset as? String).flatMap(ISO8601.parse))
+    }
+
+    /// Argon has its own weekly allowance beside the main Gemini pool; both use `gemini-` bucket ids.
+    static func poolLabel(_ bucketID: String) -> String {
+        bucketID.localizedCaseInsensitiveContains("argon") ? "Argon" : "Gemini Models"
+    }
+}

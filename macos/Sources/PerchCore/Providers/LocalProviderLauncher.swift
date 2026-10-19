@@ -64,7 +64,6 @@ public enum LocalProviderLauncher {
         guard let config = account.localProvider else { throw ProviderError.invalid("缺少启动配置") }
         try config.validate()
         switch config.kind {
-        case .website: return LaunchCommand(arguments: [config.target])
         case .application:
             return LaunchCommand(arguments: ["-a", config.target] + (config.arguments.isEmpty ? [] : ["--args"] + config.arguments))
         case .terminal:
