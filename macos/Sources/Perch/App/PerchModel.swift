@@ -72,6 +72,9 @@ final class PerchModel: ObservableObject {
     private var claudeCodeReaders: [String: ClaudeSessionReader] = [:]
     private let sessionOrder: SessionOrderStore
     private var readers: [String: CodexReader] = [:]
+    private var localReaders: [String: LocalProviderSessionReader] = [:]
+    /// Claude account → the organization its last live query used. History samples are matched against it.
+    private var claudeOrganizations: [String: String] = [:]
     private var trackers: [String: CompletionTracker] = [:]
     private let worker = DispatchQueue(label: "com.omnis.perch.poll", qos: .utility)
     private var reading = false
@@ -289,6 +292,7 @@ final class PerchModel: ObservableObject {
         let accounts = self.accounts
         let codex = accounts.filter { $0.app == .codex }.map { ($0.id, reader(for: $0)) }
         let claude = accounts.filter { $0.app == .claude }.map { ($0.id, claudeReader(for: $0), claudeCodeReader(for: $0)) }
+        let providers = accounts.filter { $0.localProvider != nil }.map { ($0.id, localReader(for: $0)) }
         worker.async { [weak self] in
             let processes = ProcessMatcher.snapshot() ?? []
             let running = Set(accounts.filter {
@@ -304,7 +308,7 @@ final class PerchModel: ObservableObject {
                 let code = (codeReader?.recent() ?? []).filter { !desktopIDs.contains($0.id) }
                 sessions[id] = Array((desktop + code).sorted { $0.updatedAt > $1.updatedAt }.prefix(30))
             }
-            let local = Dictionary(uniqueKeysWithValues: accounts.filter { $0.localProvider != nil }.map { ($0.id, LocalProviderSessions.recent($0)) })
+            let local = Dictionary(uniqueKeysWithValues: providers.map { ($0.0, $0.1.recent()) })
             DispatchQueue.main.async {
                 if let self {
                     let valid = local.filter { key, _ in accounts.first { $0.id == key } == self.accounts.first { $0.id == key } }
@@ -339,6 +343,14 @@ final class PerchModel: ObservableObject {
         if let reader = readers[account.sessionRoot] { return reader }
         let reader = CodexReader(home: URL(fileURLWithPath: account.sessionRoot))
         readers[account.sessionRoot] = reader
+        return reader
+    }
+
+    private func localReader(for account: Account) -> LocalProviderSessionReader {
+        let key = account.app.rawValue + ":" + account.sessionRoot
+        if let reader = localReaders[key] { return reader }
+        let reader = LocalProviderSessionReader(account: account)
+        localReaders[key] = reader
         return reader
     }
 
