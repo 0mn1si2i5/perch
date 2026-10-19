@@ -4,6 +4,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="$(cat "$ROOT_DIR/VERSION")"
 export PERCH_CONFIGURATION=release
 export PERCH_ARCHS="arm64 x86_64"
+# Distribution stays ad-hoc unless a release signer was explicitly selected.
+export PERCH_SIGNING_IDENTITY="${PERCH_SIGNING_IDENTITY--}"
 "$ROOT_DIR/script/build_and_run.sh" --build
 APP="$ROOT_DIR/dist.noindex/Perch.app"
 OUT="$ROOT_DIR/dist.noindex/releases"

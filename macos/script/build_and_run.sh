@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PACKAGE_DIR="$ROOT_DIR"
 APP_BUNDLE="$ROOT_DIR/dist.noindex/Perch.app"
+INSTALL_PATH="$HOME/Applications/Perch.app"
 BUNDLE_ID="com.omnis.perch"
 LEGACY_ID="com.pox.desktop"
 MODE="${1:-run}"
@@ -15,7 +16,9 @@ VERSION="$(cat "$ROOT_DIR/VERSION")"
 export MACOSX_DEPLOYMENT_TARGET=14.0
 CONFIGURATION="${PERCH_CONFIGURATION:-debug}"
 case "$CONFIGURATION" in debug|release) ;; *) echo "Invalid PERCH_CONFIGURATION" >&2; exit 2 ;; esac
-SIGNING_IDENTITY="${PERCH_SIGNING_IDENTITY:--}"
+# Keep local development updates under one signer so Keychain permissions can survive rebuilds.
+source "$ROOT_DIR/script/signing-identity.sh"
+SIGNING_IDENTITY="$(perch_resolve_signing_identity "$INSTALL_PATH")"
 SWIFT_FLAGS=(--package-path "$PACKAGE_DIR" -c "$CONFIGURATION")
 CLANG_FLAGS=(-mmacosx-version-min=14.0)
 for arch in ${PERCH_ARCHS:-}; do
@@ -70,7 +73,6 @@ codesign --verify --deep --strict "$APP_BUNDLE" >/dev/null
 
 if [[ "$MODE" == "--build" ]]; then echo "$APP_BUNDLE"; exit 0; fi
 # Every launch uses the installed copy so macOS has one application entry.
-INSTALL_PATH="$HOME/Applications/Perch.app"
 if [[ -d "$INSTALL_PATH" ]]; then
   EXISTING_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INSTALL_PATH/Contents/Info.plist" 2>/dev/null || true)"
   if [[ "$EXISTING_ID" != "$BUNDLE_ID" ]]; then echo "Another Perch.app already exists; leaving it untouched." >&2; exit 1; fi

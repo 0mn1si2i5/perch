@@ -87,10 +87,14 @@ public enum ClaudeQuota {
             kSecAttrService as String: "Claude Safe Storage", kSecAttrAccount as String: "Claude Key",
             kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne,
             kSecUseAuthenticationContext as String: context]
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess, let data = item as? Data else { return .failure(.keychainLocked) }
-        return .success(data)
+        do {
+            return try KeychainAccess.shared.withInteraction(allowed: interactive) {
+                var item: CFTypeRef?
+                let status = SecItemCopyMatching(query as CFDictionary, &item)
+                guard status == errSecSuccess, let data = item as? Data else { return .failure(.keychainLocked) }
+                return .success(data)
+            }
+        } catch { return .failure(.keychainLocked) }
     }
 
     /// Electron's macOS safeStorage envelope; reject unknown formats instead of guessing.
