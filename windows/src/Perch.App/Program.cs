@@ -36,14 +36,16 @@ public static class Program
         string? temp = demo ? Path.Combine(Path.GetTempPath(), "perch-demo-" + Guid.NewGuid().ToString("N")) : null;
         Panel? shown = null;
         bool running = false;
-        // A file, process or clipboard error that escapes a handler is reported in the panel instead of closing Perch.
-        app.DispatcherUnhandledException += (_, e) =>
-        {
-            if (shown == null || e.Exception is not (IOException or UnauthorizedAccessException or InvalidOperationException or ExternalException))
-                return;
-            e.Handled = true;
-            shown.Model.Notify(PanelModel.Describe(e.Exception));
-        };
+        // A file or clipboard error that escapes a handler is reported in the panel instead of closing Perch.
+        // Screenshot runs must fail and exit instead, so they keep the default behavior.
+        if (Option("--screenshot") == null)
+            app.DispatcherUnhandledException += (_, e) =>
+            {
+                if (shown == null || e.Exception is not (IOException or UnauthorizedAccessException or COMException))
+                    return;
+                e.Handled = true;
+                shown.Model.Notify(PanelModel.Describe(e.Exception));
+            };
         TaskScheduler.UnobservedTaskException += (_, e) => e.SetObserved();
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
@@ -69,6 +71,8 @@ public static class Program
             };
             if (args.Contains("--show") || demo || store.Accounts.Count == 0)
                 panel.OpenPanel();
+            // The tray now listens; notices held during startup can reach it.
+            app.Dispatcher.BeginInvoke(panel.Model.Ready);
             panel.DemoPet(int.TryParse(Option("--pet-pose"), out int pose) ? pose : null, args.Contains("--pet-complete"));
             if (args.Contains("--tray-menu"))
                 panel.Dispatcher.BeginInvoke(() => tray?.ShowMenu());

@@ -396,6 +396,7 @@ public sealed partial class PanelModel : Observable, IDisposable
     }
     public void Opened()
     {
+        Ready();
         if (Demo || !started || !AutoQuota)
             return;
         _ = Background(async () =>
@@ -413,12 +414,34 @@ public sealed partial class PanelModel : Observable, IDisposable
     });
 
     private void Navigate(string destination) => Page = Page == destination ? "accounts" : destination;
+    // Notices raised while the panel and tray are still being built (file recovery, hotkey) wait here,
+    // since nothing is subscribed yet and the message would clear before anyone saw it.
+    private List<string>? held = [];
+
     public void Notify(string value)
     {
+        if (held != null)
+        {
+            if (!held.Contains(value))
+                held.Add(value);
+            return;
+        }
+
         Message = value;
         messageTimer.Stop();
         messageTimer.Start();
         BackgroundError?.Invoke(value);
+    }
+
+    /// Shows the notices held during startup; called once the tray is listening or the panel first opens.
+    public void Ready()
+    {
+        if (held == null)
+            return;
+        var waiting = held;
+        held = null;
+        if (waiting.Count > 0)
+            Notify(string.Join("\n", waiting));
     }
 
     public void Run(Action action) => Run(() =>
