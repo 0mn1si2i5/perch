@@ -132,13 +132,30 @@ final class PerchModel: ObservableObject {
     func panelClosed() {
         panelVisible = false
         dismissMessage()
+        schedulePolling()
+    }
+
+    /// Local reads run every 5 seconds while the panel is open and every 20 seconds while it is hidden.
+    static func pollInterval(panelVisible: Bool) -> TimeInterval { panelVisible ? 5 : 20 }
+
+    /// The current read interval, or nil before `start()`.
+    var pollingInterval: TimeInterval? { timer?.timeInterval }
+
+    private func schedulePolling() {
+        guard timer != nil else { return }
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: Self.pollInterval(panelVisible: panelVisible), repeats: true) { [weak self] _ in
+            self?.poll()
+        }
     }
 
     func start() {
         reload()
         handoffLog = handoffs.recentLog(limit: .max)
         poll()
-        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.poll() }
+        timer = Timer.scheduledTimer(withTimeInterval: Self.pollInterval(panelVisible: panelVisible), repeats: true) { [weak self] _ in
+            self?.poll()
+        }
         quotaTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
             guard let self, self.automaticallySyncQuota else { return }
             self.refreshQuotas()
@@ -210,8 +227,13 @@ final class PerchModel: ObservableObject {
     // MARK: Quota
 
     func panelOpened() {
+        let wasHidden = !panelVisible
         panelVisible = true
         scheduleMessageDismissal()
+        if wasHidden, timer != nil {
+            poll()   // the hidden interval can leave the list 20 seconds old
+            schedulePolling()
+        }
         refreshQuotas()
     }
 
