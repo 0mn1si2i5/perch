@@ -13,8 +13,8 @@ enum ProviderUsagePresentation {
         usage.metrics.compactMap { metric in
             guard let remaining = metric.remainingPercent, remaining.isFinite, (0...100).contains(remaining),
                   let minutes = minutes(metric.label) else { return nil }
-            return QuotaWindow(minutes: minutes, usedPercent: 100 - remaining, resetsAt: metric.resetsAt)
-        }.sorted { $0.minutes < $1.minutes }
+            return QuotaWindow(minutes: minutes, usedPercent: 100 - remaining, resetsAt: metric.resetsAt, pool: pool(metric.label))
+        }.sorted { ($0.minutes, $0.pool == nil ? 0 : 1) < ($1.minutes, $1.pool == nil ? 0 : 1) }
     }
 
     static func display(usage: ProviderUsage?, error: String?) -> QuotaDisplay {
@@ -45,6 +45,13 @@ enum ProviderUsagePresentation {
                 + (metric.resetsAt.map { "；重置于 " + QuotaFormat.resetTimestamp($0) } ?? "")
         }
         return (metrics + [usage.summary, "记录时间：" + QuotaFormat.resetTimestamp(usage.observedAt)]).joined(separator: "\n")
+    }
+
+    /// The main Gemini pool keeps the plain 5h／周 labels; any other named pool is shown before the duration.
+    private static func pool(_ label: String) -> String? {
+        let parts = label.components(separatedBy: " · ")
+        guard parts.count > 1, parts[0] != "Gemini Models" else { return nil }
+        return parts[0]
     }
 
     private static func minutes(_ label: String) -> Int? {

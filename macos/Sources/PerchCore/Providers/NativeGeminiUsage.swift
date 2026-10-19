@@ -88,7 +88,7 @@ public enum NativeGeminiUsage {
                       value.doubleValue.isFinite, (0...1).contains(value.doubleValue) else { return nil }
                 let window = bucket["window"] as? String ?? ""
                 let label = window == "weekly" ? "每周" : window == "5h" ? "5 小时" : String((bucket["displayName"] as? String ?? window).prefix(80))
-                return .init(label: "Gemini Models · " + label, remainingPercent: value.doubleValue * 100,
+                return .init(label: GoogleProviderUsage.poolLabel(id) + " · " + label, remainingPercent: value.doubleValue * 100,
                              resetsAt: (bucket["resetTime"] as? String).flatMap(ISO8601.parse))
             }
         }

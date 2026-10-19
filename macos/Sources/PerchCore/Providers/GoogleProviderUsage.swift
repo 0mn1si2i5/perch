@@ -58,13 +58,18 @@ public final class GoogleProviderUsage {
                       let remaining = fraction(bucket["remaining_fraction"]) else { continue }
                 let window = bucket["window"] as? String ?? ""
                 let label = window == "weekly" ? "每周" : window == "5h" ? "5 小时" : String((bucket["name"] as? String ?? window).prefix(80))
-                metrics.append(.init(label: "Gemini Models · " + label,
+                metrics.append(.init(label: poolLabel(id) + " · " + label,
                                      remainingPercent: remaining * 100,
                                      resetsAt: (bucket["reset_time"] as? String).flatMap(ISO8601.parse)))
             }
         }
         guard !metrics.isEmpty else { throw ProviderUsageError.unsupported("Antigravity 当前登录没有返回可查询的额度") }
         return .init(metrics: metrics, summary: "Antigravity 实时额度", observedAt: now, authenticationVerified: true)
+    }
+
+    /// Argon has its own weekly allowance beside the main Gemini pool; both use `gemini-` bucket ids.
+    static func poolLabel(_ bucketID: String) -> String {
+        bucketID.localizedCaseInsensitiveContains("argon") ? "Argon" : "Gemini Models"
     }
 
     static func parseGemini(_ data: Data, now: Date = Date()) throws -> ProviderUsage {

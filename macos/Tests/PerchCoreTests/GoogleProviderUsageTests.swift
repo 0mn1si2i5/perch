@@ -48,6 +48,15 @@ final class GoogleProviderUsageTests: XCTestCase {
         XCTAssertThrowsError(try GoogleProviderUsage.parseAntigravity(response(Array(buckets.dropFirst()))))
     }
 
+    func testAntigravityLabelsArgonWeeklyAsItsOwnPool() throws {
+        let payload: [String: Any] = ["status": "SUCCESS", "command": ["name": "usage", "data": ["groups": [
+            ["name": "Gemini Models", "buckets": [["id": "gemini-weekly", "window": "weekly", "remaining_fraction": 0.96]]],
+            ["name": "Gemini 4 Argon", "buckets": [["id": "gemini-argon-wtu-weekly", "window": "weekly", "remaining_fraction": 0.98]]]
+        ]]]]
+        let usage = try GoogleProviderUsage.parseAntigravity(data(payload))
+        XCTAssertEqual(usage.metrics.map(\.label), ["Gemini Models · 每周", "Argon · 每周"])
+    }
+
     func testGeminiFailureNeverLeaksServerMessageOrMislabelsSignOut() throws {
         let response = try data(["error": ["message": "private-identity-token", "details": [["reason": "SUBSCRIPTION_REQUIRED"]]]])
         XCTAssertThrowsError(try GoogleProviderUsage.check(403, data: response)) { error in

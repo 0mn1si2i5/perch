@@ -6,15 +6,20 @@ public struct QuotaWindow: Equatable {
     /// Clamped to 0...100.
     public let usedPercent: Double
     public let resetsAt: Date?
+    /// Names a separate pool that shares a duration with the main one, such as Gemini's Argon allowance.
+    public let pool: String?
 
-    public init(minutes: Int, usedPercent: Double, resetsAt: Date?) {
+    public init(minutes: Int, usedPercent: Double, resetsAt: Date?, pool: String? = nil) {
         self.minutes = minutes
         self.usedPercent = min(max(usedPercent, 0), 100)
         self.resetsAt = resetsAt
+        self.pool = pool
     }
 
     /// Named by length: Codex reports the weekly window as `primary` on plans that have only that one.
-    public var label: String {
+    public var label: String { pool.map { $0 + " " + duration } ?? duration }
+
+    private var duration: String {
         switch minutes {
         case 300: return "5h"
         case 10080: return "周"

@@ -24,12 +24,13 @@ final class NativeGeminiUsageTests: XCTestCase {
             ["bucketId": "gemini-weekly", "window": "weekly", "remainingFraction": 0.9, "resetTime": "2026-10-24T12:00:00Z"],
             ["bucketId": "gemini-5h", "window": "5h", "remainingFraction": 1],
             ["bucketId": "3p-weekly", "window": "weekly", "remainingFraction": 0.3],
+            ["bucketId": "gemini-argon-wtu-weekly", "window": "weekly", "remainingFraction": 0.98],
             ["bucketId": "gemini-bool", "remainingFraction": true],
             ["bucketId": "gemini-invalid", "remainingFraction": 2]
         ]]]]])
         let usage = try NativeGeminiUsage.parseQuota(body)
-        XCTAssertEqual(usage.metrics.map(\.remainingPercent), [90, 100])
-        XCTAssertEqual(usage.metrics.map(\.label), ["Gemini Models · 每周", "Gemini Models · 5 小时"])
+        XCTAssertEqual(usage.metrics.map(\.remainingPercent), [90, 100, 98])
+        XCTAssertEqual(usage.metrics.map(\.label), ["Gemini Models · 每周", "Gemini Models · 5 小时", "Argon · 每周"])
         XCTAssertNotNil(usage.metrics[0].resetsAt)
         XCTAssertTrue(usage.authenticationVerified)
         XCTAssertThrowsError(try NativeGeminiUsage.parseQuota(Data("{}".utf8)))

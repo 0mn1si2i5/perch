@@ -109,3 +109,11 @@ macos/dist.noindex/Perch.app/Contents/MacOS/Perch --diagnose-providers
 展示改为直接复用 Claude/Codex 的 `QuotaRowView`、`QuotaWindowView`、`QuotaFreshnessView`：按 5h／周分行、显示已用整数百分比、右侧重置倒计时，悬停显示剩余与完整日期；缓存／错误提示位于标题。Antigravity CLI 仅接受 `gemini-` 桶，第三方额度不显示。DeepSeek 使用相同字号和行对齐，但保留金额语义，精确分项置于悬停提示。两张 Google 卡片保留各自的真实查询结果，不相加、不强行覆盖为同一个数。
 
 本轮交付验收（04:10）：Core 142 项通过，App 25 项中 24 项通过、1 项可选预览跳过；完整构建和签名校验通过。新版已安装至 `~/Applications/Perch.app` 并重启，安装二进制与构建一致，7 条账号文件与更新前备份字节一致。真实菜单栏已检查两张 Google 卡片的 5h／周已用 3%、一致的重置时间、第三方模型隐藏及 DeepSeek 余额排版；点击 Antigravity 刷新后按钮恢复可用，数值与原生 Gemini 保持一致。更新前应用与账号备份位于本机 `Backups/unified-quota-20261018-040843`。Windows 未构建或验收。
+
+## Argon 周额度单独标注（2026-10-19）
+
+本机 `/usage` 现在多返回一个“Gemini 4 Argon”分组，桶 id 为 `gemini-argon-wtu-weekly`，重置时间与主池周额度不同。它以 `gemini-` 开头，之前被当作主池的又一个周额度，卡片上出现两行“周”。官方说明 Pro 方案的 Argon 额度单独计算。
+
+现在桶 id 含 `argon` 的额度标为 Argon 池，CLI 和原生 Gemini 两张卡片都显示为“Argon 周”，排在主池 5h、周之后。主池标签不变。
+
+验收：macOS 测试 148 项通过；新版已构建、签名并安装到 `~/Applications/Perch.app`，安装二进制与构建一致。用当前 `/usage` 实际返回离屏渲染额度行，显示 5h 0%、周 4%、Argon 周 2%。没有在真实菜单栏面板中点击查看；原生 Gemini 按同一规则解析，未单独抓取其返回。Windows 未改动。

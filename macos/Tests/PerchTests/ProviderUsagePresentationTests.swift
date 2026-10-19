@@ -20,6 +20,16 @@ final class ProviderUsagePresentationTests: XCTestCase {
         XCTAssertTrue(windows[0].hasReset(now: shortReset))
     }
 
+    func testSeparatePoolKeepsItsNameAfterMainWindowOfSameDuration() {
+        let windows = ProviderUsagePresentation.windows(usage([
+            .init(label: "Argon · 每周", remainingPercent: 98),
+            .init(label: "Gemini Models · 每周", remainingPercent: 96),
+            .init(label: "Gemini Models · 5 小时", remainingPercent: 100)
+        ]))
+        XCTAssertEqual(windows.map(\.label), ["5h", "周", "Argon 周"])
+        XCTAssertEqual(windows.map(\.usedPercent), [0, 4, 2])
+    }
+
     func testUnknownModelDurationIsNotInventedAndTimeWindowsDoNotDuplicateAsSummaryRows() {
         let sample = usage([
             .init(label: "Gemini Models · 每周", remainingPercent: 100),
