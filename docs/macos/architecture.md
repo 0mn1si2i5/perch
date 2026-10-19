@@ -31,9 +31,14 @@ Codex 使用所属账号的 app-server 查询额度，本地 rollout 尾部记�
 
 外部命令（ps、lsof、open、agy、媒体组件、Codex app-server）统一由 `Subprocess` 运行。每个子进程放进独立进程组，超时先发 TERM，0.5 秒后对整组发 KILL，不留下孙进程。阻塞等待在 DispatchQueue 上进行，异步调用通过 continuation 取回结果，不占用 Swift 并发线程。不跟随重定向、不缓存、不保存 cookie 的 URLSession 统一由 `PrivateHTTP` 创建。钥匙串只在额度队列上读取。
 
-## Codex 子代理面板
+## 子代理面板
 
-codex-delegate 技能（`~/.claude/skills/codex-delegate/`）每次运行 `codex exec --json` 时在 `~/.codex-delegate/runs/<时间>-<标题>-<pid>/` 写入 `meta.json`、`brief.md`、`events.jsonl`、`stderr.log`、`last.md`，结束时写 `result.json`。`CODEX_DELEGATE_RUNS` 可改根目录。DelegateRunReader 只读这个目录：按偏移量增量读 `events.jsonl`，有 `result.json` 按退出码判定完成或失败，没有它且 `meta.json` 里的启动进程已退出则判为中断。只列出运行中和 24 小时内结束的最多 12 个任务。
+面板读两处运行记录，合在一起按目录名（以时间开头）从新到旧排：
+
+- Moot（`~/.moot/runs/<时间>-<标题>-<pid>/`，`MOOT_RUNS` 可改）：顶层有 `meeting.json`，每个席位每一轮在 `seats/<席位>/<序号>-<阶段>/` 下写 `meta.json`、`events.jsonl`、`last.md`、`result.json`。面板只显示序号最大的那一轮。`events.jsonl` 是 Moot 统一过的事件，每行一个 `{id, kind, status, text, detail?, paths?, tokens?}`，同一个 `id` 后写的覆盖先写的。`meta.json` 的 `adapter`（`codex`、`claude`、`agy`）显示为 Codex、Claude 或 Gemini。
+- codex-delegate 技能（`~/.codex-delegate/runs/<时间>-<标题>-<pid>/`，`CODEX_DELEGATE_RUNS` 可改）：每次运行 `codex exec --json` 时写入 `meta.json`、`brief.md`、`events.jsonl`、`stderr.log`、`last.md`，结束时写 `result.json`，`events.jsonl` 是 codex 的原始事件。
+
+DelegateRunReader 只读这两个目录：按偏移量增量读 `events.jsonl`，有 `result.json` 按退出码判定完成或失败，没有它且 `meta.json` 里的启动进程已退出则判为中断。只列出运行中和 24 小时内结束的最多 12 个任务。
 
 DelegatePanelController 持有一个不激活应用的浮动 NSPanel，所有桌面空间可见，位置按 `CodexDelegatePanel` 自动保存。面板显示时每秒轮询，隐藏时每 3 秒轮询，用来在出现新的运行中任务时自动弹出。偏好键：`delegatePanelVisible`、`delegatePanelAutoShow`（默认开）、`delegatePanelExpanded`。面板只读，不能停止或重跑任务。
 

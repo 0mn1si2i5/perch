@@ -54,7 +54,7 @@ struct DelegatePanelView: View {
     private var header: some View {
         HStack(spacing: 6) {
             Image(systemName: "terminal").font(.system(size: 12, weight: .semibold))
-            Text("Codex 子代理").font(.system(size: 12, weight: .semibold))
+            Text("子代理").font(.system(size: 12, weight: .semibold))
             if monitor.runningCount > 0 {
                 Text("\(monitor.runningCount) 个运行中").font(.system(size: 11)).foregroundStyle(ReadableStatusColor.green)
             }
@@ -255,7 +255,7 @@ struct DelegateExpandedView: View {
     }
 
     private func facts(_ run: DelegateRun) -> String {
-        var parts = [run.kind == .review ? "审核" : "执行"]
+        var parts = [run.kind == .review ? "审核" : "执行", run.adapterName]
         if !run.model.isEmpty { parts.append(run.model) }
         parts.append("\(run.commandCount) 条命令")
         parts.append("\(run.changedFiles.count) 个文件")

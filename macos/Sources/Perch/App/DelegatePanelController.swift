@@ -76,7 +76,7 @@ final class DelegatePanelController: NSObject, NSWindowDelegate {
         window = DelegatePanelWindow(contentRect: NSRect(x: 0, y: 0, width: 320, height: 120),
                                      styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel, .utilityWindow],
                                      backing: .buffered, defer: false)
-        window.title = "Codex 子代理"
+        window.title = "子代理"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
