@@ -7,10 +7,13 @@ import CommonCrypto
 /// Credentials stay in memory; no refresh token is used and no client login state is changed.
 public enum ClaudeQuota {
     public enum Failure: Error, Equatable {
-        case noLogin, keychainLocked, incompatibleCache, expired, noUsageScope, rateLimited(TimeInterval), http(Int), network, unreadable
+        case noLogin, keychainLocked, incompatibleCache, expired, noUsageScope, multipleOrganizations
+        case rateLimited(TimeInterval), http(Int), network, unreadable
         public var reason: String {
             switch self {
             case .noLogin: return "请先登录这个 Claude 客户端"
+            case .multipleOrganizations:
+                return "这个 Claude 账号同时属于多个组织（例如个人和 Team），客户端还没有记录当前用的是哪一个。请在 Claude 客户端中查看一次用量后再刷新"
             case .keychainLocked: return "需要访问 Claude 登录信息，请点击刷新并允许钥匙串访问"
             case .incompatibleCache: return "无法读取此版本 Claude 的登录信息"
             case .expired: return "Claude 登录授权已过期，请打开客户端更新登录后重试"
@@ -23,8 +26,28 @@ public enum ClaudeQuota {
         }
     }
 
+    /// A live value and the login it belongs to.
+    public struct Answer: Equatable {
+        public let value: QuotaValue
+        public let account: String
+        public let organization: String
+    }
+
+    struct Selected: Equatable {
+        let token: String
+        let organization: String
+    }
+
+    /// The account the client is signed in to, from its config. Reads no credentials.
+    public static func signedInAccount(dataDir: URL) -> String? {
+        guard let data = try? Data(contentsOf: dataDir.appendingPathComponent("config.json")),
+              let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let account = config["lastKnownAccountUuid"] as? String, !account.isEmpty else { return nil }
+        return account
+    }
+
     /// Blocking, at most 15 seconds for the request; call off the main thread.
-    public static func live(dataDir: URL, interactive: Bool = false) -> Result<QuotaValue, Failure> {
+    public static func live(dataDir: URL, interactive: Bool = false) -> Result<Answer, Failure> {
         do {
             let config = try JSONSerialization.jsonObject(with: Data(contentsOf: dataDir.appendingPathComponent("config.json"))) as? [String: Any]
             guard let config, let account = config["lastKnownAccountUuid"] as? String, !account.isEmpty,
@@ -36,16 +59,18 @@ public enum ClaudeQuota {
             }
             guard let entries = decrypt(encrypted, password: password) else { return .failure(.incompatibleCache) }
             let org = latestOrganization(dataDir: dataDir)
-            let token: String
+            let selected: Selected
             switch selectToken(entries, account: account, organization: org, now: Date()) {
-            case .success(let value): token = value
+            case .success(let value): selected = value
             case .failure(let error): return .failure(error)
             }
-            return request(token: token)
+            return request(token: selected.token).map {
+                Answer(value: $0, account: account, organization: selected.organization)
+            }
         } catch { return .failure(.noLogin) }
     }
 
-    static func selectToken(_ entries: [String: Any], account: String, organization: String?, now: Date) -> Result<String, Failure> {
+    static func selectToken(_ entries: [String: Any], account: String, organization: String?, now: Date) -> Result<Selected, Failure> {
         let matching = entries.compactMap { key, value -> (String, [String: Any])? in
             guard key.hasPrefix("acct:\(account)|"), let entry = value as? [String: Any] else { return nil }
             let parts = key.components(separatedBy: ":https://api.anthropic.com:")
@@ -64,12 +89,13 @@ public enum ClaudeQuota {
         // has valid authorization for it; otherwise a unique current organization is sufficient.
         let preferred = valid.filter { $0.0 == organization }
         let scoped = preferred.isEmpty ? valid : preferred
-        guard Set(scoped.map { $0.0 }).count == 1 else { return .failure(.noLogin) }
+        // A personal and a Team organization under one account, and no record of which one is in use.
+        guard Set(scoped.map { $0.0 }).count == 1, let chosen = scoped.first?.0 else { return .failure(.multipleOrganizations) }
         let ranked = scoped.map { $0.1 }.sorted {
             (QuotaParser.number($0["expiresAt"]) ?? 0) > (QuotaParser.number($1["expiresAt"]) ?? 0)
         }
         guard let entry = ranked.first, let token = entry["token"] as? String, !token.isEmpty else { return .failure(.expired) }
-        return .success(token)
+        return .success(Selected(token: token, organization: chosen))
     }
 
     private static func latestOrganization(dataDir: URL) -> String? {

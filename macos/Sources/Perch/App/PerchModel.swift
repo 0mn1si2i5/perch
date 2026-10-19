@@ -261,19 +261,24 @@ final class PerchModel: ObservableObject {
         let live = quotaThrottle.allow(account.id, now: now)
         if live { refreshingQuotas.insert(account.id) }
         let rollouts = (snapshots[account.id]?.tasks ?? []).sorted { $0.updatedAt > $1.updatedAt }.compactMap(\.rolloutPath).prefix(5)
+        let organizations = claudeOrganizations
         quotaQueue.async { [weak self] in
+            let dataDir = URL(fileURLWithPath: account.profilePath)
+            let owner = account.app == .claude ? ClaudeQuota.signedInAccount(dataDir: dataDir) : nil
+            // History samples are kept per organization; never show another account's organization.
             let cache = account.app == .claude
-                ? ClaudeQuotaCache.latest(dataDir: URL(fileURLWithPath: account.profilePath))
+                ? ClaudeQuotaCache.latest(dataDir: dataDir, organization: owner.flatMap { organizations[$0] },
+                                          excluding: Set(organizations.filter { $0.key != owner }.values))
                 : QuotaCache.latest(rollouts: Array(rollouts))
             DispatchQueue.main.async {
                 guard let self, self.accounts.contains(where: { $0.id == account.id && $0.profilePath == account.profilePath }) else { return }
                 if account.app == .claude {
-                    let current = self.quotas[account.id]
+                    let current = QuotaDisplay.claude(self.quotas[account.id], signedIn: owner)
                     if let cache, current == nil || cache.observedAt > (current?.observedAt ?? .distantPast) {
-                        var display = QuotaDisplay.claude(cache)
+                        var display = QuotaDisplay.claude(cache, owner: owner)
                         display.liveFailure = current?.liveFailure
                         self.setQuota(display, for: account.id)
-                    } else if current == nil { self.setQuota(.claude(nil), for: account.id) }
+                    } else if current == nil { self.setQuota(.claude(nil, owner: owner), for: account.id) }
                 } else {
                     let display = QuotaDisplay.withCache(self.quotas[account.id], cache)
                     self.setQuota(display ?? (live ? .empty : nil), for: account.id)
@@ -288,7 +293,9 @@ final class PerchModel: ObservableObject {
                     guard self.accounts.contains(where: { $0.id == account.id && $0.profilePath == account.profilePath }) else { return }
                     if case .failure(.rateLimited(let delay)) = result { self.quotaRetryAfter[account.id] = Date().addingTimeInterval(delay) }
                     else { self.quotaRetryAfter[account.id] = nil }
-                    self.setQuota((self.quotas[account.id] ?? .claude(nil)).applyingClaude(result, now: Date()), for: account.id)
+                    if case .success(let answer) = result { self.claudeOrganizations[answer.account] = answer.organization }
+                    let current = QuotaDisplay.claude(self.quotas[account.id], signedIn: owner) ?? .claude(nil, owner: owner)
+                    self.setQuota(current.applyingClaude(result, now: Date()), for: account.id)
                 }
             } else {
                 let result = CodexQuota.live(account)

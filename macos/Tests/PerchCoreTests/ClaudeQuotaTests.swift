@@ -30,7 +30,8 @@ final class ClaudeQuotaTests: XCTestCase {
     func testCredentialsStayBoundToAccountOrganizationAndUsageScope() throws {
         let entries: [String: Any] = [key(): entry(), key(account: "other"): entry(token: "wrong-account", age: 9000),
                                     key(org: "other-org"): entry(token: "wrong-org", age: 8000)]
-        XCTAssertEqual(try ClaudeQuota.selectToken(entries, account: "owner", organization: "org", now: now).get(), "test-token")
+        XCTAssertEqual(try ClaudeQuota.selectToken(entries, account: "owner", organization: "org", now: now).get(),
+                       .init(token: "test-token", organization: "org"))
         if case .success = ClaudeQuota.selectToken(entries, account: "owner", organization: nil, now: now) {
             XCTFail("Ambiguous organizations must not select a token")
         }
@@ -43,21 +44,52 @@ final class ClaudeQuotaTests: XCTestCase {
 
     func testStaleOrganizationHistoryDoesNotBlockUniqueCurrentLogin() throws {
         let entries: [String: Any] = [key(org: "new-org"): entry(), key(org: "expired-org"): entry(age: -100)]
-        XCTAssertEqual(try ClaudeQuota.selectToken(entries, account: "owner", organization: "previous-account-org", now: now).get(), "test-token")
+        XCTAssertEqual(try ClaudeQuota.selectToken(entries, account: "owner", organization: "previous-account-org", now: now).get().token, "test-token")
         let ambiguous: [String: Any] = [key(org: "one"): entry(), key(org: "two"): entry()]
-        XCTAssertEqual(ClaudeQuota.selectToken(ambiguous, account: "owner", organization: "stale-org", now: now), .failure(.noLogin))
+        XCTAssertEqual(ClaudeQuota.selectToken(ambiguous, account: "owner", organization: "stale-org", now: now), .failure(.multipleOrganizations))
+        XCTAssertEqual(try ClaudeQuota.selectToken(ambiguous, account: "owner", organization: "two", now: now).get().organization, "two")
+    }
+
+    func testPersonalAndTeamOrganizationsNameTheCause() {
+        let personalAndTeam: [String: Any] = [key(org: "personal"): entry(), key(org: "team"): entry(token: "team-token")]
+        let result = ClaudeQuota.selectToken(personalAndTeam, account: "owner", organization: nil, now: now)
+        XCTAssertEqual(result, .failure(.multipleOrganizations))
+        XCTAssertTrue(ClaudeQuota.Failure.multipleOrganizations.reason.contains("多个组织"))
+        XCTAssertNotEqual(ClaudeQuota.Failure.multipleOrganizations.reason, ClaudeQuota.Failure.noLogin.reason)
+    }
+
+    func testSwitchingAccountsDropsTheOldQuota() throws {
+        let value = QuotaValue.windows([QuotaWindow(minutes: 300, usedPercent: 6, resetsAt: nil)])
+        let first = QuotaDisplay.claude(nil, owner: "first")
+            .applyingClaude(.success(.init(value: value, account: "first", organization: "org-first")), now: now)
+        XCTAssertEqual(first.owner, "first")
+        XCTAssertEqual(QuotaDisplay.claude(first, signedIn: "first"), first)
+        XCTAssertNil(QuotaDisplay.claude(first, signedIn: "second"))
+        XCTAssertNil(QuotaDisplay.claude(first, signedIn: nil))
+        // Signed in to another account, a failed query has nothing old to fall back on.
+        let second = (QuotaDisplay.claude(first, signedIn: "second") ?? .claude(nil, owner: "second"))
+            .applyingClaude(.failure(.keychainLocked), now: now.addingTimeInterval(60))
+        XCTAssertNil(second.value)
+        XCTAssertEqual(second.owner, "second")
+
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        XCTAssertNil(ClaudeQuota.signedInAccount(dataDir: dir))
+        try Data(#"{"lastKnownAccountUuid":"second","oauth:tokenCacheV2":"not-read"}"#.utf8).write(to: dir.appendingPathComponent("config.json"))
+        XCTAssertEqual(ClaudeQuota.signedInAccount(dataDir: dir), "second")
     }
 
     func testFailureRetainsLastGoodValueAndOriginalTimestamp() {
         let value = QuotaValue.windows([QuotaWindow(minutes: 300, usedPercent: 6, resetsAt: nil)])
-        let live = QuotaDisplay.claude(nil).applyingClaude(.success(value), now: now)
+        let live = QuotaDisplay.claude(nil).applyingClaude(.success(.init(value: value, account: "owner", organization: "org")), now: now)
         XCTAssertFalse(live.cached)
         let failed = live.applyingClaude(.failure(.rateLimited(600)), now: now.addingTimeInterval(300))
         XCTAssertEqual(failed.value, value)
         XCTAssertEqual(failed.observedAt, now)
         XCTAssertTrue(failed.cached)
         XCTAssertTrue(failed.liveFailed)
-        XCTAssertFalse(failed.applyingClaude(.success(value), now: now.addingTimeInterval(600)).liveFailed)
+        XCTAssertFalse(failed.applyingClaude(.success(.init(value: value, account: "owner", organization: "org")),
+                                             now: now.addingTimeInterval(600)).liveFailed)
     }
 
     func testKnownElectronEnvelopeDecryptsWithoutChangingSource() {

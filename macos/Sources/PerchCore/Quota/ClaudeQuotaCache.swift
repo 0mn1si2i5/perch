@@ -10,8 +10,12 @@ import Foundation
 ///   `rate_limit_event` with both windows' utilization (0…1) and reset times. Blobs are Chromium-wrapped:
 ///   `FF 11 02` followed by raw Snappy, then V8-serialized values.
 public enum ClaudeQuotaCache {
-    public static func latest(dataDir: URL, now: Date = Date()) -> CachedQuota? {
-        let candidates = [history(dataDir.appendingPathComponent("plan-usage-history.json"), now: now),
+    /// History samples carry the organization they were fetched for. `organization` keeps only that
+    /// organization's samples; without it, samples of organizations known to belong to other accounts are skipped.
+    public static func latest(dataDir: URL, organization: String? = nil, excluding: Set<String> = [],
+                              now: Date = Date()) -> CachedQuota? {
+        let candidates = [history(dataDir.appendingPathComponent("plan-usage-history.json"), organization: organization,
+                                  excluding: excluding, now: now),
                           events(dataDir.appendingPathComponent("IndexedDB/https_claude.ai_0.indexeddb.blob"), now: now)]
         return combining(candidates.compactMap { $0 })
     }
@@ -35,11 +39,14 @@ public enum ClaudeQuotaCache {
 
     // MARK: plan-usage-history.json
 
-    static func history(_ url: URL, now: Date) -> CachedQuota? {
+    static func history(_ url: URL, organization: String? = nil, excluding: Set<String> = [], now: Date) -> CachedQuota? {
         guard let data = try? Data(contentsOf: url),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let samples = object["samples"] as? [[String: Any]] else { return nil }
         let newest = samples.compactMap { sample -> (Date, [String: Any])? in
+            let org = sample["org"] as? String
+            if let organization { guard org == organization else { return nil } }
+            else if let org, excluding.contains(org) { return nil }
             guard let t = QuotaParser.number(sample["t"]), let usage = sample["u"] as? [String: Any] else { return nil }
             return (Date(timeIntervalSince1970: t / 1000), usage)
         }.max { $0.0 < $1.0 }
