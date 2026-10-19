@@ -3,26 +3,32 @@
 在面板底部选择“新建账号”。点击“自动获取可用供应商”主动扫描，可搜索名称并逐项添加。主页不显示发现条幅，扫描不会自动添加账号：
 
 - Codex、Claude：保留原有独立账号、登录、额度和接力流程。
-- Gemini CLI、Antigravity、DeepSeek Harness：扫描并引用本机已有配置。添加不会复制凭据，也不会改变原客户端登录。启动后在客户端完成认证。
-- 自定义客户端：选择终端可执行文件、macOS 应用或 HTTP(S) 网页。参数每行一个，按字面值传递，不执行 shell 插值。配置目录只作引用；自定义命令需用自己的参数指定数据目录，不自动提供账号隔离。
-- API 供应商：OpenAI、Anthropic、Gemini API、DeepSeek API、OpenRouter、Ollama 预设，或自定义地址；支持 OpenAI 兼容、Anthropic 和 Gemini 协议。
+- Gemini CLI、Antigravity CLI、DeepSeek Harness、Gemini 应用：扫描并引用本机已有配置。添加不会复制凭据，也不会改变原客户端登录。启动后在客户端完成认证。
 
-右键账号 → “供应商配置…”可编辑。API 卡片的“检查连接”获取模型列表，然后可在配置中选择模型；“控制台”打开供应商网页。“复制连接配置”不包含密钥。API 密钥保存在本机 Perch 专属钥匙串条目，配置文件不保存密钥。更换 API 地址或协议需重新输入密钥或明确删除旧密钥。模型列表可公开访问，因此检查成功不代表密钥有效、模型推理或额度已验证。Perch 不代替客户端执行对话，不自动向其他客户端写入 API 配置。
+新建页的手动添加只提供 Codex 和 Claude；其他客户端只能通过扫描添加。
+
+## 已删除的类型
+
+之前开发版里的 API 供应商和自定义客户端（包括网页入口）已删除。升级后第一次启动时，这些账号从 `accounts.json` 移到 Perch 数据目录的 `removed-accounts.json`（权限 0600），内容原样保留，账号列表不再显示。重复启动不会重复写入。
+
+Perch 不删除钥匙串里保存过的 API 密钥。需要清理时打开“钥匙串访问”，搜索 `com.omnis.perch.api-provider`，删除对应条目。信息页在有备份文件时也会显示这段说明。
 
 ## 本机适配
 
 | 客户端 | 查找 | 数据 | 启动与限制 |
 |---|---|---|---|
-| Gemini CLI | `gemini`，含用户 npm、local、bun 和 Homebrew 路径 | `~/.gemini` | `GEMINI_CLI_HOME` 指向 `.gemini` 的父目录；读取 `tmp/*/chats/session-*.json` 元数据 |
-| Antigravity CLI | `agy` | `~/.gemini/antigravity-cli` | 沿用本机登录，不提供未经验证的 home 隔离；只读 `conversation_summaries.db` |
+| Gemini CLI | `gemini`，含用户 npm、local、bun 和 Homebrew 路径 | `~/.gemini` | `GEMINI_CLI_HOME` 指向 `.gemini` 的父目录；读取 `tmp/*/chats/session-*.json` 和 `.jsonl` 的元数据 |
+| Antigravity CLI | `agy` | `~/.gemini/antigravity-cli` | 沿用本机登录，不提供未经验证的 home 隔离；只读 `conversation_summaries.db`，数据库是 WAL 模式且没有 `-wal` 文件时按不可变文件打开 |
 | DeepSeek Harness | 优先已安装的 `DSH Desktop.app`，否则 `dsh` | `~/.dsh` | DSH Desktop 直接打开既有本机应用，读取其数据目录设置中的 `activeHome`（没有设置时为 `~/.dsh`）；CLI 使用 `DSH_HOME` 和 `--profile web --host 127.0.0.1 --port 3080`，再点击“打开本机网页” |
 | Gemini macOS | 验证 `Gemini.app` 的 bundle ID | 原生应用数据目录 | 作为独立 Gemini 分组添加；打开应用内 Antigravity 后，通过其本机服务查询额度，不解密账户存储 |
 
 DSH Desktop 是本机第三方桌面封装；Perch 不安装或升级它。本次本机旧 npm CLI 与现有凭据格式不兼容，已通过其兼容的桌面版接入，没有修改凭据。
 
-终端客户端通过 Terminal 打开私有 `.command` 文件，登录信息仍由客户端读取。绿色运行标记只确认由 Perch 启动且仍存在的终端进程；点击“终端”调出 Terminal，不保证选中具体标签页。会话行调出客户端，暂不自动定位新供应商会话。仅接力文档由用户粘贴发送；API 配置账号不作为文档接力目标。
+终端客户端通过 Terminal 打开私有 `.command` 文件，登录信息仍由客户端读取。绿色运行标记只确认由 Perch 启动且仍存在的终端进程；点击“终端”调出 Terminal，不保证选中具体标签页。会话行调出客户端，暂不自动定位新供应商会话。仅接力文档由用户粘贴发送。
 
-新增供应商不冒用 Codex/Claude 额度查询。没有可靠状态的本地会话标为“本地记录”，不声称已完成。Antigravity CLI 通过官方 `/usage` 只读命令显示各模型组周额度、5 小时额度和重置时间；DeepSeek 显示充值与赠送余额，不伪造百分比。Gemini CLI OAuth 查询只在内存中刷新 token；个人账号收到 `SUBSCRIPTION_REQUIRED` 时显示迁移提示。原生 Gemini 登录独立保存；Perch 从已运行的原生应用内 Antigravity 本地服务查询 Gemini 模型额度，不复用 CLI 凭据。应用未启动或 Antigravity 尚未打开时，显示打开应用的提示。Windows 尚未实现这些新增类型；两端账号文件是各自本地存储，不要把 macOS 新账号文件直接复制到旧 Windows 版本。
+会话列表每次只看最新的 60 个会话文件，按路径、修改时间和大小缓存，文件没变就不再解析。超过 2 MB 的会话只读文件开头的元数据，仍然出现在列表里。没有有效时间的会话（例如 Antigravity 记录的 0001-01-01）显示“时间未知”，排在最后。
+
+新增供应商不冒用 Codex/Claude 额度查询。没有可靠状态的本地会话标为“本地记录”，不声称已完成。Antigravity 额度以 Gemini 应用为准。Antigravity CLI 卡片不自动查询，点击刷新时运行一次官方 `/usage` 只读命令，显示周额度、5 小时额度和重置时间；agy 不会在后台启动。DeepSeek 显示充值与赠送余额，不伪造百分比。Gemini CLI 不再查询额度：之前的查询要从 CLI 安装目录的 JS 里读取 OAuth client，个人账号也只会返回迁移提示。原生 Gemini 登录独立保存；Perch 从已运行的原生应用内 Antigravity 本地服务查询 Gemini 模型额度，不复用 CLI 凭据。应用未启动或 Antigravity 尚未打开时，显示打开应用的提示。Windows 尚未实现这些新增类型；两端账号文件是各自本地存储，不要把 macOS 新账号文件直接复制到旧 Windows 版本。
 
 ## 本机验证入口
 
@@ -41,12 +47,7 @@ macos/dist.noindex/Perch.app/Contents/MacOS/Perch --diagnose-providers
 - [Gemini CLI 认证](https://geminicli.com/docs/get-started/authentication/)
 - [Antigravity CLI](https://www.antigravity.google/docs/cli/install/)
 - [DeepSeek Harness CLI](https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/cli/README.md)（本机版本可能早于当前文档，启动参数按已安装实现验证）
-- [OpenAI 模型列表](https://developers.openai.com/api/reference/resources/models/methods/list)
-- [Anthropic 模型列表](https://platform.claude.com/docs/en/api/models/list)
-- [Gemini 模型列表](https://ai.google.dev/api/models)
 - [DeepSeek API](https://api-docs.deepseek.com/)
-- [OpenRouter 模型列表](https://openrouter.ai/docs/api/api-reference/models/list-all-models-and-their-properties)
-- [Ollama OpenAI 兼容接口](https://docs.ollama.com/api/openai-compatibility)
 
 ## 首轮供应商管理验证（2026-10-18）
 
@@ -117,3 +118,14 @@ macos/dist.noindex/Perch.app/Contents/MacOS/Perch --diagnose-providers
 现在桶 id 含 `argon` 的额度标为 Argon 池，CLI 和原生 Gemini 两张卡片都显示为“Argon 周”，排在主池 5h、周之后。主池标签不变。
 
 验收：macOS 测试 148 项通过；新版已构建、签名并安装到 `~/Applications/Perch.app`，安装二进制与构建一致。用当前 `/usage` 实际返回离屏渲染额度行，显示 5h 0%、周 4%、Argon 周 2%。没有在真实菜单栏面板中点击查看；原生 Gemini 按同一规则解析，未单独抓取其返回。Windows 未改动。
+
+## 阶段 1 缺陷修复（2026-10-19）
+
+一、删除的内容：API 供应商、自定义客户端、网页入口、供应商编辑页、Gemini CLI 额度查询和从 CLI 的 JS 读取 OAuth client 的代码。新建页去掉 4 个只提示去扫描的类型。
+
+二、Antigravity 额度：只保留 Gemini 应用这一个自动来源。CLI 卡片默认不显示额度行，手动刷新后才显示结果。
+
+三、会话列表：按路径、修改时间、大小缓存，只解析最新 60 个文件；长会话读开头元数据；0001-01-01 按无日期处理；WAL 数据库缺 `-wal` 时按不可变文件打开，之前这种情况每 5 秒报一次“unable to open database file”，列表为空。
+
+四、验证：`swift test --package-path macos` 通过（Core 149 项，App 29 项中 1 项可选预览跳过），`macos/script/build_and_run.sh --build` 成功。用本机真实数据只读运行会话读取：Antigravity 列出 21 条（1 条无日期），Gemini CLI 的 `.jsonl` 会话 1 条，DSH 7 条，第二次读取没有重新解析文件，数据库旁没有生成 `-wal` 文件。没有安装新版，也没有在真实菜单栏面板上点击检查。
+

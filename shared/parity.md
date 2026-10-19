@@ -26,10 +26,10 @@
 | 原生 UI 明暗/Pox | ✅ | ✅ | Windows 三主题四页面渲染 |
 | Codex 子代理面板 | 🟡 | N/A | Mac 读取 codex-delegate 运行记录；真实委派任务的折叠/展开截图已核对，展开按钮和右键菜单点击待验收；Windows 暂不做 |
 | 平台发布配置 | N/A | ✅ | `windows-v0.2.0` tag 已在远端完成测试、打包并发布预览 Release |
-| 本机 Gemini CLI / Antigravity / DeepSeek Harness | 🟡 | ❌ | macOS 引用既有配置、启动、会话索引；Antigravity 模型额度、DeepSeek 钱包余额及 Gemini CLI OAuth 额度状态，详见 [供应商说明](../docs/macos/providers.md) |
-| Gemini 原生应用内 Antigravity | ✅ | ❌ | 独立 Gemini 分组；从运行中的原生应用本地服务查询 Gemini 模型额度，Argon 周额度单独标注；真实面板刷新、明细及重启保留已验收；不复用 CLI 凭据 |
+| 本机 Gemini CLI / Antigravity / DeepSeek Harness | 🟡 | ❌ | macOS 引用既有配置、启动、会话索引（只解析最新 60 个文件并缓存，长会话读开头元数据）；Antigravity CLI 额度只在手动刷新时查询，DeepSeek 钱包余额；Gemini CLI 不再查询额度。详见 [供应商说明](../docs/macos/providers.md) |
+| Gemini 原生应用内 Antigravity | ✅ | ❌ | 独立 Gemini 分组；Antigravity 额度唯一的自动来源，从运行中的原生应用本地服务查询 Gemini 模型额度，Argon 周额度单独标注；真实面板刷新、明细及重启保留已验收；不复用 CLI 凭据 |
 | 从访达重新打开面板 | ✅ | ❌ | macOS 重新打开 Perch 时展示菜单栏面板，不依赖桌宠可见性 |
-| 自定义客户端 / API 供应商 | 🟡 | ❌ | macOS 应用、命令、网页入口；API 地址/协议/模型、Keychain 密钥、模型列表连接检查；连接成功不代表推理或额度可用 |
+| 自定义客户端 / API 供应商 | N/A | ❌ | macOS 已删除；旧账号升级时移到 `removed-accounts.json`，钥匙串里的密钥需手动清理 |
 
 macOS 开发更新：沿用稳定代码签名；Claude 后台额度读取禁止旧式钥匙串弹窗，手动刷新可请求授权。Windows 不适用这套 macOS 钥匙串机制。
 

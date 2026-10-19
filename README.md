@@ -21,7 +21,7 @@
 | --- | --- | --- |
 | 按 Codex / Claude 分组，一键启动或调出对应账号的客户端，每个账号的登录和数据互不干扰。 | 查看正在运行的任务和最近的会话；分组、账号和会话都能拖动排序。 | 显示 5 小时和每周额度的已用比例与重置时间，可手动刷新或定期同步；查不到时显示上次的数据并注明时间。 |
 
-**macOS 开发版新增供应商管理**：可引用本机 Gemini CLI、Antigravity、DeepSeek Harness 和 Gemini 应用，添加自定义客户端，以及配置主流或自定义 API 供应商。API 密钥保存到钥匙串；支持 Antigravity CLI 与 Gemini 原生应用内 Antigravity 的模型额度、DeepSeek 账户余额及 Gemini CLI OAuth 额度状态。通过新建页主动扫描、逐项添加本机入口。使用方式见[供应商说明](docs/macos/providers.md)。此功能尚未发布到上表的 Release，Windows 暂未跟进。
+**macOS 开发版新增供应商管理**：可引用本机 Gemini CLI、Antigravity CLI、DeepSeek Harness 和 Gemini 应用。Antigravity 额度来自 Gemini 应用内的 Antigravity；Antigravity CLI 卡片只在手动刷新时运行一次 agy。DeepSeek 显示账户余额。通过新建页主动扫描、逐项添加本机入口。之前开发版里的自定义客户端和 API 供应商已删除，旧账号会移到备份文件。使用方式见[供应商说明](docs/macos/providers.md)。此功能尚未发布到上表的 Release，Windows 暂未跟进。
 
 **桌宠（可选）**：默认关闭。在设置里开启后，可以选一个静态的原生浮球，或者内置角色 Pox（带配套面板主题）。单击桌宠打开面板，拖动可换位置。
 
