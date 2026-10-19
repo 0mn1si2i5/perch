@@ -45,7 +45,9 @@ public sealed class QuotaService(Clients clients)
             Quota? fallback = null;
             try
             {
-                fallback = account.App == "claude" ? ClaudeHistory(clients.ClaudeRoot(account)) : CodexRollout(account.SessionRoot);
+                // The rollout fallback walks every session folder recursively; keep it off the UI thread.
+                var root = account.App == "claude" ? clients.ClaudeRoot(account) : account.SessionRoot;
+                fallback = await Task.Run(() => account.App == "claude" ? ClaudeHistory(root) : CodexRollout(root));
             }
             catch (Exception fallbackError) when (fallbackError is IOException or JsonException or UnauthorizedAccessException)
             {

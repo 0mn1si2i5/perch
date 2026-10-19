@@ -106,7 +106,7 @@ static class Program
             bool clipboardFailed = false;
             try
             {
-                handoffs.Transfer(_ => throw new IOException("Clipboard busy"));
+                handoffs.Deliver(_ => throw new IOException("Clipboard busy"), () => System.Threading.Tasks.Task.CompletedTask).GetAwaiter().GetResult();
             }
             catch (IOException)
             {
@@ -172,7 +172,8 @@ static class Program
             Check(scaled.X == 2303 && scaled.Y == 585 && scaled.Width == 510, "Physical origins and scaled dimensions stay separate");
             Check(Sessions.Status("error", true, DateTimeOffset.UtcNow) == "遇到问题", "Failed tasks must remain distinct from stopped tasks");
             FixtureTests.Run(root);
-            Console.WriteLine("PASS: persistence, ACLs, process isolation, quota windows, task lifecycle, handoff recovery and document preservation");
+            RegressionTests.Run(root);
+            Console.WriteLine("PASS: persistence, ACLs, process isolation, quota windows, task lifecycle, handoff recovery, document preservation and launch failures");
         }
         finally
         {

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.Tasks;
 
 namespace Perch.Windows;
 
@@ -23,11 +24,16 @@ public sealed class Handoffs(Store store)
 {
     public const string TaskScope = "task";
     public const string SplitScope = "split";
-    public string? RecoveryDetail
-    {
-        get; private set;
-    }
+    private string? recoveryDetail;
     public PendingHandoff? Pending => ReadState<PendingHandoff>("pending.json");
+
+    /// Returns the recovery notice once, then forgets it.
+    public string? TakeRecoveryDetail()
+    {
+        var detail = recoveryDetail;
+        recoveryDetail = null;
+        return detail;
+    }
     public List<HandoffRecord> History => ReadState<List<HandoffRecord>>("history.json") ?? [];
 
     private T? ReadState<T>(string name)
@@ -40,7 +46,7 @@ public sealed class Handoffs(Store store)
         {
             var original = Path.Combine(store.Handoffs, name);
             File.Move(original, Path.Combine(store.Handoffs, name + ".unreadable-" + Guid.NewGuid().ToString("N") + ".json"));
-            RecoveryDetail = "一份接力记录无法读取，已在交接文件夹保留原始备份。";
+            recoveryDetail = "一份接力记录无法读取，已在交接文件夹保留原始备份。";
             return default;
         }
     }
@@ -106,13 +112,32 @@ public sealed class Handoffs(Store store)
         return prepared.Record;
     }
 
-    public HandoffRecord Transfer(Action<string> copy, string? source = null)
+    /// The source conversation may still be writing the document; continuing then would copy half of it.
+    public static void EnsureSourceStopped(PendingHandoff pending, IEnumerable<Session> sourceSessions)
+    {
+        if (sourceSessions.Any(s => s.Id == pending.SessionId && s.Status is "运行中" or "等待输入"))
+            throw new InvalidOperationException("源任务仍在进行中。请等交接文档写完、任务停下后再继续。");
+    }
+
+    /// Copies and records the document, then opens the target. Pending clears only after the target opens;
+    /// a failed launch returns its error with the document already copied and recorded, and keeps the card.
+    public async Task<(HandoffRecord Record, Exception? LaunchError)> Deliver(Action<string> copy, Func<Task> openTarget, string? source = null)
     {
         var prepared = Read(source);
         copy(prepared.Clipboard);
         var record = Commit(prepared);
-        Clear();
-        return record;
+        try
+        {
+            await openTarget();
+        }
+        catch (Exception e) when (e is IOException or InvalidOperationException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        {
+            return (record, e);
+        }
+
+        if (Pending?.Id == prepared.Pending.Id)
+            Clear();
+        return (record, null);
     }
 
     public (HandoffRecord Record, string Clipboard) Complete(string? source = null)

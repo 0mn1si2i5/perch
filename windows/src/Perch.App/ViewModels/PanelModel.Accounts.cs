@@ -92,7 +92,7 @@ public sealed partial class PanelModel
         MergeAccounts();
     }
 
-    public void Remove(Account account)
+    public async Task Remove(Account account)
     {
         if (Handoffs.Pending is { } pending && (pending.SourceId == account.Id || pending.TargetId == account.Id))
             throw new IOException("请先完成或取消这个账号的待接力任务。");
@@ -101,8 +101,9 @@ public sealed partial class PanelModel
             return;
         if (choice.Item2 && !account.Default && Directory.Exists(account.ProfilePath))
         {
-            if (Store.SamePath(account.ProfilePath, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)) || Store.SamePath(account.ProfilePath, Store.Root))
-                throw new IOException("不能回收用户目录或 Perch 数据根目录。");
+            // The last poll can be 20 seconds old; check the processes now.
+            await Task.Run(Clients.Scan);
+            Store.CheckRecycle(account, Clients.Find(account) != null);
             FileSystem.DeleteDirectory(account.ProfilePath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
         }
 

@@ -57,17 +57,30 @@ public sealed partial class PanelModel
         }
 
         var pending = Handoffs.Pending ?? throw new IOException("没有待继续的接力。");
+        var source = Store.Accounts.FirstOrDefault(a => a.Id == pending.SourceId);
         var target = Store.Accounts.FirstOrDefault(a => a.Id == pending.TargetId) ?? throw new IOException("目标账号已移除。");
         HandoffBusy = true;
         Changed(nameof(HandoffBusy));
         Changed(nameof(ContinueLabel));
         try
         {
-            Handoffs.Transfer(ClipboardWriter.Set, path);
+            if (source != null && !Demo)
+            {
+                // Read the source again instead of trusting the last poll: it may still be writing the document.
+                var fresh = await Task.Run(() =>
+                {
+                    Clients.Scan();
+                    return Sessions.Read(source, Clients);
+                });
+                Handoffs.EnsureSourceStopped(pending, fresh.Sessions);
+            }
+
+            var (_, launchError) = await Handoffs.Deliver(ClipboardWriter.Set, () => Demo ? Task.CompletedTask : Clients.Open(target), path);
             UpdateHandoffs();
-            if (!Demo)
-                await Clients.Open(target);
-            Notify(pending.SameAccount ? "接力文档已复制，请在本账号新建一个对话，粘贴发送。" : "接力文档已复制，请在目标新对话粘贴发送。");
+            if (launchError != null)
+                Notify("接力文档已复制并写入记录，但目标账号没有打开：" + launchError.Message.TrimEnd('。') + "。请手动打开目标账号，在新对话粘贴发送。");
+            else
+                Notify(pending.SameAccount ? "接力文档已复制，请在本账号新建一个对话，粘贴发送。" : "接力文档已复制，请在目标新对话粘贴发送。");
         }
         finally
         {
@@ -94,7 +107,7 @@ public sealed partial class PanelModel
             UpdateHandoffs();
         })));
         Merge(History, records);
-        if (Handoffs.RecoveryDetail is { } recovery)
+        if (Handoffs.TakeRecoveryDetail() is { } recovery)
             Notify(recovery);
     }
 }

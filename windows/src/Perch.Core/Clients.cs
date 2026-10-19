@@ -64,9 +64,13 @@ public sealed class Clients
     {
         try
         {
-            var manager = new global::Windows.Management.Deployment.PackageManager();
-            var packages = manager.FindPackagesForUser("").Where(p => p.Id.Name is "OpenAI.Codex" or "Claude").Where(p => p.Status.VerifyIsOK() && p.SignatureKind != global::Windows.ApplicationModel.PackageSignatureKind.None).ToList();
-            Installed = packages.Select(p => MakeClient(p.Id.Name == "Claude" ? "claude" : "codex", Path.Combine(p.InstalledLocation.Path, "app", p.Id.Name == "Claude" ? "Claude.exe" : "ChatGPT.exe"), p.Id.FamilyName)).Where(c => File.Exists(c.Executable)).ToList();
+            // Enumerating every package for the user takes seconds; keep it off the UI thread.
+            Installed = await Task.Run(() =>
+            {
+                var manager = new global::Windows.Management.Deployment.PackageManager();
+                var packages = manager.FindPackagesForUser("").Where(p => p.Id.Name is "OpenAI.Codex" or "Claude").Where(p => p.Status.VerifyIsOK() && p.SignatureKind != global::Windows.ApplicationModel.PackageSignatureKind.None).ToList();
+                return packages.Select(p => MakeClient(p.Id.Name == "Claude" ? "claude" : "codex", Path.Combine(p.InstalledLocation.Path, "app", p.Id.Name == "Claude" ? "Claude.exe" : "ChatGPT.exe"), p.Id.FamilyName)).Where(c => File.Exists(c.Executable)).ToList();
+            });
             return;
         }
         catch (Exception e) when (e is System.Runtime.InteropServices.COMException or UnauthorizedAccessException or NotSupportedException)
@@ -148,17 +152,29 @@ public sealed class Clients
         if (!Directory.Exists(a.ProfilePath))
             throw new IOException("数据目录不存在，请重新定位。");
         var running = Find(a);
-        if (running != null)
+        if (!NeedsLaunch(running))
         {
-            if (running.Handle == 0)
-                throw new IOException("账号正在运行，但没有可调出的窗口。");
-            ShowWindow((nint)running.Handle, 9);
-            if (!SetForegroundWindow((nint)running.Handle))
+            var window = (nint)running!.Handle;
+            ShowWindow(window, ShowCommand(IsIconic(window)));
+            if (!SetForegroundWindow(window))
                 throw new IOException("窗口已恢复；Windows 限制了前台切换，请点击任务栏窗口。");
             return;
         }
 
+        // A client closed to the tray has no main window. Starting it again with the same arguments
+        // reaches its single-instance handler, which brings the existing window forward.
         var client = Installed.FirstOrDefault(c => c.App == a.App) ?? throw new IOException("未找到已验证的客户端。当前支持 Microsoft Store / MSIX 安装版。");
+        Process.Start(StartInfo(a, client))?.Dispose();
+        await Task.Delay(600);
+        await Scan();
+    }
+
+    public static bool NeedsLaunch(Running? running) => running is not { Handle: not 0 };
+    // SW_RESTORE would also un-maximize a window, so only a minimized one is restored; others get SW_SHOW.
+    public static int ShowCommand(bool minimized) => minimized ? 9 : 5;
+
+    public static ProcessStartInfo StartInfo(Account a, Client client)
+    {
         var p = new ProcessStartInfo(client.Executable)
         {
             UseShellExecute = false
@@ -174,9 +190,7 @@ public sealed class Clients
             p.Environment["APPDATA"] = Path.Combine(a.ProfilePath, "roaming");
         }
 
-        Process.Start(p)?.Dispose();
-        await Task.Delay(600);
-        await Scan();
+        return p;
     }
 
     public string ClaudeRoot(Account a) => a.ThirdParty ? Path.Combine(a.ProfilePath, "local", "Claude-3p") : a.ProfilePath;
@@ -189,4 +203,6 @@ public sealed class Clients
     private static extern bool SetForegroundWindow(nint window);
     [DllImport("user32.dll")]
     private static extern bool ShowWindow(nint window, int command);
+    [DllImport("user32.dll")]
+    private static extern bool IsIconic(nint window);
 }

@@ -373,7 +373,7 @@ public sealed partial class PanelModel : Observable, IDisposable
             PopulateDemo();
         MergeAccounts();
         UpdateHandoffs();
-        if (Store.RecoveryDetail is { } recovery)
+        if (Store.TakeRecoveryDetail() is { } recovery)
             Notify(recovery);
     }
 

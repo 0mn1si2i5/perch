@@ -103,8 +103,9 @@ public static class Sessions
             return "遇到问题";
         if (raw is "interrupted" or "cancelled")
             return "已停止";
+        // As on macOS, a turn untouched for 30 minutes was cut off; it must not keep blocking handoff.
         if (raw is "inProgress" or "running" or "in_progress")
-            return running && DateTimeOffset.UtcNow - updated < TimeSpan.FromHours(24) ? waiting ? "等待输入" : "运行中" : "已停止";
+            return running && DateTimeOffset.UtcNow - updated < TimeSpan.FromMinutes(30) ? waiting ? "等待输入" : "运行中" : "已停止";
         return "状态未知";
     }
 
