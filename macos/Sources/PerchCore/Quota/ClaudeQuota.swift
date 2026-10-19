@@ -126,21 +126,11 @@ public enum ClaudeQuota {
         }
     }
 
-    private final class NoRedirect: NSObject, URLSessionTaskDelegate {
-        func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
-                        newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
-    }
-
     private static func request(token: String) -> Result<QuotaValue, Failure> {
         var request = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!, timeoutInterval: 15)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.httpCookieStorage = nil
-        configuration.urlCache = nil
-        configuration.httpShouldSetCookies = false
-        configuration.timeoutIntervalForResource = 15
-        let session = URLSession(configuration: configuration, delegate: NoRedirect(), delegateQueue: nil)
+        let session = PrivateHTTP.session(timeout: 15, resourceTimeout: 15)
         defer { session.invalidateAndCancel() }
         let done = DispatchSemaphore(value: 0)
         var answer: Result<QuotaValue, Failure> = .failure(.network)

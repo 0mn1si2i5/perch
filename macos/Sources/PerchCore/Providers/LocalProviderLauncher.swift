@@ -24,8 +24,8 @@ public enum LocalProviderLauncher {
                      "trap " + quote("/bin/rm -f -- " + quote(marker)) + " EXIT"]
         let home = NSHomeDirectory()
         // GUI launches may have no npm/Homebrew PATH. Keep the user's shell PATH as a fallback.
-        let paths = [URL(fileURLWithPath: config.target).deletingLastPathComponent().path,
-                     home + "/.local/bin", home + "/.npm-global/bin", home + "/.bun/bin", "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
+        let paths = [URL(fileURLWithPath: config.target).deletingLastPathComponent().path]
+            + ToolPaths.userDirectories(home: home) + ["/usr/bin", "/bin"]
         lines += ["export PATH=" + quote(paths.joined(separator: ":")) + ":\"$PATH\""]
         if account.app == .gemini {
             guard URL(fileURLWithPath: account.profilePath).lastPathComponent == ".gemini" else {

@@ -45,20 +45,10 @@ public enum ProcessMatcher {
     }
 
     /// Returns nil when `ps` cannot run; callers then treat every client as not running.
+    /// Blocking, at most 4 seconds; call off the main thread.
     public static func snapshot() -> [RunningProcess]? {
-        let process = Process()
-        let output = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/bin/ps")
-        process.arguments = ["-axww", "-o", "pid=,args="]
-        process.standardOutput = output
-        process.standardError = FileHandle.nullDevice
-        do { try process.run() } catch { return nil }
-        let timeout = DispatchWorkItem { if process.isRunning { process.terminate() } }
-        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 4, execute: timeout)
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        timeout.cancel()
-        guard process.terminationReason == .exit, process.terminationStatus == 0 else { return nil }
-        return parse(String(decoding: data, as: UTF8.self))
+        guard case .success(let output) = Subprocess.run("/bin/ps", ["-axww", "-o", "pid=,args="], timeout: 4, outputLimit: 32 << 20),
+              output.status == 0 else { return nil }
+        return parse(String(decoding: output.stdout, as: UTF8.self))
     }
 }

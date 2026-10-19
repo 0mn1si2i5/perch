@@ -70,8 +70,7 @@ public struct LocalProviderCandidate: Identifiable, Equatable {
 
 public enum LocalProviderDiscovery {
     public static func executable(_ name: String, home: String = NSHomeDirectory(), path: String = ProcessInfo.processInfo.environment["PATH"] ?? "") -> String? {
-        let directories = [home + "/.local/bin", home + "/.npm-global/bin", home + "/.bun/bin", "/opt/homebrew/bin", "/usr/local/bin"]
-            + path.split(separator: ":").map(String.init)
+        let directories = ToolPaths.userDirectories(home: home) + path.split(separator: ":").map(String.init)
         return directories.map { ($0 as NSString).appendingPathComponent(name) }.first {
             $0.hasPrefix("/") && FileManager.default.isExecutableFile(atPath: $0)
         }

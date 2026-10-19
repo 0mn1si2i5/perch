@@ -20,14 +20,7 @@ public enum DeepSeekUsage {
                       now: Date = Date()) async throws -> ProviderUsage {
         let credential = try parseCredential(credentialData)
         let request = makeRequest(credential)
-        let configuration = configuration.copy() as! URLSessionConfiguration
-        configuration.timeoutIntervalForRequest = 20
-        configuration.timeoutIntervalForResource = 30
-        configuration.urlCache = nil
-        configuration.urlCredentialStorage = nil
-        configuration.httpCookieStorage = nil
-        configuration.httpShouldSetCookies = false
-        let session = URLSession(configuration: configuration, delegate: NoProviderRedirects(), delegateQueue: nil)
+        let session = PrivateHTTP.session(timeout: 20, resourceTimeout: 30, configuration: configuration)
         defer { session.invalidateAndCancel() }
         let data: Data
         let response: URLResponse
