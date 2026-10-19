@@ -10,12 +10,10 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using Microsoft.Win32;
-using Microsoft.VisualBasic.FileIO;
 
 namespace Perch.Windows;
 
-public sealed class PanelModel : Observable, IDisposable
+public sealed partial class PanelModel : Observable, IDisposable
 {
     public Store Store
     {
@@ -58,7 +56,6 @@ public sealed class PanelModel : Observable, IDisposable
     private readonly Dictionary<string, GroupModel> groups = [];
     private readonly Dictionary<string, ImageSource?> icons = [];
     private readonly Dictionary<string, Snapshot> snapshots = [];
-    private readonly Dictionary<string, Quota> demoQuotas = [];
     private readonly DispatcherTimer pollTimer = new();
     private readonly DispatcherTimer clock = new()
     {
@@ -72,7 +69,6 @@ public sealed class PanelModel : Observable, IDisposable
     private DateTimeOffset lastQuota;
     private string page = "accounts", message = "", newName = "";
     private int newKind;
-    private bool allHistory;
     public string Page
     {
         get => page;
@@ -244,17 +240,6 @@ public sealed class PanelModel : Observable, IDisposable
         }
     }
 
-    public bool HasPending => Handoffs.Pending != null;
-    public string PendingTitle => Handoffs.Pending?.Title ?? "";
-    public string PendingRoute => Handoffs.Pending is { } p ? Route(AccountName(p.SourceId), AccountName(p.TargetId), p.SameAccount) + (p.Scope == Handoffs.SplitScope ? " · 拆出需求" : "") : "";
-    public string PendingHint => Handoffs.Pending?.Scope == Handoffs.SplitScope ? "在源对话粘贴提示词，在末尾写上要拆出的需求再发送；文档生成后继续。" : "在源对话粘贴提示词，文档生成后继续。";
-    public bool HandoffBusy
-    {
-        get; private set;
-    }
-    public string ContinueLabel => HandoffBusy ? "准备中…" : "继续接力";
-    public string HistoryMore => allHistory ? "收起记录" : $"查看其余 {Math.Max(0, Handoffs.History.Count - 5)} 条";
-    public bool HasHistoryMore => Handoffs.History.Count > 5;
     public bool NoAccounts => Store.Accounts.Count == 0;
     public string DataPath => Store.Handoffs;
     public Account? BusyAccount => Store.Accounts.FirstOrDefault(a => snapshots.TryGetValue(a.Id, out var s) && s.Sessions.Any(t => t.Status is "运行中" or "等待输入"));
@@ -622,209 +607,6 @@ public sealed class PanelModel : Observable, IDisposable
         return bitmap;
     }
 
-    public async Task OpenSession(Account account, Session session)
-    {
-        if (Demo)
-        {
-            Notify("演示模式，不打开客户端。");
-            return;
-        }
-
-        await Clients.Open(account);
-        int count = Clients.Processes.Count(p => p.Executable.EndsWith("ChatGPT.exe", StringComparison.OrdinalIgnoreCase) && !Clients.Arguments(p.CommandLine).Any(a => a.StartsWith("--type", StringComparison.Ordinal) || a == "--crashpad-handler"));
-        if (SessionRouting.CanDeepLink(account.App, session.Id, count))
-            Process.Start(new ProcessStartInfo("codex://threads/" + session.Id) { UseShellExecute = true })?.Dispose();
-        RequestHide?.Invoke();
-    }
-
-    private async Task CreateAccount()
-    {
-        if (Demo)
-        {
-            Notify("演示模式，不创建真实账号。");
-            return;
-        }
-
-        var account = Store.Create(NewName, NewKind == 0 ? "codex" : "claude");
-        NewName = "";
-        Page = "accounts";
-        MergeAccounts();
-        await Clients.Open(account);
-    }
-
-    private Task ImportAccount()
-    {
-        var folder = new OpenFolderDialog
-        {
-            Title = "选择客户端数据目录"
-        };
-        if (folder.ShowDialog() != true)
-            return Task.CompletedTask;
-        var app = NewKind == 0 ? "codex" : "claude";
-        if (Store.Accounts.Any(a => a.App == app && Store.SamePath(a.ProfilePath, folder.FolderName)))
-            throw new IOException("这个目录已被其他账号引用。");
-        var client = Clients.Installed.FirstOrDefault(c => c.App == app);
-        bool isDefault = client != null && Store.SamePath(client.DefaultProfile, folder.FolderName);
-        Store.Add(new Account { Name = string.IsNullOrWhiteSpace(NewName) ? Label(app) + " 账号" : NewName.Trim(), App = app, ProfilePath = folder.FolderName, SessionRoot = isDefault ? client!.DefaultSessions : app == "codex" ? Path.Combine(folder.FolderName, "codex-home") : folder.FolderName, Default = isDefault, ThirdParty = !isDefault && app == "claude" && ThirdParty });
-        Page = "accounts";
-        MergeAccounts();
-        return Task.CompletedTask;
-    }
-
-    public Task Relocate(Account account)
-    {
-        var folder = new OpenFolderDialog
-        {
-            Title = "重新定位账号数据目录"
-        };
-        if (folder.ShowDialog() != true)
-            return Task.CompletedTask;
-        if (Store.Accounts.Any(a => a.Id != account.Id && a.App == account.App && Store.SamePath(a.ProfilePath, folder.FolderName)))
-            throw new IOException("这个目录已被其他账号引用。");
-        account.ProfilePath = folder.FolderName;
-        var client = Clients.Installed.FirstOrDefault(c => c.App == account.App);
-        account.Default = client != null && Store.SamePath(client.DefaultProfile, folder.FolderName);
-        if (account.Default)
-            account.ThirdParty = false;
-        account.SessionRoot = account.Default ? client!.DefaultSessions : account.App == "codex" ? Path.Combine(folder.FolderName, "codex-home") : folder.FolderName;
-        Store.Save();
-        Quotas.Clear(account.Id);
-        snapshots.Remove(account.Id);
-        MergeAccounts();
-        return Task.CompletedTask;
-    }
-
-    public void Rename(Account account)
-    {
-        var name = Prompt?.Invoke("账号名称", account.Name);
-        if (string.IsNullOrWhiteSpace(name))
-            return;
-        account.Name = name.Trim();
-        Store.Save();
-        MergeAccounts();
-    }
-
-    public void Remove(Account account)
-    {
-        if (Handoffs.Pending is { } pending && (pending.SourceId == account.Id || pending.TargetId == account.Id))
-            throw new IOException("请先完成或取消这个账号的待接力任务。");
-        var choice = ConfirmDelete?.Invoke(account) ?? (false, false);
-        if (!choice.Item1)
-            return;
-        if (choice.Item2 && !account.Default && Directory.Exists(account.ProfilePath))
-        {
-            if (Store.SamePath(account.ProfilePath, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)) || Store.SamePath(account.ProfilePath, Store.Root))
-                throw new IOException("不能回收用户目录或 Perch 数据根目录。");
-            FileSystem.DeleteDirectory(account.ProfilePath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
-        }
-
-        Store.Remove(account);
-        Quotas.Clear(account.Id);
-        snapshots.Remove(account.Id);
-        MergeAccounts();
-    }
-
-    public void SwitchDefault(Account account, Client client)
-    {
-        if (Store.Accounts.Any(a => a.Id != account.Id && a.App == client.App && a.Default))
-            throw new IOException("默认数据已被另一个账号引用。");
-        if (Confirm?.Invoke("改用直接打开的 " + Label(client.App) + " 数据？原目录将保留。") != true)
-            return;
-        account.ProfilePath = client.DefaultProfile;
-        account.SessionRoot = client.DefaultSessions;
-        account.Default = true;
-        account.ThirdParty = false;
-        Store.Save();
-        Quotas.Clear(account.Id);
-        snapshots.Remove(account.Id);
-        MergeAccounts();
-    }
-
-    private void AddDefault(Client client)
-    {
-        Store.Add(new Account { App = client.App, Name = Label(client.App) + " 默认账号", ProfilePath = client.DefaultProfile, SessionRoot = client.DefaultSessions, Default = true });
-        MergeAccounts();
-        if (AutoQuota)
-            Run(RefreshAll);
-    }
-
-    public void BeginHandoff(Account source, Account target, Session session, string scope = Handoffs.TaskScope)
-    {
-        var pending = Handoffs.Prepare(source, target, session, scope);
-        try
-        {
-            ClipboardWriter.Set(Handoffs.Prompt(Handoffs.Draft(pending), pending.Scope));
-        }
-        finally
-        {
-            UpdateHandoffs();
-        }
-
-        if (!Demo)
-            Run(async () =>
-            {
-                await Clients.Open(source);
-                RequestHide?.Invoke();
-            });
-    }
-
-    private async Task Finish(bool choose)
-    {
-        string? path = null;
-        if (choose)
-        {
-            var picker = new OpenFileDialog
-            {
-                Filter = "Markdown|*.md",
-                CheckFileExists = true
-            };
-            if (picker.ShowDialog() != true)
-                return;
-            path = picker.FileName;
-        }
-
-        var pending = Handoffs.Pending ?? throw new IOException("没有待继续的接力。");
-        var target = Store.Accounts.FirstOrDefault(a => a.Id == pending.TargetId) ?? throw new IOException("目标账号已移除。");
-        HandoffBusy = true;
-        Changed(nameof(HandoffBusy));
-        Changed(nameof(ContinueLabel));
-        try
-        {
-            Handoffs.Transfer(ClipboardWriter.Set, path);
-            UpdateHandoffs();
-            if (!Demo)
-                await Clients.Open(target);
-            Notify(pending.SameAccount ? "接力文档已复制，请在本账号新建一个对话，粘贴发送。" : "接力文档已复制，请在目标新对话粘贴发送。");
-        }
-        finally
-        {
-            HandoffBusy = false;
-            Changed(nameof(HandoffBusy));
-            Changed(nameof(ContinueLabel));
-        }
-    }
-
-    private string AccountName(string id) => Store.Accounts.FirstOrDefault(a => a.Id == id)?.Name ?? "已移除账号";
-    // "A → B", or "A · 新对话" when the document stays in the same account.
-    public static string Route(string source, string target, bool sameAccount) => sameAccount ? source + " · 新对话" : source + " → " + target;
-    public void UpdateHandoffs()
-    {
-        Changed(nameof(HasPending));
-        Changed(nameof(PendingTitle));
-        Changed(nameof(PendingRoute));
-        Changed(nameof(PendingHint));
-        Changed(nameof(HistoryMore));
-        Changed(nameof(HasHistoryMore));
-        var records = Handoffs.History.Take(allHistory ? int.MaxValue : 5).Select(r => History.FirstOrDefault(h => h.Id == r.Id) ?? new HistoryModel(r.Id, $"{r.Created.LocalDateTime:MM-dd HH:mm} {Route(r.SourceName, r.TargetName, r.SameAccount)}", r.Scope == Handoffs.SplitScope ? "拆出需求 · " + r.Title : r.Title, r.Path, new(() => Run(() => Reveal(r.Path))), new(() =>
-        {
-            Handoffs.Forget(r.Id);
-            UpdateHandoffs();
-        })));
-        Merge(History, records);
-        if (Handoffs.RecoveryDetail is { } recovery)
-            Notify(recovery);
-    }
-
     public static string Label(string app) => app == "codex" ? "Codex" : "Claude";
     public static void Reveal(string path)
     {
@@ -834,52 +616,6 @@ public sealed class PanelModel : Observable, IDisposable
         };
         info.ArgumentList.Add(File.Exists(path) ? "/select," + path : path);
         Process.Start(info)?.Dispose();
-    }
-
-    private void PopulateDemo()
-    {
-        foreach (var (app, name, missing) in new[]
-        {
-            ("codex", "Omnix 工作", false),
-            ("codex", "个人项目", true),
-            ("claude", "Claude 研究", false)
-        }
-
-        )
-        {
-            var path = Path.Combine(Store.Root, name);
-            if (!missing)
-                Directory.CreateDirectory(path);
-            var a = new Account
-            {
-                App = app,
-                Name = name,
-                ProfilePath = path,
-                SessionRoot = path
-            };
-            Store.Add(a);
-            var now = DateTimeOffset.UtcNow;
-            var list = new List<Session>
-            {
-                new(Guid.NewGuid().ToString(), "完善 Windows 端原生体验", "运行中", now.AddMinutes(-2)),
-                new(Guid.NewGuid().ToString(), "确认交互与验收结果", "等待输入", now.AddMinutes(-5)),
-                new(Guid.NewGuid().ToString(), "整理账号隔离方案", "已完成", now.AddMinutes(-22)),
-                new(Guid.NewGuid().ToString(), "检查网络请求", "遇到问题", now.AddHours(-1)),
-                new(Guid.NewGuid().ToString(), "同步项目进度", "已完成", now.AddHours(-3)),
-                new(Guid.NewGuid().ToString(), "验证测试样本", "已完成", now.AddDays(-1))
-            };
-            snapshots[a.Id] = new Snapshot(!missing, list, "", 1);
-            demoQuotas[a.Id] = new Quota([new("5h", app == "codex" ? 72 : 92, now.AddHours(3)), new("周", 36, now.AddDays(4))], now.AddMinutes(-8), missing ? "网络暂不可用" : "", missing);
-        }
-
-        var source = Store.Accounts[0];
-        var target = Store.Accounts[2];
-        Handoffs.Prepare(source, target, new Session("demo", "把实现与验证交给下一位 agent", "已完成", DateTimeOffset.UtcNow));
-        var history = Enumerable.Range(0, 7).Select(i => new HandoffRecord("demo-" + i, source.Id, target.Id, "交接文档已保存", Path.Combine(Store.Root, "demo.md"), DateTimeOffset.UtcNow.AddHours(-i), source.Name, target.Name)).ToList();
-        Store.Write("handoffs/history.json", history);
-        Store.Preferences.MediaEnabled = false;
-        Store.Preferences.PetEnabled = true;
-        Store.Preferences.PetVisible = true;
     }
 
     public void Dispose()
