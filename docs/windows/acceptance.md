@@ -20,6 +20,22 @@
 - Codex 单实例真实对话跳转；多实例和 Claude 只调出账号窗口。
 - 真实后台任务完成通知、媒体自动姿态与完整同步周期。未上报系统媒体会话的应用无法检测。
 
+## 2026-10-19 缺陷修复（未在 Windows 运行）
+
+这一轮只修缺陷，在 macOS 上用 `dotnet build windows/Perch.sln -c Release -p:EnableWindowsTargeting=true` 编译通过。回归程序新增 `RegressionTests.cs`，依赖 Windows ACL 和 winsqlite3，只能在 Windows CI 或实机运行，本轮没有运行。下面每项都需要在 Windows 上确认：
+
+- 不带 `--show` 启动、不打开面板，桌宠能反映任务状态。
+- 打开面板后点外部，面板收起，包括刚打开、正在后台刷新额度时。
+- 源任务仍在运行时点“继续接力”被拒绝；目标数据目录缺失等导致打开失败时，提示文档已复制，记录已写入，待继续卡片保留。
+- 面板贴着桌宠时，轮询不再改写 `accounts.json` 和 `preferences.json`（看修改时间）。
+- 同一条损坏文件的恢复提示只弹一次。
+- 运行超过 30 分钟没有更新的 Codex 会话显示为已停止，可以接力。
+- 最大化的客户端窗口调出后仍是最大化；客户端收到托盘后能调出。
+- 客户端运行时勾选回收数据目录，被拒绝且账号未移除。
+- 轮询和首次发现客户端时界面不卡顿。
+- 有 Sonnet 周额度的 Claude 账号，额度行标签不换行；演示截图与改动前一致。
+- 实机确认 MSIX 版客户端里的 agent 能写入 `%LOCALAPPDATA%\Perch\handoffs\drafts\<id>\handoff.md`；不能写入时需要换到用户目录下不被虚拟化的位置。
+
 ## 当前限制与复验入口
 
 尚无签名、安装器、自动升级或开机自启动；传统非 MSIX 客户端、Claude CLI projects 和 IndexedDB blob 额度回退不在当前 Windows 可用能力内。API Key 账号没有官方订阅额度数据不代表网关无限额度。
