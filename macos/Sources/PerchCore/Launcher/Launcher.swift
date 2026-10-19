@@ -34,6 +34,10 @@ public struct Launcher {
                    let owner = LocalProviderLauncher.applicationProcess(account, processes: running), activate(owner.pid) {
                     return .activated(pid: owner.pid)
                 }
+                // There is no editor for the launch location; a moved client is found again by scanning.
+                do { try local.validate() } catch {
+                    return .failed(error.localizedDescription + "。如果客户端换了位置，在新建页点“自动获取可用供应商”后选“更新启动位置”，或删除后重新扫描添加。")
+                }
                 if local.kind == .terminal, let running = processes(), LocalProviderLauncher.isRunning(account, processes: running) {
                     try run(LaunchCommand(arguments: ["-a", "Terminal"]))
                 } else { try run(LocalProviderLauncher.command(for: account)) }

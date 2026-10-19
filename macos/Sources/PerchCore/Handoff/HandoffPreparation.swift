@@ -148,13 +148,21 @@ extension HandoffStore {
         try write(preparation)
     }
 
-    /// The copy an earlier attempt saved, when it is still in the handoff folder.
+    /// The copy an earlier attempt saved, when it is still in the handoff folder and the draft has not been
+    /// rewritten since. A draft written after the copy is the newer document, so it is copied again.
     public func savedCopy(_ preparation: HandoffPreparation) -> (url: URL, markdown: String)? {
         guard let path = preparation.documentPath else { return nil }
         let url = URL(fileURLWithPath: path).standardizedFileURL
-        guard url.deletingLastPathComponent() == directory.standardizedFileURL,
-              let markdown = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        // Compare paths: a directory URL ends in a slash only when the folder existed when the URL was made.
+        guard url.deletingLastPathComponent().path == directory.standardizedFileURL.path,
+              let copied = Self.modified(url) else { return nil }
+        if let drafted = Self.modified(preparedURL(for: preparation)), drafted > copied { return nil }
+        guard let markdown = try? String(contentsOf: url, encoding: .utf8) else { return nil }
         return (url, markdown)
+    }
+
+    private static func modified(_ url: URL) -> Date? {
+        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 
     private func write(_ preparation: HandoffPreparation) throws {

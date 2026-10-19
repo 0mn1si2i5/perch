@@ -30,16 +30,16 @@ public struct LocalProviderConfiguration: Codable, Equatable {
 
     public func validate() throws {
         guard !target.isEmpty, !([target, workingDirectory] + arguments).contains(where: { $0.contains("\0") }) else {
-            throw ProviderError.invalid("请填写有效的启动位置")
+            throw ProviderError.invalid("启动位置无效")
         }
         switch kind {
         case .terminal:
             guard target.hasPrefix("/"), FileManager.default.isExecutableFile(atPath: target) else {
-                throw ProviderError.invalid("请选择可执行文件的绝对路径")
+                throw ProviderError.invalid("找不到可执行文件 \(target)")
             }
         case .application:
             guard target.hasPrefix("/"), target.hasSuffix(".app"), FileManager.default.fileExists(atPath: target) else {
-                throw ProviderError.invalid("请选择本机 .app 应用")
+                throw ProviderError.invalid("找不到应用 \(target)")
             }
         }
         if !workingDirectory.isEmpty {
@@ -62,7 +62,28 @@ public struct LocalProviderCandidate: Identifiable, Equatable {
     }
 }
 
+/// An added provider whose client a scan found at another launch location. Its data directory is unchanged.
+public struct LocalLaunchUpdate: Identifiable, Equatable {
+    public var id: String { account.id }
+    public let account: Account
+    public let configuration: LocalProviderConfiguration
+    public init(account: Account, configuration: LocalProviderConfiguration) {
+        self.account = account; self.configuration = configuration
+    }
+}
+
 public enum LocalProviderDiscovery {
+    /// The configuration a scanned candidate offers an added account with the same data directory, when the launch
+    /// location differs. Arguments and working directory are kept unless the launch kind changes.
+    public static func launchUpdate(for account: Account, candidate: LocalProviderCandidate) -> LocalLaunchUpdate? {
+        guard let current = account.localProvider, account.app == candidate.app, account.profilePath == candidate.profilePath else { return nil }
+        let found = candidate.configuration
+        guard found.kind != current.kind || found.target != current.target else { return nil }
+        var updated = found
+        if found.kind == current.kind { updated = current; updated.target = found.target }
+        return LocalLaunchUpdate(account: account, configuration: updated)
+    }
+
     public static func executable(_ name: String, home: String = NSHomeDirectory(), path: String = ProcessInfo.processInfo.environment["PATH"] ?? "") -> String? {
         let directories = ToolPaths.userDirectories(home: home) + path.split(separator: ":").map(String.init)
         return directories.map { ($0 as NSString).appendingPathComponent(name) }.first {

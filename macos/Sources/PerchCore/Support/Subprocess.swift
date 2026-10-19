@@ -18,8 +18,11 @@ public enum Subprocess {
     }
 
     private static let queue = DispatchQueue(label: "com.omnis.perch.subprocess", qos: .utility, attributes: .concurrent)
+    /// How long the pipes are still read after the child exits. A helper it left running may hold them open.
+    static let drainTime: TimeInterval = 2
 
-    /// Blocks for at most `timeout` seconds plus a short grace period. Never call it on the main thread.
+    /// Blocks for at most `timeout` seconds, plus `drainTime` once the child has exited, plus a short grace
+    /// period. Never call it on the main thread.
     /// `outputLimit` applies to each stream; stderr is only read when `captureErrors` is set.
     public static func run(_ executable: String, _ arguments: [String] = [], environment: [String: String]? = nil,
                            currentDirectory: String? = nil, timeout: TimeInterval, outputLimit: Int = 4 << 20,
@@ -32,17 +35,25 @@ public enum Subprocess {
         let deadline = Date().addingTimeInterval(timeout)
         var stdout = Data(), stderr = Data()
         var failure: Failure?
+        var drainUntil: Date?
         var streams = [child.stdout, child.stderr].filter { $0 >= 0 }
         while !streams.isEmpty, failure == nil {
-            switch ChildProcess.read(streams, until: deadline) {
-            case .timedOut: failure = .timedOut
+            if drainUntil == nil, child.hasExited() { drainUntil = Date().addingTimeInterval(drainTime) }
+            let limit = drainUntil ?? deadline
+            guard Date() < limit else {
+                if drainUntil == nil { failure = .timedOut }
+                break
+            }
+            // Short reads, so the child's exit is noticed while something else keeps the pipes open.
+            switch ChildProcess.read(streams, until: min(limit, Date().addingTimeInterval(0.1))) {
+            case .timedOut: continue
             case .end(let fd): streams.removeAll { $0 == fd }
             case .data(let fd, let chunk):
                 if fd == child.stdout { stdout.append(chunk) } else { stderr.append(chunk) }
                 if stdout.count > outputLimit || stderr.count > outputLimit { failure = .tooLarge }
             }
         }
-        if failure == nil, !child.waitForExit(until: deadline) { failure = .timedOut }
+        if failure == nil, drainUntil == nil, !child.waitForExit(until: deadline) { failure = .timedOut }
         let status = child.finish()
         if let failure { return .failure(failure) }
         return .success(Output(status: status, stdout: stdout, stderr: stderr))

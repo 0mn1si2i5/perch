@@ -115,7 +115,8 @@ public final class LocalProviderSessionReader {
         let signature = [file, file + "-wal"].map(Self.signature)
         if database?.signature != signature {
             parsed += 1
-            database = (signature, Self.antigravityRows(file))
+            // A failed read (a writer holding a lock) is not cached, so the next poll reads again.
+            if let rows = Self.antigravityRows(file) { database = (signature, rows) }
         }
         return (database?.rows ?? []).map { row in
             var status = TaskStatus.unknown
@@ -126,11 +127,12 @@ public final class LocalProviderSessionReader {
         }
     }
 
-    private static func antigravityRows(_ file: String) -> [Row] {
-        guard let db = ReadOnlyDatabase(file) else { return [] }
+    /// Nil when the database cannot be opened or queried.
+    private static func antigravityRows(_ file: String) -> [Row]? {
         // Deliberately omit preview, raw_summary, and the full-text search tables.
         let sql = "SELECT conversation_id, substr(title,1,500), last_modified_time, status FROM conversation_summaries ORDER BY last_modified_time DESC LIMIT 60"
-        return (db.rows(sql) ?? []).compactMap { row in
+        guard let db = ReadOnlyDatabase(file), let rows = db.rows(sql) else { return nil }
+        return rows.compactMap { row in
             guard row.count == 4, let id = row[0], !id.isEmpty else { return nil }
             return Row(id: id, title: title(row[1]), updatedAt: date(row[2]), running: row[3] == "CASCADE_RUN_STATUS_RUNNING")
         }

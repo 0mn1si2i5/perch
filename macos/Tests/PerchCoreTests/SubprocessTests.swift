@@ -37,4 +37,20 @@ final class SubprocessTests: XCTestCase {
         XCTAssertEqual(kill(pid, 0), -1, "the grandchild should be gone")
         XCTAssertEqual(errno, ESRCH)
     }
+
+    /// The child exits but leaves a process holding stdout open: the run returns soon after the exit,
+    /// with what was written, and the leftover process is stopped with the group.
+    func testExitedChildIsNotHeldUpByAHelperKeepingThePipesOpen() throws {
+        let started = Date()
+        let output = try Subprocess.run("/bin/sh", ["-c", "sleep 30 & echo $!; echo out"], timeout: 30).get()
+        XCTAssertLessThan(Date().timeIntervalSince(started), Subprocess.drainTime + 2)
+        XCTAssertEqual(output.status, 0)
+        let lines = String(decoding: output.stdout, as: UTF8.self).split(separator: "\n")
+        XCTAssertEqual(lines.last, "out")
+        let pid = try XCTUnwrap(lines.first.flatMap { pid_t($0) })
+        let deadline = Date().addingTimeInterval(3)
+        while kill(pid, 0) == 0, Date() < deadline { usleep(50_000) }
+        XCTAssertEqual(kill(pid, 0), -1, "the helper should be gone")
+        XCTAssertEqual(errno, ESRCH)
+    }
 }

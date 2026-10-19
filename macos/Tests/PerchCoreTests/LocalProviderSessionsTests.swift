@@ -182,4 +182,34 @@ final class LocalProviderSessionsTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: dbPath.path + "-wal"))
         XCTAssertFalse(FileManager.default.fileExists(atPath: dbPath.path + "-shm"))
     }
+
+    /// A writer holding a lock makes one read fail; that failure must not stick until the database changes again.
+    func testAntigravityLockedReadIsRetriedOnTheNextPoll() throws {
+        let root = try fixture(), dbPath = root.appendingPathComponent("conversation_summaries.db")
+        var db: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(dbPath.path, &db), SQLITE_OK)
+        defer { sqlite3_close(db) }
+        XCTAssertEqual(sqlite3_exec(db, """
+            CREATE TABLE conversation_summaries(conversation_id TEXT, title TEXT, last_modified_time TEXT, status TEXT);
+            INSERT INTO conversation_summaries VALUES ('first','First fixture','2026-01-01T00:00:00Z','CASCADE_RUN_STATUS_IDLE');
+            """, nil, nil, nil), SQLITE_OK)
+        let reader = LocalProviderSessionReader(account: account(.antigravity, root))
+
+        XCTAssertEqual(sqlite3_exec(db, "BEGIN EXCLUSIVE", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(reader.recent().map(\.id), [])
+        XCTAssertEqual(sqlite3_exec(db, "COMMIT", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(reader.recent().map(\.id), ["first"], "the unchanged database is read again after a failure")
+        XCTAssertEqual(reader.parsed, 2)
+
+        // A later failure keeps the last list on screen, then the change is picked up.
+        XCTAssertEqual(sqlite3_exec(db, """
+            INSERT INTO conversation_summaries VALUES ('second','Second fixture','2026-01-02T00:00:00Z','CASCADE_RUN_STATUS_IDLE');
+            BEGIN EXCLUSIVE;
+            """, nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(reader.recent().map(\.id), ["first"])
+        XCTAssertEqual(sqlite3_exec(db, "COMMIT", nil, nil, nil), SQLITE_OK)
+        XCTAssertEqual(reader.recent().map(\.id), ["second", "first"])
+        XCTAssertEqual(reader.recent().map(\.id), ["second", "first"])
+        XCTAssertEqual(reader.parsed, 4)
+    }
 }

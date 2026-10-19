@@ -170,6 +170,16 @@ public final class AccountStore {
         return account
     }
 
+    /// Points a local provider at a new launch location. Name, order and the referenced data stay as they are.
+    public func updateLocalLaunch(id: String, configuration: LocalProviderConfiguration) throws {
+        guard let index = accounts.firstIndex(where: { $0.id == id }) else { throw AccountError.notFound }
+        guard accounts[index].localProvider != nil else { throw ProviderError.invalid("不是本机供应商") }
+        try configuration.validate()
+        let previous = accounts[index]
+        accounts[index].localProvider = configuration
+        do { try save() } catch { accounts[index] = previous; throw error }
+    }
+
     public func markLaunched(id: String, at date: Date) throws {
         try update(id) { $0.lastLaunchedAt = date }
     }

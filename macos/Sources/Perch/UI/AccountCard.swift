@@ -39,7 +39,8 @@ struct AccountCard: View {
                     .accessibilityLabel("同步 \(account.name) 的额度")
                 }
                 if missing {
-                    // A local provider's data is found again by scanning; desktop accounts can be pointed elsewhere.
+                    // Desktop accounts can be pointed at other data. A local provider's data directory cannot be
+                    // changed here: the owner deletes it and adds the new directory from a scan.
                     if account.localProvider == nil { Button("配置") { perch.relocate(account) }.controlSize(.small) }
                 } else {
                     Button(launchLabel(running: running)) { perch.launch(account) }.controlSize(.small)
@@ -57,7 +58,8 @@ struct AccountCard: View {
                                   refreshing: perch.refreshingQuotas.contains(account.id))
             }
             if missing {
-                Text("数据目录不存在").font(.system(size: 11)).foregroundStyle(.orange)
+                Text(account.localProvider == nil ? "数据目录不存在" : "数据目录不存在，删除后重新扫描添加")
+                    .font(.system(size: 11)).foregroundStyle(.orange)
             } else if rows.isEmpty, account.app != .geminiApp {
                 Text(perch.emptyText(for: account)).font(.system(size: 11)).foregroundStyle(.secondary)
             }

@@ -50,6 +50,46 @@ final class ProviderIntegrationTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: reloaded.removedAccountsURL.path))
     }
 
+    func testRescanOffersMovedLaunchLocationAndUpdatesTheAccountInPlace() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("perch-provider-move-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fm = FileManager.default
+        let data = root.appendingPathComponent(".gemini/antigravity-cli")
+        let bin = root.appendingPathComponent(".local/bin")
+        try fm.createDirectory(at: data, withIntermediateDirectories: true)
+        try fm.createDirectory(at: bin, withIntermediateDirectories: true)
+        func executable(_ url: URL) throws {
+            try Data("#!/bin/sh\nexit 0\n".utf8).write(to: url)
+            try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
+        }
+        let oldTarget = root.appendingPathComponent("old/agy")
+        try fm.createDirectory(at: oldTarget.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try executable(oldTarget)
+        let store = makeStore(root)
+        try store.load()
+        let model = makeModel(store)
+        XCTAssertTrue(model.importLocal(LocalProviderCandidate(name: "Antigravity CLI", app: .antigravity, profilePath: data.path,
+                                                               configuration: .init(kind: .terminal, target: oldTarget.path))))
+        let account = try XCTUnwrap(model.accounts.first)
+
+        // The client moves: the old path is gone and agy now lives in ~/.local/bin.
+        try fm.removeItem(at: oldTarget)
+        try executable(bin.appendingPathComponent("agy"))
+        model.scanLocalProviders()
+        XCTAssertFalse(model.localCandidates.contains { $0.app == .antigravity }, "the same data directory is not offered twice")
+        let update = try XCTUnwrap(model.localLaunchUpdates.first)
+        XCTAssertEqual(update.account.id, account.id)
+        XCTAssertEqual(update.configuration.target, bin.appendingPathComponent("agy").path)
+
+        XCTAssertTrue(model.updateLocalLaunch(update))
+        XCTAssertEqual(model.accounts.map(\.id), [account.id])
+        XCTAssertEqual(model.accounts.first?.localProvider?.target, bin.appendingPathComponent("agy").path)
+        XCTAssertTrue(model.localLaunchUpdates.isEmpty)
+        let reloaded = makeStore(root)
+        try reloaded.load()
+        XCTAssertEqual(reloaded.accounts.first?.localProvider?.target, bin.appendingPathComponent("agy").path)
+    }
+
     @MainActor
     func testOptionalSyntheticProviderPreviews() async throws {
         guard let output = ProcessInfo.processInfo.environment["PERCH_PROVIDER_PREVIEW_DIR"] else {

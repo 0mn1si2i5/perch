@@ -3,9 +3,24 @@ import PerchCore
 
 extension PerchModel {
     func scanLocalProviders() {
-        localCandidates = LocalProviderDiscovery.scan(home: store.home).filter { candidate in
+        let found = LocalProviderDiscovery.scan(home: store.home)
+        localCandidates = found.filter { candidate in
             !accounts.contains { $0.app == candidate.app && $0.profilePath == candidate.profilePath }
         }
+        localLaunchUpdates = accounts.compactMap { account in
+            found.lazy.compactMap { LocalProviderDiscovery.launchUpdate(for: account, candidate: $0) }.first
+        }
+    }
+
+    @discardableResult
+    func updateLocalLaunch(_ update: LocalLaunchUpdate) -> Bool {
+        do {
+            try store.updateLocalLaunch(id: update.account.id, configuration: update.configuration)
+            accounts = store.accounts
+            scanLocalProviders()
+            message = "已更新 \(update.account.name) 的启动位置"
+            return true
+        } catch { message = "更新启动位置失败：\(error.localizedDescription)"; return false }
     }
 
     @discardableResult

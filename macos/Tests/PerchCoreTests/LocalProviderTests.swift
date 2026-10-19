@@ -155,4 +155,44 @@ final class LocalProviderTests: XCTestCase {
         XCTAssertFalse(LocalProviderLauncher.isRunning(account, processes: [.init(pid: 42, args: "/bin/sleep 60")], directory: root))
         XCTAssertTrue(LocalProviderLauncher.isRunning(account, processes: [.init(pid: 42, args: "/bin/zsh " + url.path)], directory: root))
     }
+
+    func testScanOffersNewLaunchLocationAndUpdateKeepsDataAndArguments() throws {
+        let root = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = AccountStore(root: root.appendingPathComponent("Perch"), agentDeskProfiles: root.appendingPathComponent("none"))
+        try store.load()
+        let data = root.appendingPathComponent("antigravity-cli")
+        try FileManager.default.createDirectory(at: data, withIntermediateDirectories: true)
+        let old = try store.importLocal(LocalProviderCandidate(name: "Antigravity CLI", app: .antigravity, profilePath: data.path,
+            configuration: .init(kind: .terminal, target: "/bin/echo", arguments: ["--keep"], workingDirectory: root.path)))
+        func candidate(_ kind: LocalLaunchKind, _ target: String, profile: String? = nil) -> LocalProviderCandidate {
+            LocalProviderCandidate(name: "Antigravity CLI", app: .antigravity, profilePath: profile ?? data.path,
+                                   configuration: .init(kind: kind, target: target))
+        }
+        XCTAssertNil(LocalProviderDiscovery.launchUpdate(for: old, candidate: candidate(.terminal, "/bin/echo")))
+        XCTAssertNil(LocalProviderDiscovery.launchUpdate(for: old, candidate: candidate(.terminal, "/bin/cat", profile: root.path)))
+        let update = try XCTUnwrap(LocalProviderDiscovery.launchUpdate(for: old, candidate: candidate(.terminal, "/bin/cat")))
+        XCTAssertEqual(update.configuration, .init(kind: .terminal, target: "/bin/cat", arguments: ["--keep"], workingDirectory: root.path))
+        XCTAssertEqual(LocalProviderDiscovery.launchUpdate(for: old, candidate: candidate(.application, "/System/Applications/Calculator.app"))?
+            .configuration, .init(kind: .application, target: "/System/Applications/Calculator.app"))
+
+        XCTAssertThrowsError(try store.updateLocalLaunch(id: old.id, configuration: .init(kind: .terminal, target: "/missing/agy")))
+        XCTAssertEqual(store.accounts.first?.localProvider, old.localProvider)
+        try store.updateLocalLaunch(id: old.id, configuration: update.configuration)
+        try store.load()
+        XCTAssertEqual(store.accounts.map(\.id), [old.id])
+        XCTAssertEqual(store.accounts[0].localProvider, update.configuration)
+        XCTAssertEqual(store.accounts[0].profilePath, data.path)
+        XCTAssertEqual(store.accounts[0].name, old.name)
+    }
+
+    func testMovedClientLaunchFailureSaysHowToRepairIt() {
+        let account = Account(id: "moved", name: "Antigravity CLI", app: .antigravity, profilePath: "/tmp", sessionRoot: "/tmp",
+                              createdAt: Date(), lastLaunchedAt: nil, localProvider: .init(kind: .terminal, target: "/missing/agy"))
+        let launcher = Launcher(activate: { _ in true }, processes: { [] }, run: { _ in XCTFail("must not run a moved client") })
+        guard case .failed(let text) = launcher.launch(account) else { return XCTFail("expected a launch failure") }
+        XCTAssertTrue(text.hasPrefix("找不到可执行文件 /missing/agy"))
+        XCTAssertTrue(text.contains("更新启动位置"))
+        XCTAssertTrue(text.contains("删除后重新扫描添加"))
+    }
 }

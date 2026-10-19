@@ -20,6 +20,7 @@ extension Launcher {
 final class PerchModel: ObservableObject {
     @Published var accounts: [Account] = []
     @Published var localCandidates: [LocalProviderCandidate] = []
+    @Published var localLaunchUpdates: [LocalLaunchUpdate] = []
     @Published var localSessions: [String: [LocalProviderSession]] = [:]
     @Published private(set) var snapshots: [String: CodexSnapshot] = [:]
     @Published private(set) var claudeSessions: [String: [ClaudeSession]] = [:]
