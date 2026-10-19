@@ -496,6 +496,7 @@ public sealed partial class PanelModel : Observable, IDisposable
             var reads = await Task.Run(() => list.Select(a => (a.Id, Snapshot: Sessions.Read(a, Clients))).ToArray());
             foreach (var (id, snapshot) in reads)
                 snapshots[id] = snapshot;
+            CheckChanges(list);
             MergeAccounts();
             ConfigurationChanged?.Invoke();
             if (AutoQuota && DateTimeOffset.UtcNow - lastQuota > TimeSpan.FromMinutes(5))

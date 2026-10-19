@@ -3,9 +3,20 @@ import UniformTypeIdentifiers
 import PerchCore
 
 extension PerchModel {
-    /// Other accounts a conversation can move to; the source account itself is offered separately as a new conversation.
-    func handoffTargets(from source: Account) -> [Account] {
-        accounts.filter { $0.id != source.id }
+    /// Other accounts a conversation can move to, most quota left first; the source account itself is offered
+    /// separately as a new conversation.
+    func handoffTargets(from source: Account, now: Date = Date()) -> [Account] {
+        HandoffTargetOrder.ordered(accounts.filter { $0.id != source.id }) { remainingQuota($0, now: now) }
+    }
+
+    /// "名称（客户端）· 剩 62%"; no number when the account has no quota data.
+    func handoffTargetLabel(_ target: Account, now: Date = Date()) -> String {
+        let name = "\(target.name)（\(target.app.displayName)）"
+        return HandoffTargetOrder.label(remaining: remainingQuota(target, now: now)).map { name + " · " + $0 } ?? name
+    }
+
+    private func remainingQuota(_ account: Account, now: Date) -> Double? {
+        quotas[account.id]?.remainingPercent(now: now) ?? providerUsage[account.id]?.remainingPercent(now: now)
     }
 
     /// "A → B", or "A · 新对话" when the document stays in the same account.
@@ -45,7 +56,7 @@ extension PerchModel {
             : "请确认原任务对话，粘贴并发送提示词。"
         let ready: (LaunchOutcome) -> Void = { [weak self] outcome in
             guard case .failed = outcome else {
-                self?.notify(title: "交接提示词已复制", body: instruction + "文档生成后回到 Perch，点击“继续接力”。")
+                self?.notify(title: "交接提示词已复制", body: instruction + "文档写好后 Perch 会提醒你继续接力。")
                 return
             }
             self?.message = "提示词已复制，但源账号未打开；请手动打开原对话粘贴发送。"
@@ -66,6 +77,33 @@ extension PerchModel {
     func continueHandoff() {
         guard let pending = pendingHandoff, !completingHandoff else { return }
         copyHandoff(preparation: pending, existingFile: nil)
+    }
+
+    /// Runs after every poll. Once the draft has stopped growing and the source conversation has stopped,
+    /// a notification offers to continue; clicking it does what “继续接力” does.
+    func watchDraft() {
+        // A handoff that already copied its document only needs a retry, which the panel offers.
+        guard let pending = pendingHandoff, pending.documentPath == nil, !completingHandoff else { draftWatch = nil; return }
+        if draftWatch?.id != pending.id { draftWatch = (pending.id, DraftWatch()) }
+        // Without the source row (an unreadable database, a removed account) nothing says it stopped: wait.
+        guard let source = accounts.first(where: { $0.id == pending.sourceID }),
+              let row = rows(for: source).first(where: { $0.id == pending.conversationID }),
+              draftWatch?.watch.observe(size: draftSize(pending), sourceBusy: row.isActive) == true,
+              let target = accounts.first(where: { $0.id == pending.targetID }) else { return }
+        let place = pending.staysInAccount ? "\(target.name) 的新对话" : target.name
+        notify(title: "交接文档已写好", body: "点通知或 Perch 里的“继续接力”，复制文档并打开 \(place)。",
+               action: .continueHandoff(pending.id))
+    }
+
+    /// The draft is written but its notice has not gone out yet, so that notice will stand in for the source's
+    /// completion. Without a draft the source's completion is notified as usual.
+    func draftNoticeDue(_ pending: HandoffPreparation) -> Bool {
+        guard pending.documentPath == nil, (draftSize(pending) ?? 0) > 0 else { return false }
+        return !(draftWatch?.id == pending.id && draftWatch?.watch.reported == true)
+    }
+
+    private func draftSize(_ pending: HandoffPreparation) -> Int? {
+        (try? FileManager.default.attributesOfItem(atPath: handoffs.preparedURL(for: pending).path))?[.size] as? Int
     }
 
     func useExistingHandoffDocument() {

@@ -25,7 +25,8 @@ public sealed class Account
     }
 }
 
-public sealed record Session(string Id, string Title, string Status, DateTimeOffset Updated, string Cwd = "", string Path = "");
+// Exec: started by `codex exec` (for example a delegate run) rather than in the desktop app.
+public sealed record Session(string Id, string Title, string Status, DateTimeOffset Updated, string Cwd = "", string Path = "", bool Exec = false);
 public sealed record QuotaWindow(string Name, double Used, DateTimeOffset? Resets);
 public sealed record Quota(List<QuotaWindow> Windows, DateTimeOffset Observed, string Detail, bool Cached = false);
 public sealed record Client(string App, string Executable, string DefaultProfile, string DefaultSessions);
@@ -34,6 +35,7 @@ public sealed record Snapshot(bool Running, List<Session> Sessions, string Detai
 public sealed class Preferences
 {
     public bool AutoQuota { get; set; } = true;
+    public bool NotifySessionChanges { get; set; } = true;
     public bool PetEnabled
     {
         get; set;

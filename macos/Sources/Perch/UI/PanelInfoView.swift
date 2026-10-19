@@ -19,7 +19,7 @@ struct PanelInfoView: View {
                     .foregroundStyle(.secondary)
             }
             item("文档接力", symbol: "doc.on.clipboard") {
-                Text("右键已停下的任务 → 接力到…，在源对话粘贴提示词。文档生成后回到 Perch 点“继续接力”，再到目标新对话粘贴发送。")
+                Text("右键已停下的任务 → 接力到…，在源对话粘贴提示词。文档写好后 Perch 发通知，点通知或“继续接力”，再到目标新对话粘贴发送。")
                 Text("目标可以是本账号的新对话。“拆出需求到…”只交接一项需求，原对话继续原来的任务。")
                     .foregroundStyle(.secondary)
             }

@@ -47,6 +47,12 @@ struct SettingsView: View {
                 }
             }
             Divider()
+            section("通知") {
+                Toggle("对话完成或等你回应时通知", isOn: $perch.notifySessionChanges)
+                    .toggleStyle(.switch)
+                    .help("Codex 和 Claude 对话从进行中变成已完成、等你回应或遇到问题时发系统通知；点通知调出所属客户端。启动前已结束的对话、Claude Code 历史和委派运行不通知。")
+            }
+            Divider()
             section("额度") {
                 Toggle("自动同步", isOn: $perch.automaticallySyncQuota)
                     .toggleStyle(.switch)

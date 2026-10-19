@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -6,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Forms = System.Windows.Forms;
 
 namespace Perch.Windows;
@@ -16,6 +18,12 @@ public sealed class Tray : IDisposable
     private readonly System.Drawing.Icon drawing;
     private readonly Panel panel;
     private ContextMenu? menu;
+    // The shell does not say which balloon was clicked or closed, so balloons are shown one at a time and the
+    // one on screen keeps its own action (null opens the panel). One that never reports closing is given up.
+    private readonly Queue<(string Title, string Body, Forms.ToolTipIcon Kind, NoticeAction? Action)> waiting = new();
+    private readonly DispatcherTimer giveUp = new() { Interval = TimeSpan.FromSeconds(10) };
+    private bool showing;
+    private NoticeAction? action;
     public Tray(Panel window)
     {
         panel = window;
@@ -33,10 +41,42 @@ public sealed class Tray : IDisposable
             else if (e.Button == Forms.MouseButtons.Right)
                 ShowMenu();
         };
+        icon.BalloonTipClicked += (_, _) =>
+        {
+            var clicked = action;
+            ShowNext();
+            if (clicked == null || !panel.Model.Perform(clicked))
+                panel.OpenPanel();
+        };
+        icon.BalloonTipClosed += (_, _) => ShowNext();
+        giveUp.Tick += (_, _) => ShowNext();
         panel.BackgroundError += Error;
+        panel.Notice += Show;
     }
 
-    private void Error(string value) => icon.ShowBalloonTip(4000, "Perch", value, Forms.ToolTipIcon.Warning);
+    private void Error(string value) => Enqueue("Perch", value, Forms.ToolTipIcon.Warning, null);
+    private void Show(string title, string body, NoticeAction? next) => Enqueue(title, body, Forms.ToolTipIcon.Info, next);
+
+    private void Enqueue(string title, string body, Forms.ToolTipIcon kind, NoticeAction? next)
+    {
+        waiting.Enqueue((Fit(title, 63), Fit(body, 255), kind, next));
+        if (!showing)
+            ShowNext();
+    }
+
+    private void ShowNext()
+    {
+        giveUp.Stop();
+        showing = waiting.TryDequeue(out var next);
+        action = showing ? next.Action : null;
+        if (!showing)
+            return;
+        icon.ShowBalloonTip(5000, next.Title, next.Body, next.Kind);
+        giveUp.Start();
+    }
+
+    // The shell keeps at most 63 characters of a balloon title and 255 of its text.
+    private static string Fit(string text, int limit) => text.Length > limit ? text[..(limit - 1)] + "…" : text;
     public void ShowMenu()
     {
         menu?.SetCurrentValue(ContextMenu.IsOpenProperty, false);
@@ -93,6 +133,8 @@ public sealed class Tray : IDisposable
     public void Dispose()
     {
         panel.BackgroundError -= Error;
+        panel.Notice -= Show;
+        giveUp.Stop();
         menu?.SetCurrentValue(ContextMenu.IsOpenProperty, false);
         host?.Close();
         icon.Visible = false;

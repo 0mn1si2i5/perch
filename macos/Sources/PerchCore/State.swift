@@ -33,10 +33,12 @@ public struct CodexTask: Identifiable, Equatable {
     public let source: String
     /// The session's rollout jsonl, used only for "copy path" and "show in Finder". Never read during polling.
     public let rolloutPath: String?
+    /// Started by `codex exec` (for example a delegate run) rather than in the desktop app.
+    public let isExec: Bool
     public init(id: String, title: String, status: TaskStatus, turnID: String, updatedAt: Date, source: String,
-                rolloutPath: String? = nil) {
+                rolloutPath: String? = nil, isExec: Bool = false) {
         self.id = id; self.title = title; self.status = status; self.turnID = turnID
-        self.updatedAt = updatedAt; self.source = source; self.rolloutPath = rolloutPath
+        self.updatedAt = updatedAt; self.source = source; self.rolloutPath = rolloutPath; self.isExec = isExec
     }
 }
 
@@ -96,20 +98,5 @@ public enum MediaPolicy {
         if isMusicApp || ["com.spotify.client", "com.apple.Music", "com.tencent.QQMusicMac"].contains(bundleID) { return .music }
         if ["com.colliderli.iina", "org.videolan.vlc", "com.apple.QuickTimePlayerX"].contains(bundleID) { return .video }
         return .unknown
-    }
-}
-
-public struct CompletionTracker {
-    private var running: [String: String] = [:]
-    public init() {}
-    public mutating func update(_ snapshot: CodexSnapshot) -> CodexTask? {
-        guard snapshot.available else { return nil }
-        let completion = snapshot.tasks.first {
-            $0.status == .completed && running[$0.id] == $0.turnID
-        }
-        running = Dictionary(uniqueKeysWithValues: snapshot.tasks
-            .filter { $0.status == .running || $0.status == .waiting }
-            .map { ($0.id, $0.turnID) })
-        return completion
     }
 }

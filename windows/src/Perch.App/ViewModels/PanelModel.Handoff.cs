@@ -12,7 +12,7 @@ public sealed partial class PanelModel
     public bool HasPending => Handoffs.Pending != null;
     public string PendingTitle => Handoffs.Pending?.Title ?? "";
     public string PendingRoute => Handoffs.Pending is { } p ? Route(AccountName(p.SourceId), AccountName(p.TargetId), p.SameAccount) + (p.Scope == Handoffs.SplitScope ? " · 拆出需求" : "") : "";
-    public string PendingHint => Handoffs.Pending?.Scope == Handoffs.SplitScope ? "在源对话粘贴提示词，在末尾写上要拆出的需求再发送；文档生成后继续。" : "在源对话粘贴提示词，文档生成后继续。";
+    public string PendingHint => Handoffs.Pending?.Scope == Handoffs.SplitScope ? "在源对话粘贴提示词，在末尾写上要拆出的需求再发送；文档写好后 Perch 会通知你继续。" : "在源对话粘贴提示词并发送，文档写好后 Perch 会通知你继续。";
     public bool HandoffBusy
     {
         get; private set;

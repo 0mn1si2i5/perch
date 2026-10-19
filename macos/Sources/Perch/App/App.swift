@@ -61,7 +61,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let hosting = FirstMouseHostingController(rootView: PerchPanel(perch: perch, pet: pet))
         hosting.sizingOptions = [.preferredContentSize]
         popover.contentViewController = hosting
-        PerchNotifications.shared.configure { [weak self] in self?.showPanel() }
+        PerchNotifications.shared.configure(openPanel: { [weak self] in self?.showPanel() },
+                                            perform: { [weak self] in self?.perch.perform($0) ?? false })
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = MenuBarIcon.make()

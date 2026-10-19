@@ -154,7 +154,7 @@ public static class Sessions
                 }
 
                 var title = titles.GetValueOrDefault(r[0]!) ?? r[1] ?? "Codex 聊天";
-                return new Session(r[0]!, title[..Math.Min(140, title.Length)], Status(raw, running || r[5] == "exec", updated, waiting), updated, r[3] ?? "", r[4] ?? "");
+                return new Session(r[0]!, title[..Math.Min(140, title.Length)], Status(raw, running || r[5] == "exec", updated, waiting), updated, r[3] ?? "", r[4] ?? "", r[5] == "exec");
             }).ToList();
         }
     }

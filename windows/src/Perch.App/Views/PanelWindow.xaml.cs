@@ -25,6 +25,7 @@ public partial class Panel : Window, IDisposable
     private readonly bool keepOpen;
     private DateTimeOffset lastHidden;
     public event Action<string>? BackgroundError;
+    public event Action<string, string, NoticeAction?>? Notice;
     public Panel(Store state, ThemeManager themes, bool demo, bool keep, bool inspection)
     {
         theme = themes;
@@ -40,6 +41,7 @@ public partial class Panel : Window, IDisposable
         Model.Prompt = (title, value) => InlineDialog.Ask(this, title, value);
         Model.Confirm = text => InlineDialog.Confirm(this, text);
         Model.ConfirmDelete = account => InlineDialog.Delete(this, account);
+        Model.Notice += (title, body, action) => Notice?.Invoke(title, body, action);
         Model.BackgroundError += value =>
         {
             if (!IsVisible)

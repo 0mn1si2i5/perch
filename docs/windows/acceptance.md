@@ -20,9 +20,17 @@
 - Codex 单实例真实对话跳转；多实例和 Claude 只调出账号窗口。
 - 真实后台任务完成通知、媒体自动姿态与完整同步周期。未上报系统媒体会话的应用无法检测。
 
-## 2026-10-19 缺陷修复（未在 Windows 运行）
+## 2026-10-20 通知与接力提醒（未在 Windows 运行）
 
-这一轮只修缺陷，在 macOS 上用 `dotnet build windows/Perch.sln -c Release -p:EnableWindowsTargeting=true` 编译通过。回归程序新增 `RegressionTests.cs`，依赖 Windows ACL 和 winsqlite3，只能在 Windows CI 或实机运行，本轮没有运行。下面每项都需要在 Windows 上确认：
+在 macOS 上编译通过，0 警告 0 错误。`NoticeTests.cs` 是纯逻辑测试，在 Mac 上用临时工程单独跑过，Windows CI 推送后才会随回归程序一起跑。下面每项都需要在 Windows 上确认：
+
+- 跑一个 Codex 任务和一个 Claude 对话，结束时各收到一条托盘通知，点通知调出所属客户端；设置里关掉后不再收到；启动时已经结束的对话不补发。
+- 接力目标菜单的账号名后写“剩 N%”，按剩余额度排序，没有额度数据的账号不写数字。
+- 在源对话发送交接提示词，文档写好、源对话停下后收到“交接文档已写好”，点通知直接复制文档并打开目标，不用打开面板。
+
+## 2026-10-19 缺陷修复（界面未在 Windows 运行）
+
+这一轮只修缺陷，在 macOS 上用 `dotnet build windows/Perch.sln -c Release -p:EnableWindowsTargeting=true` 编译通过。回归程序新增 `RegressionTests.cs`，依赖 Windows ACL 和 winsqlite3，2026-10-20 推送后在 Windows CI 运行通过。下面每项界面行为仍需在 Windows 上确认：
 
 - 不带 `--show` 启动、不打开面板，桌宠能反映任务状态。
 - 打开面板后点外部，面板收起，包括刚打开、正在后台刷新额度时。

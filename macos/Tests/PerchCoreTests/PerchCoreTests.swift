@@ -24,17 +24,6 @@ final class PerchCoreTests: XCTestCase {
         XCTAssertEqual(MediaPolicy.classify(type: nil, bundleID: "com.spotify.client", isMusicApp: false), .music)
     }
 
-    func testOnlyObservedTurnCompletionNotifiesOnce() {
-        var tracker = CompletionTracker()
-        XCTAssertNil(tracker.update(CodexSnapshot(tasks: [task(.completed)], available: true)))
-        XCTAssertNil(tracker.update(CodexSnapshot(tasks: [task(.running)], available: true)))
-        XCTAssertNil(tracker.update(CodexSnapshot(available: false)))
-        XCTAssertNotNil(tracker.update(CodexSnapshot(tasks: [task(.completed)], available: true)))
-        XCTAssertNil(tracker.update(CodexSnapshot(tasks: [task(.completed)], available: true)))
-        _ = tracker.update(CodexSnapshot(tasks: [task(.running)], available: true))
-        XCTAssertNil(tracker.update(CodexSnapshot(tasks: [task(.completed, turn: "another-turn")], available: true)))
-    }
-
     func testStaleOrClosedAppIsNotFalselyRunningOrCompleted() {
         let now = Date()
         // A turn that never finished (stale, or its app is gone) was cut off: interrupted, never completed.

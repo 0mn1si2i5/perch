@@ -78,6 +78,7 @@ public sealed partial class PanelModel
         Store.Save();
         Quotas.Clear(account.Id);
         snapshots.Remove(account.Id);
+        trackers.Remove(account.Id);
         MergeAccounts();
         return Task.CompletedTask;
     }
@@ -110,6 +111,7 @@ public sealed partial class PanelModel
         Store.Remove(account);
         Quotas.Clear(account.Id);
         snapshots.Remove(account.Id);
+        trackers.Remove(account.Id);
         MergeAccounts();
     }
 
@@ -126,6 +128,7 @@ public sealed partial class PanelModel
         Store.Save();
         Quotas.Clear(account.Id);
         snapshots.Remove(account.Id);
+        trackers.Remove(account.Id);
         MergeAccounts();
     }
 

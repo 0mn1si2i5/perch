@@ -48,7 +48,7 @@ final class HandoffStateTests: XCTestCase {
         defer { pasteboard.releaseGlobally() }
         var notices: [String] = []
         let model = PerchModel(store: store, launcher: launcher, pasteboard: pasteboard,
-                               notificationSender: { _, body, reply in notices.append(body); reply(true) })
+                               notificationSender: { notice, reply in notices.append(notice.body); reply(true) })
         let row = SessionRow(kind: .codex(CodexTask(id: UUID().uuidString, title: "原任务", status: .completed,
                                                     turnID: "t", updatedAt: Date(), source: "vscode")))
 
@@ -87,7 +87,7 @@ final class HandoffStateTests: XCTestCase {
         let pasteboard = NSPasteboard(name: NSPasteboard.Name("perch-test-\(UUID().uuidString)"))
         // No process list: the launcher refuses to start the target.
         let model = PerchModel(store: store, launcher: Launcher(activate: { _ in false }, processes: { nil }),
-                               pasteboard: pasteboard, notificationSender: { _, _, reply in reply(true) })
+                               pasteboard: pasteboard, notificationSender: { _, reply in reply(true) })
         XCTAssertFalse(FileManager.default.fileExists(atPath: model.handoffs.directory.path))
         return (model, source, target, pasteboard)
     }

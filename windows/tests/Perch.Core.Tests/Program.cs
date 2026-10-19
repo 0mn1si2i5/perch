@@ -173,7 +173,8 @@ static class Program
             Check(Sessions.Status("error", true, DateTimeOffset.UtcNow) == "遇到问题", "Failed tasks must remain distinct from stopped tasks");
             FixtureTests.Run(root);
             RegressionTests.Run(root);
-            Console.WriteLine("PASS: persistence, ACLs, process isolation, quota windows, task lifecycle, handoff recovery, document preservation and launch failures");
+            NoticeTests.Run();
+            Console.WriteLine("PASS: persistence, ACLs, process isolation, quota windows, task lifecycle, handoff recovery, document preservation, launch failures, session notices and handoff targets");
         }
         finally
         {

@@ -25,8 +25,8 @@ struct HandoffPreparationView: View {
                     + (pending.scope == .split ? " · 拆出需求" : "")
                 Text(route).lineLimit(1).foregroundStyle(.secondary).help(route)
                 Text(pending.scope == .split
-                     ? "在源对话粘贴提示词，在末尾写上要拆出的需求再发送；文档生成后继续。"
-                     : "在源对话粘贴提示词并发送，文档生成后继续。")
+                     ? "在源对话粘贴提示词，在末尾写上要拆出的需求再发送；文档写好后 Perch 会通知你继续。"
+                     : "在源对话粘贴提示词并发送，文档写好后 Perch 会通知你继续。")
                     .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 HStack {
                     Button("复制提示词") { perch.copyPreparationPrompt() }

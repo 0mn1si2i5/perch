@@ -50,6 +50,11 @@ struct SessionRow: Identifiable {
         return URL(fileURLWithPath: session.path).pathExtension == "jsonl"
             && URL(fileURLWithPath: session.path).lastPathComponent != "audit.jsonl"
     }
+    /// A `codex exec` run, such as one a delegate skill started; the subagent panel follows those.
+    var isExec: Bool {
+        guard case .codex(let task) = kind else { return false }
+        return task.isExec
+    }
     var isActive: Bool { status.isActive }
     var statusLabel: String {
         if case .local = kind, status == .unknown { return "本地记录" }
@@ -141,13 +146,14 @@ struct SessionRowView: View {
     }
 
     /// A conversation still running or waiting for the owner cannot write a handoff document yet.
+    /// Other accounts follow, most quota left first.
     private func handoffMenu(_ title: String, scope: HandoffScope) -> some View {
         Menu(title) {
             Button("本账号新对话") { perch.handoff(row, from: account, to: account, scope: scope) }
             let targets = perch.handoffTargets(from: account)
             if !targets.isEmpty { Divider() }
             ForEach(targets) { target in
-                Button("\(target.name)（\(target.app.displayName)）") {
+                Button(perch.handoffTargetLabel(target)) {
                     perch.handoff(row, from: account, to: target, scope: scope)
                 }
             }

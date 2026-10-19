@@ -13,7 +13,7 @@ final class LaunchCompletionTests: XCTestCase {
         let launcher = Launcher(activate: { _ in activations += 1; return true }, processes: {
             [RunningProcess(pid: 42, args: "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT --user-data-dir=\(account.profilePath)")]
         })
-        let model = PerchModel(store: store, launcher: launcher, notificationSender: { _, _, reply in reply(true) })
+        let model = PerchModel(store: store, launcher: launcher, notificationSender: { _, reply in reply(true) })
         let done = expectation(description: "both requesters finish")
         done.expectedFulfillmentCount = 2
         for _ in 0..<2 {
