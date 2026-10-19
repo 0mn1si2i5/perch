@@ -96,4 +96,49 @@ final class HandoffPreparationTests: XCTestCase {
         XCTAssertFalse(prompt.contains("file://"))
         XCTAssertLessThan(prompt.count, 900)
     }
+
+    func testSameAccountSplitRoundTripsAndOlderPendingIsAWholeTask() throws {
+        let root = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HandoffStore(root: root)
+        let pending = try store.prepare(sourceID: "a", targetID: "a", conversationID: "c", title: "拆出", scope: .split)
+        XCTAssertTrue(pending.staysInAccount)
+        XCTAssertEqual(try HandoffStore(root: root).pendingPreparation(), pending)
+        try store.clearPreparation(id: pending.id)
+
+        let legacy = #"{"id":"\#(UUID().uuidString)","sourceID":"s","targetID":"t","conversationID":"c","title":"旧","createdAt":0}"#
+        try Data(legacy.utf8).write(to: store.directory.appendingPathComponent("pending.json"))
+        let restored = try XCTUnwrap(try store.pendingPreparation())
+        XCTAssertEqual(restored.scope, .task)
+        XCTAssertFalse(restored.staysInAccount)
+    }
+
+    func testSplitPromptAsksForOneRequirementAndEndsWhereTheOwnerTypesIt() {
+        let file = URL(fileURLWithPath: "/Users/test/Library/Application Support/Perch/handoffs/drafts/id/handoff.md")
+        let prompt = HandoffDocument.preparationPrompt(savedAt: file, scope: .split)
+        XCTAssertTrue(prompt.contains(file.path))
+        for essential in ["只整理这一项", "原对话之后还会继续", "直接问我", "工作树", "未确认", "无法写文件"] {
+            XCTAssertTrue(prompt.contains(essential), essential)
+        }
+        XCTAssertTrue(prompt.hasSuffix("要拆出的需求："))
+        XCTAssertNotEqual(prompt, HandoffDocument.preparationPrompt(savedAt: file))
+        let clipboard = HandoffDocument.clipboard(markdown: "正文", savedAt: file, scope: .split)
+        XCTAssertTrue(clipboard.hasPrefix(HandoffDocument.splitClipboardPreamble))
+        XCTAssertTrue(clipboard.hasSuffix("正文"))
+    }
+
+    /// Windows reads these texts from shared/strings; both platforms must send the same prompt.
+    func testPromptsMatchSharedStrings() throws {
+        let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let data = try Data(contentsOf: repo.appendingPathComponent("shared/strings/zh-CN.json"))
+        let strings = try JSONDecoder().decode([String: String].self, from: data)
+        let file = URL(fileURLWithPath: "/tmp/x/handoff.md")
+        XCTAssertEqual(HandoffDocument.preparationPrompt(savedAt: file),
+                       strings["handoff.prompt"]?.replacingOccurrences(of: "{path}", with: file.path))
+        XCTAssertEqual(HandoffDocument.preparationPrompt(savedAt: file, scope: .split),
+                       strings["handoff.splitPrompt"]?.replacingOccurrences(of: "{path}", with: file.path))
+        XCTAssertEqual(HandoffDocument.clipboardPreamble, strings["handoff.clipboardPreamble"])
+        XCTAssertEqual(HandoffDocument.splitClipboardPreamble, strings["handoff.splitClipboardPreamble"])
+    }
 }

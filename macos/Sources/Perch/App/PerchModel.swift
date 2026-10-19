@@ -37,6 +37,8 @@ final class PerchModel: ObservableObject {
     private let feedbackLifetime: TimeInterval
     private let notificationSender: (String, String, @escaping (Bool) -> Void) -> Void
     private var notificationSequence: UInt64 = 0
+    /// The system clipboard; tests pass a private one.
+    let pasteboard: NSPasteboard
     /// Client groups in the panel, top to bottom, and which ones are folded. Both are saved in preferences.
     @Published private(set) var appOrder: [AppKind] =
         (UserDefaults.standard.stringArray(forKey: "appOrder") ?? []).compactMap(AppKind.init(rawValue:))
@@ -79,10 +81,12 @@ final class PerchModel: ObservableObject {
     private var launchCallbacks: [String: [(LaunchOutcome) -> Void]] = [:]
 
     init(store: AccountStore = .standard(), launcher: Launcher = .live(), feedbackLifetime: TimeInterval = 6,
+         pasteboard: NSPasteboard = .general,
          notificationSender: @escaping (String, String, @escaping (Bool) -> Void) -> Void = {
              PerchNotifications.shared.send(title: $0, body: $1, completion: $2)
          }) {
         self.store = store
+        self.pasteboard = pasteboard
         self.accounts = store.accounts
         self.launcher = launcher
         self.sessionOrder = SessionOrderStore(root: store.root)
@@ -460,8 +464,8 @@ final class PerchModel: ObservableObject {
     }
 
     func copy(_ path: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(Self.resolved(path), forType: .string)
+        pasteboard.clearContents()
+        pasteboard.setString(Self.resolved(path), forType: .string)
     }
 
     func reveal(_ path: String) {

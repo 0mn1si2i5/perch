@@ -54,18 +54,30 @@ public static class ViewMenus
         var model = session.Account.Owner;
         var menu = new ContextMenu();
         menu.Items.Add(Item("打开", () => session.Open.Execute(null)));
-        var handoff = new MenuItem
-        {
-            Header = "接力到…",
-            IsEnabled = session.Status is not ("运行中" or "等待输入")
-        };
-        foreach (var target in model.Store.Accounts.Where(a => a.Id != session.Account.Value.Id))
-            handoff.Items.Add(Item(target.Name + "（" + PanelModel.Label(target.App) + "）", () => model.Run(() => model.BeginHandoff(session.Account.Value, target, session.Value))));
-        menu.Items.Add(handoff);
+        menu.Items.Add(HandoffMenu("接力到…", Handoffs.TaskScope, session, model));
+        menu.Items.Add(HandoffMenu("拆出需求到…", Handoffs.SplitScope, session, model));
         menu.Items.Add(new Separator());
         menu.Items.Add(Item("复制会话文件路径", () => model.Run(() => ClipboardWriter.Set(session.Value.Path)), session.Value.Path.Length > 0));
         menu.Items.Add(Item("在资源管理器中显示", () => model.Run(() => PanelModel.Reveal(session.Value.Path)), File.Exists(session.Value.Path)));
         Show(owner, menu);
+    }
+
+    // The source account comes first as a new conversation there; a running conversation cannot write the document yet.
+    private static MenuItem HandoffMenu(string header, string scope, SessionModel session, PanelModel model)
+    {
+        var source = session.Account.Value;
+        var handoff = new MenuItem
+        {
+            Header = header,
+            IsEnabled = session.Status is not ("运行中" or "等待输入")
+        };
+        handoff.Items.Add(Item("本账号新对话", () => model.Run(() => model.BeginHandoff(source, source, session.Value, scope))));
+        var targets = model.Store.Accounts.Where(a => a.Id != source.Id).ToList();
+        if (targets.Count > 0)
+            handoff.Items.Add(new Separator());
+        foreach (var target in targets)
+            handoff.Items.Add(Item(target.Name + "（" + PanelModel.Label(target.App) + "）", () => model.Run(() => model.BeginHandoff(source, target, session.Value, scope))));
+        return handoff;
     }
 
     public static void Pending(Button button)

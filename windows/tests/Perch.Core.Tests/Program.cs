@@ -121,6 +121,12 @@ static class Program
             Check(handoffs.Pending == null, "Successful copy clears pending");
             handoffs.Forget(done.Record.Id);
             Check(File.Exists(done.Record.Path) && handoffs.History.Count == 0, "Removing a record must preserve its document");
+            var self = handoffs.Prepare(a, a, new("s2", "Split", "已完成", DateTimeOffset.UtcNow), Handoffs.SplitScope);
+            Check(self.SameAccount && new Handoffs(new Store(root)).Pending?.Scope == Handoffs.SplitScope, "A same-account split must survive restart");
+            File.WriteAllText(handoffs.Draft(self), "# Split");
+            var split = handoffs.Complete();
+            Check(split.Record.SameAccount && split.Record.Scope == Handoffs.SplitScope && split.Clipboard.StartsWith(Strings.Get("handoff.splitClipboardPreamble")), "A split keeps its scope and preamble");
+            handoffs.Clear();
             File.WriteAllText(Path.Combine(store.Handoffs, "pending.json"), "{broken");
             Check(handoffs.Pending == null && Directory.GetFiles(store.Handoffs, "pending.json.unreadable-*.json").Length == 1, "Corrupt handoff state must be preserved without blocking the application");
             var recoveryRoot = Path.Combine(root, "recovery");
@@ -151,7 +157,9 @@ static class Program
             Check(SessionRouting.CanDeepLink("codex", "12345678-1234-1234-1234-123456789abc", 1), "A single Codex instance can deep-link");
             Check(!SessionRouting.CanDeepLink("codex", "12345678-1234-1234-1234-123456789abc", 2) && !SessionRouting.CanDeepLink("claude", "bad", 1), "Multiple instances and Claude cannot deep-link");
             var oldRecord = JsonSerializer.Deserialize<HandoffRecord>("{\"Id\":\"old\",\"SourceId\":\"a\",\"TargetId\":\"b\",\"Title\":\"task\",\"Path\":\"x\",\"Created\":\"2026-01-01T00:00:00Z\"}")!;
-            Check(oldRecord.SourceName == "已移除账号", "Old handoff history remains readable");
+            Check(oldRecord.SourceName == "已移除账号" && oldRecord.Scope == Handoffs.TaskScope, "Old handoff history remains readable");
+            var oldPending = JsonSerializer.Deserialize<PendingHandoff>("{\"Id\":\"old\",\"SourceId\":\"a\",\"TargetId\":\"b\",\"SessionId\":\"s\",\"Title\":\"task\",\"Created\":\"2026-01-01T00:00:00Z\"}")!;
+            Check(oldPending.Scope == Handoffs.TaskScope && !oldPending.SameAccount, "Older pending handoffs are whole-task handoffs");
             var insertion = new System.Collections.Generic.List<string>
             {
                 "a",

@@ -4,6 +4,9 @@ import Foundation
 public struct HandoffLogEntry: Codable, Equatable, Identifiable {
     public let recordID: String?
     public let documentPath: String?
+    /// Account IDs; older records only have the names below.
+    public let sourceID: String?
+    public let targetID: String?
     public var id: String {
         recordID ?? "\(time.timeIntervalSince1970)|\(source)|\(target)|\(conversation)|\(method)|\(result)"
     }
@@ -14,8 +17,17 @@ public struct HandoffLogEntry: Codable, Equatable, Identifiable {
     public let method: String
     public let result: String
 
-    public init(time: Date, source: String, target: String, conversation: String, method: String, result: String, documentPath: String? = nil) {
+    /// The document went to a new conversation in the source account.
+    public var staysInAccount: Bool {
+        if let sourceID, let targetID { return sourceID == targetID }
+        return false
+    }
+    public var isSplit: Bool { method == HandoffScope.split.method }
+
+    public init(time: Date, source: String, target: String, conversation: String, method: String, result: String,
+                documentPath: String? = nil, sourceID: String? = nil, targetID: String? = nil) {
         self.recordID = UUID().uuidString; self.documentPath = documentPath
+        self.sourceID = sourceID; self.targetID = targetID
         self.time = time; self.source = source; self.target = target
         self.conversation = conversation; self.method = method; self.result = result
     }

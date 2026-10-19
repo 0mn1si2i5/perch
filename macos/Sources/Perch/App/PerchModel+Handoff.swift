@@ -3,11 +3,21 @@ import UniformTypeIdentifiers
 import PerchCore
 
 extension PerchModel {
-    func handoff(_ row: SessionRow, from source: Account, to target: Account) {
+    /// Other accounts a conversation can move to; the source account itself is offered separately as a new conversation.
+    func handoffTargets(from source: Account) -> [Account] {
+        accounts.filter { $0.id != source.id && $0.apiProvider == nil }
+    }
+
+    /// "A → B", or "A · 新对话" when the document stays in the same account.
+    static func handoffRoute(source: String, target: String, sameAccount: Bool) -> String {
+        sameAccount ? "\(source) · 新对话" : "\(source) → \(target)"
+    }
+
+    func handoff(_ row: SessionRow, from source: Account, to target: Account, scope: HandoffScope = .task) {
         if let refusal = HandoffDocument.refusal(for: row.status) { message = refusal; return }
         if let pending = pendingHandoff {
             guard pending.sourceID == source.id, pending.targetID == target.id,
-                  pending.conversationID == row.id else {
+                  pending.conversationID == row.id, pending.scope == scope else {
                 message = "已有待继续的接力，请先完成或取消。"; return
             }
             copyPreparationPrompt()
@@ -15,7 +25,7 @@ extension PerchModel {
         }
         do {
             pendingHandoff = try handoffs.prepare(sourceID: source.id, targetID: target.id,
-                                                  conversationID: row.id, title: row.title)
+                                                  conversationID: row.id, title: row.title, scope: scope)
             copyPreparationPrompt()
         } catch { message = "无法准备接力：\(error.localizedDescription)" }
     }
@@ -25,14 +35,17 @@ extension PerchModel {
               let source = accounts.first(where: { $0.id == pending.sourceID }) else {
             message = "源账号已不存在，请取消这次接力。"; return
         }
-        let prompt = HandoffDocument.preparationPrompt(savedAt: handoffs.preparedURL(for: pending))
-        NSPasteboard.general.clearContents()
-        guard NSPasteboard.general.setString(prompt, forType: .string) else {
+        let prompt = HandoffDocument.preparationPrompt(savedAt: handoffs.preparedURL(for: pending), scope: pending.scope)
+        pasteboard.clearContents()
+        guard pasteboard.setString(prompt, forType: .string) else {
             message = "提示词复制失败，请重试。"; return
         }
+        let instruction = pending.scope == .split
+            ? "请确认原任务对话，粘贴提示词，在末尾写上要拆出的需求后发送。"
+            : "请确认原任务对话，粘贴并发送提示词。"
         let ready: (LaunchOutcome) -> Void = { [weak self] outcome in
             guard case .failed = outcome else {
-                self?.notify(title: "交接提示词已复制", body: "请确认原任务对话，粘贴并发送提示词。文档生成后回到 Perch，点击“继续接力”。")
+                self?.notify(title: "交接提示词已复制", body: instruction + "文档生成后回到 Perch，点击“继续接力”。")
                 return
             }
             self?.message = "提示词已复制，但源账号未打开；请手动打开原对话粘贴发送。"
@@ -81,7 +94,8 @@ extension PerchModel {
     func openHandoff(_ entry: HandoffLogEntry) {
         if let file = handoffs.document(for: entry) {
             NSWorkspace.shared.activateFileViewerSelecting([file])
-        } else if let source = accounts.first(where: { $0.name == entry.source }),
+        } else if let source = accounts.first(where: { account in
+                      entry.sourceID.map { $0 == account.id } ?? (account.name == entry.source) }),
                   let row = rows(for: source).first(where: { $0.id == entry.conversation }) {
             open(row, in: source)
         } else {
@@ -129,8 +143,9 @@ extension PerchModel {
     }
 
     private func deliver(_ markdown: String, file: URL, preparation: HandoffPreparation, from source: Account, to target: Account) {
-        NSPasteboard.general.clearContents()
-        guard NSPasteboard.general.setString(HandoffDocument.clipboard(markdown: markdown, savedAt: file), forType: .string) else {
+        pasteboard.clearContents()
+        let clipboard = HandoffDocument.clipboard(markdown: markdown, savedAt: file, scope: preparation.scope)
+        guard pasteboard.setString(clipboard, forType: .string) else {
             completingHandoff = false; message = "交接内容复制失败，请重试。"; return
         }
         dismissMessage()
@@ -146,10 +161,12 @@ extension PerchModel {
                     try self.handoffs.clearPreparation(id: preparation.id)
                     if self.pendingHandoff?.id == preparation.id { self.pendingHandoff = nil }
                 } catch { self.message = "待接力状态清除失败：\(error.localizedDescription)" }
-                self.notify(title: "交接文档已复制", body: "请在 \(target.name) 新建对话，粘贴并发送。正文和绝对路径均已复制。")
+                let place = preparation.staysInAccount ? "\(target.name) 新建另一个对话" : "\(target.name) 新建对话"
+                self.notify(title: "交接文档已复制", body: "请在 \(place)，粘贴并发送。正文和绝对路径均已复制。")
             }
             let entry = HandoffLogEntry(time: Date(), source: source.name, target: target.name,
-                conversation: preparation.conversationID, method: "文档接力", result: result, documentPath: file.path)
+                conversation: preparation.conversationID, method: preparation.scope.method, result: result,
+                documentPath: file.path, sourceID: source.id, targetID: target.id)
             do { try self.handoffs.appendLog(entry) }
             catch { self.notify(title: "接力记录写入失败", body: error.localizedDescription) }
             self.handoffLog = self.handoffs.recentLog(limit: .max)
