@@ -10,6 +10,7 @@ final class PetWindow: NSPanel {
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let pet = PetModel()
     private let perch = PerchModel()
+    private let delegatePanel = DelegatePanelController()
     private var panel: PetWindow!
     private var petView: PetView!
     private var statusItem: NSStatusItem!
@@ -73,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         syncCompanion()
         pet.start()
         perch.start()
+        delegatePanel.start()
     }
 
     private func windowSize() -> NSSize {
@@ -208,6 +210,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     @objc private func quit() { NSApp.terminate(nil) }
 
+    @objc private func toggleDelegatePanel() { delegatePanel.toggle() }
+
+    @objc private func toggleDelegateAutoShow() { delegatePanel.autoShow.toggle() }
+
     private func makeMenu() -> NSMenu {
         let menu = NSMenu(title: "Perch")
         let open = NSMenuItem(title: "打开面板", action: #selector(showPanel), keyEquivalent: "")
@@ -223,6 +229,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 menu.addItem(item)
             }
         }
+        menu.addItem(.separator())
+        let delegate = NSMenuItem(title: delegatePanel.isVisible ? "隐藏 Codex 子代理面板" : "显示 Codex 子代理面板",
+                                  action: #selector(toggleDelegatePanel), keyEquivalent: "")
+        delegate.target = self
+        menu.addItem(delegate)
+        let autoShow = NSMenuItem(title: "有新的子代理任务时自动显示", action: #selector(toggleDelegateAutoShow), keyEquivalent: "")
+        autoShow.target = self
+        autoShow.state = delegatePanel.autoShow ? .on : .off
+        menu.addItem(autoShow)
         menu.addItem(.separator())
         let item = NSMenuItem(title: "退出 Perch", action: #selector(quit), keyEquivalent: "q")
         item.target = self; menu.addItem(item)

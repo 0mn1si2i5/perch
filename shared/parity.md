@@ -23,4 +23,5 @@
 | 共享 strings/fixtures 消费 | 🟡 | ✅ | Mac Claude 会话测试消费共享 fixture；共享 strings 和其余 fixture 待接入 |
 | 双个人账号同时登录 | 🟡 | 🟡 | 未具备两套个人账号验收条件 |
 | 原生 UI 明暗/Pox | ✅ | ✅ | Windows 三主题四页面渲染 |
+| Codex 子代理面板 | 🟡 | N/A | Mac 读取 codex-delegate 运行记录；真实委派任务的折叠/展开截图已核对，展开按钮和右键菜单点击待验收；Windows 暂不做 |
 | 平台发布配置 | N/A | ✅ | `windows-v0.2.0` tag 已在远端完成测试、打包并发布预览 Release |
