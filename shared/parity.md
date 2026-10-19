@@ -32,7 +32,7 @@
 | 本机 Gemini CLI / Antigravity / DeepSeek Harness | 🟡 | ❌ | macOS 引用既有配置、启动、会话索引（只解析最新 60 个文件并缓存，长会话读开头元数据）；Antigravity CLI 额度只在手动刷新时查询，DeepSeek 钱包余额；Gemini CLI 不再查询额度；客户端换了位置可在扫描结果里更新启动位置。详见 [供应商说明](../docs/macos/providers.md) |
 | Gemini 原生应用内 Antigravity | ✅ | ❌ | 独立 Gemini 分组；Antigravity 额度唯一的自动来源，从运行中的原生应用本地服务查询 Gemini 模型额度，Argon 周额度单独标注；真实面板刷新、明细及重启保留已验收；不复用 CLI 凭据 |
 | 从访达重新打开面板 | ✅ | ❌ | macOS 重新打开 Perch 时展示菜单栏面板，不依赖桌宠可见性 |
-| 自定义客户端 / API 供应商 | N/A | ❌ | macOS 已删除；旧账号升级时移到 `removed-accounts.json`，钥匙串里的密钥需手动清理 |
+| 自定义客户端 / API 供应商 | N/A | N/A | macOS 已删除；旧账号升级时移到 `removed-accounts.json`，钥匙串里的密钥需手动清理 |
 
 macOS 开发更新：沿用稳定代码签名；Claude 后台额度读取禁止旧式钥匙串弹窗，手动刷新可请求授权。Windows 不适用这套 macOS 钥匙串机制。
 
