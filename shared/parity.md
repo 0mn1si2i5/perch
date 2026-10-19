@@ -24,7 +24,7 @@
 | Codex 任务 30 分钟无更新视为停止 | ✅ | 🟡 | 两端阈值一致；Windows Core 测试已写，未在 Windows 运行 |
 | 按账号读取 Claude 会话 | 🟡 | ✅ | Mac 已接入各 profile 桌面会话，信息页说明本机 Code 历史来源及账号限制；独立目录、audit 缓存与共享 fixture 测试通过，双真实账号待验收 |
 | 会话拖动排序 | 🟡 | 🟡 | Mac 拖动整行，同账号同分区排序并持久化；隐藏会话焦点蓝框，保留键盘操作；模型投放与重启恢复测试通过，鼠标拖动待验收 |
-| 共享 strings/fixtures 消费 | 🟡 | ✅ | Mac Claude 会话测试消费共享 fixture；共享 strings 和其余 fixture 待接入 |
+| 共享 strings/fixtures 消费 | 🟡 | ✅ | Mac Claude 会话测试消费共享 fixture；共享 strings 和其余 fixture 待接入。`info.8` 已改成与 macOS 信息页同一句，只是共享文案更正：Windows 信息页不显示这一条，Mac 在阶段 5 接入共享文案后才会用到 |
 | 双个人账号同时登录 | 🟡 | 🟡 | 未具备两套个人账号验收条件 |
 | 原生 UI 明暗/Pox | ✅ | ✅ | Windows 三主题四页面渲染 |
 | Codex 子代理面板 | 🟡 | N/A | Mac 读取 codex-delegate 运行记录；真实委派任务的折叠/展开截图已核对，展开按钮和右键菜单点击待验收；Windows 暂不做 |
