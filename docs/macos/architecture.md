@@ -13,6 +13,7 @@ Perch 是独立的 macOS 菜单栏应用。Pox 是可选角色，不依赖 Pox �
 | `macos/Sources/PerchCore/Launcher` | 客户端定位、进程归属、启动、运行目录和会话路由 |
 | `macos/Sources/PerchCore/CodexTasks` / `ClaudeSessions` | 本地会话元数据与状态 |
 | `macos/Sources/PerchCore/Quota` | 额度解析、缓存、实时查询与刷新状态 |
+| `macos/Sources/PerchCore/CodexDelegate` | codex-delegate 技能运行记录的增量读取 |
 | `macos/Sources/PerchCore/Handoff` | 待接力状态、提示词、Markdown 副本、剪贴板格式与记录 |
 | `macos/Tests` | 核心行为与应用状态回归测试 |
 | `shared/assets` / `macos/Vendor` | 应用图标、角色素材、固定版本的媒体适配器及其许可证 |
@@ -27,6 +28,12 @@ AppDelegate 管理菜单栏、桌宠窗口和一个由 SwiftUI 承载的 popover
 PerchModel 协调账号、任务、额度与动作，后台队列读取本机状态，主线程发布 UI 更新。任务元数据每 5 秒轮询；Claude 桌面会话按每个账号的 `profilePath/local-agent-mode-sessions` 读取元数据 JSON 和固定位置的 audit 尾部，分别缓存文件长度与修改时间。本机 `~/.claude/projects` 的 Code 历史只显示在使用默认 Claude profile 的卡片，标记 Code；这是本机历史展示约定，不能证明 Code 与桌面账号登录一致，独立 profile 不混入这些记录。额度独立每 5 分钟同步，可在设置关闭，打开面板和手动刷新也可触发。自动请求遵守节流；读取旧式钥匙串时使用受串行锁保护的临时交互开关，禁止后台弹窗，完成后恢复开关。手动请求允许系统请求授权。并发请求去重，服务限流时退避。
 
 Codex 使用所属账号的 app-server 查询额度，本地 rollout 尾部记录提供回退。Claude 使用所选桌面配置中当前账号的 profile 授权查询 usage 服务，并用客户端历史与 IndexedDB 额度事件回退。账号 UUID、组织与 scope 必须匹配；旧组织历史不阻断唯一有效的新登录。成功替换缓存；失败保留原始观测时间，不能用更旧的缓存覆盖实时快照。Claude 端点不是承诺稳定的公开集成 API，变更、授权过期或限流均明确显示原因。
+
+## Codex 子代理面板
+
+codex-delegate 技能（`~/.claude/skills/codex-delegate/`）每次运行 `codex exec --json` 时在 `~/.codex-delegate/runs/<时间>-<标题>-<pid>/` 写入 `meta.json`、`brief.md`、`events.jsonl`、`stderr.log`、`last.md`，结束时写 `result.json`。`CODEX_DELEGATE_RUNS` 可改根目录。DelegateRunReader 只读这个目录：按偏移量增量读 `events.jsonl`，有 `result.json` 按退出码判定完成或失败，没有它且 `meta.json` 里的启动进程已退出则判为中断。只列出运行中和 24 小时内结束的最多 12 个任务。
+
+DelegatePanelController 持有一个不激活应用的浮动 NSPanel，所有桌面空间可见，位置按 `CodexDelegatePanel` 自动保存。面板显示时每秒轮询，隐藏时每 3 秒轮询，用来在出现新的运行中任务时自动弹出。偏好键：`delegatePanelVisible`、`delegatePanelAutoShow`（默认开）、`delegatePanelExpanded`。面板只读，不能停止或重跑任务。
 
 ## 数据与兼容
 
