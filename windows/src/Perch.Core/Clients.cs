@@ -11,6 +11,9 @@ using System.Threading.Tasks;
 
 namespace Perch.Windows;
 
+/// The window was shown, but Windows refused to move focus to it.
+public sealed class ForegroundRefusedException() : IOException("窗口已恢复；Windows 限制了前台切换，请点击任务栏窗口。");
+
 public sealed class Clients
 {
     public List<Client> Installed { get; private set; } = [];
@@ -157,7 +160,7 @@ public sealed class Clients
             var window = (nint)running!.Handle;
             ShowWindow(window, ShowCommand(IsIconic(window)));
             if (!SetForegroundWindow(window))
-                throw new IOException("窗口已恢复；Windows 限制了前台切换，请点击任务栏窗口。");
+                throw new ForegroundRefusedException();
             return;
         }
 

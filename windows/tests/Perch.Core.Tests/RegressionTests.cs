@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Perch.Windows;
 
@@ -114,11 +115,25 @@ internal static class RegressionTests
         Check(File.Exists(record.Path) && handoffs.History.Single().Id == record.Id, "A failed launch still records the handoff");
         Check(handoffs.Pending?.Id == pending.Id, "A failed launch keeps the pending handoff");
 
-        var (_, asyncError) = handoffs.Deliver(_ => { }, () => Task.FromException(new System.ComponentModel.Win32Exception(2))).GetAwaiter().GetResult();
+        var (retry, asyncError) = handoffs.Deliver(_ => { }, () => Task.FromException(new System.ComponentModel.Win32Exception(2))).GetAwaiter().GetResult();
         Check(asyncError is System.ComponentModel.Win32Exception && handoffs.Pending?.Id == pending.Id, "A client that fails to start keeps the pending handoff");
+        Check(retry.Id == record.Id && retry.Path == record.Path && handoffs.History.Count == 1 && Directory.GetFiles(store.Handoffs, "*.md").Length == 1, "A retry reuses the first copy and record");
 
-        var (_, none) = handoffs.Deliver(_ => { }, () => Task.CompletedTask).GetAwaiter().GetResult();
-        Check(none == null && handoffs.Pending == null && handoffs.History.Count == 3, "The pending handoff clears once the target opens");
+        File.WriteAllText(handoffs.Draft(pending), "# Launch failure, revised");
+        copied = null;
+        var (revised, _) = handoffs.Deliver(text => copied = text, () => throw new IOException("数据目录不存在，请重新定位。")).GetAwaiter().GetResult();
+        Check(revised.Id == record.Id && revised.Path != record.Path && File.ReadAllText(revised.Path) == "# Launch failure, revised" && copied?.Contains(revised.Path) == true, "A rewritten draft is copied again under the same record");
+        Check(handoffs.History.Single().Path == revised.Path && File.Exists(record.Path), "The record points at the new copy; the earlier copy stays");
+
+        var (_, refused) = handoffs.Deliver(_ => { }, () => throw new ForegroundRefusedException()).GetAwaiter().GetResult();
+        Check(refused == null && handoffs.Pending == null && handoffs.History.Count == 1, "A window shown without focus counts as opened and clears the pending handoff");
+
+        var next = handoffs.Prepare(source, target, new Session("s2", "Task", "已完成", now));
+        File.WriteAllText(handoffs.Draft(next), "# Next");
+        var (fresh, none) = handoffs.Deliver(_ => { }, () => Task.CompletedTask).GetAwaiter().GetResult();
+        Check(none == null && fresh.Id != record.Id && handoffs.Pending == null && handoffs.History.Count == 2, "A new handoff gets its own record and clears once the target opens");
+        var old = JsonSerializer.Deserialize<PendingHandoff>("{\"Id\":\"old\",\"SourceId\":\"a\",\"TargetId\":\"b\",\"SessionId\":\"s\",\"Title\":\"task\",\"Created\":\"2026-01-01T00:00:00Z\"}")!;
+        Check(old.DocumentPath == null && old.RecordId == null, "Pending handoffs written before retries were tracked still load");
     }
 
     private static void Recycling(string dir)

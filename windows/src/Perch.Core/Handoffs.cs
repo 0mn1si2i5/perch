@@ -11,7 +11,9 @@ namespace Perch.Windows;
 
 // Scope "task" moves the whole task; "split" hands off one requirement while the source keeps its own task.
 // SourceId == TargetId means a new conversation in the same account.
-public sealed record PendingHandoff(string Id, string SourceId, string TargetId, string SessionId, string Title, DateTimeOffset Created, string Scope = Handoffs.TaskScope)
+// DocumentPath and RecordId are set by the first attempt that copied the document, so a retry after the
+// target failed to open reuses that copy and record instead of adding another of each.
+public sealed record PendingHandoff(string Id, string SourceId, string TargetId, string SessionId, string Title, DateTimeOffset Created, string Scope = Handoffs.TaskScope, string? DocumentPath = null, string? RecordId = null)
 {
     [JsonIgnore] public bool SameAccount => SourceId == TargetId;
 }
@@ -19,7 +21,7 @@ public sealed record HandoffRecord(string Id, string SourceId, string TargetId, 
 {
     [JsonIgnore] public bool SameAccount => SourceId == TargetId;
 }
-public sealed record PreparedHandoff(PendingHandoff Pending, HandoffRecord Record, string Body, string Clipboard);
+public sealed record PreparedHandoff(PendingHandoff Pending, HandoffRecord Record, string Body, string Clipboard, bool ReusesCopy = false);
 public sealed class Handoffs(Store store)
 {
     public const string TaskScope = "task";
@@ -81,10 +83,21 @@ public sealed class Handoffs(Store store)
         if (string.IsNullOrWhiteSpace(markdown))
             throw new IOException("交接文档为空。");
         Store.PrivateDirectory(store.Handoffs);
-        var name = SafeName(p.Title);
-        var saved = Path.Combine(store.Handoffs, $"{DateTime.Now:yyyyMMdd-HHmm}-{name}-{Guid.NewGuid().ToString("N")[..8]}.md");
-        var record = new HandoffRecord(Guid.NewGuid().ToString("N"), p.SourceId, p.TargetId, p.Title, saved, DateTimeOffset.UtcNow, store.Accounts.FirstOrDefault(a => a.Id == p.SourceId)?.Name ?? "已移除账号", store.Accounts.FirstOrDefault(a => a.Id == p.TargetId)?.Name ?? "已移除账号", p.Scope);
-        return new PreparedHandoff(p, record, markdown, Clipboard(markdown, saved, p.Scope));
+        // A retry keeps the earlier copy while the document still reads the same; a rewritten one is copied again.
+        var earlier = SavedCopy(p);
+        bool reuse = earlier != null && File.ReadAllText(earlier, Encoding.UTF8) == markdown;
+        var saved = reuse ? earlier! : Path.Combine(store.Handoffs, $"{DateTime.Now:yyyyMMdd-HHmm}-{SafeName(p.Title)}-{Guid.NewGuid().ToString("N")[..8]}.md");
+        var record = new HandoffRecord(p.RecordId ?? Guid.NewGuid().ToString("N"), p.SourceId, p.TargetId, p.Title, saved, DateTimeOffset.UtcNow, store.Accounts.FirstOrDefault(a => a.Id == p.SourceId)?.Name ?? "已移除账号", store.Accounts.FirstOrDefault(a => a.Id == p.TargetId)?.Name ?? "已移除账号", p.Scope);
+        return new PreparedHandoff(p, record, markdown, Clipboard(markdown, saved, p.Scope), reuse);
+    }
+
+    // The copy an earlier attempt saved, when it is still in the handoff folder.
+    private string? SavedCopy(PendingHandoff p)
+    {
+        if (p.DocumentPath is not { } path || p.RecordId == null)
+            return null;
+        var full = Path.GetFullPath(path);
+        return Store.SamePath(Path.GetDirectoryName(full)!, store.Handoffs) && File.Exists(full) ? full : null;
     }
 
     public HandoffRecord Commit(PreparedHandoff prepared)
@@ -92,21 +105,37 @@ public sealed class Handoffs(Store store)
         if (Pending?.Id != prepared.Pending.Id)
             throw new IOException("待接力任务已经改变，请重试。");
         var saved = prepared.Record.Path;
-        using (var stream = new FileStream(saved, FileMode.CreateNew, FileAccess.Write))
+        if (!prepared.ReusesCopy)
         {
+            using var stream = new FileStream(saved, FileMode.CreateNew, FileAccess.Write);
             stream.Write(Encoding.UTF8.GetBytes(prepared.Body));
         }
 
         try
         {
-            var history = History;
+            // A retry replaces its earlier record and moves it to the top.
+            var history = History.Where(r => r.Id != prepared.Record.Id).ToList();
             history.Insert(0, prepared.Record);
             store.Write("handoffs/history.json", history);
         }
         catch
         {
-            File.Delete(saved);
+            if (!prepared.ReusesCopy)
+                File.Delete(saved);
             throw;
+        }
+
+        try
+        {
+            store.Write("handoffs/pending.json", prepared.Pending with
+            {
+                DocumentPath = saved,
+                RecordId = prepared.Record.Id
+            });
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // The document is copied and recorded; losing this only means a retry saves another copy.
         }
 
         return prepared.Record;
@@ -121,6 +150,7 @@ public sealed class Handoffs(Store store)
 
     /// Copies and records the document, then opens the target. Pending clears only after the target opens;
     /// a failed launch returns its error with the document already copied and recorded, and keeps the card.
+    /// A window that came forward but was refused focus counts as opened.
     public async Task<(HandoffRecord Record, Exception? LaunchError)> Deliver(Action<string> copy, Func<Task> openTarget, string? source = null)
     {
         var prepared = Read(source);
@@ -129,6 +159,9 @@ public sealed class Handoffs(Store store)
         try
         {
             await openTarget();
+        }
+        catch (ForegroundRefusedException)
+        {
         }
         catch (Exception e) when (e is IOException or InvalidOperationException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
         {
