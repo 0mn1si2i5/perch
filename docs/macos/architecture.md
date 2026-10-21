@@ -15,6 +15,7 @@ Perch 是独立的 macOS 菜单栏应用。Pox 是可选角色，不依赖 Pox �
 | `macos/Sources/PerchCore/Quota` | 额度解析、缓存、实时查询与刷新状态 |
 | `macos/Tests` | 核心行为与应用状态回归测试 |
 | `shared/assets` / `macos/Vendor` | 应用图标、角色素材、固定版本的媒体适配器及其许可证 |
+| `shared/strings` | 与 Windows 共用的界面文案，`PerchCore/Support/Strings.swift` 读取 |
 | `macos/script` | 开发构建、安装、通用架构发行包 |
 
 Swift 约定目录使用大写，文档和脚本目录使用小写；第三方源码保持上游命名。构建产物和本机恢复快照位于被忽略的 `.build/` 与 `dist.noindex/`，不提交。
@@ -36,6 +37,7 @@ Codex 使用所属账号的 app-server 查询额度，本地 rollout 尾部记�
 - `session-order.json` 按账号保存会话 ID 顺序（0600），不改客户端记录。只允许在同一账号、同一活动状态分区内拖动；新会话保留来序，活动会话仍显示在上方。
 - `handoffs/`：旧版文档接力留下的副本、`log.jsonl` 和 `pending.json`。接力和拆出需求已删除，Perch 不再读写这个目录，也不删除它。
 - Claude 登录信息通过 macOS 钥匙串解开对应客户端的加密配置，仅在内存用于 `api.anthropic.com` 额度请求；不保存、打印、不刷新 token，不改变客户端登录，也不跟随请求重定向。
+- 界面文案读自 `shared/strings/zh-CN.json`，构建脚本把它复制到 `Perch.app/Contents/Resources/strings/`；`swift test` 和 `swift run` 从仓库读取。与 Windows 写法不同的文案用 `mac.` 开头的键。
 - 偏好域为 `com.omnis.perch`，保留从 `com.pox.desktop` 的一次性迁移，不覆盖已有新偏好。
 - 桌宠能力默认关闭；开启后默认选择静态原生浮球。Pox 主题由角色选择决定，隐藏角色仍保留主题。原生角色和能力关闭时保持系统毛玻璃外观。
 
