@@ -136,28 +136,10 @@ struct SessionRowView: View {
         } isTargeted: { targeted = $0 }
         .contextMenu {
             Button("打开") { perch.open(row, in: account) }
-            handoffMenu("接力到…", scope: .task)
-            handoffMenu("拆出需求到…", scope: .split)
             if let path = row.path {
                 Button("复制会话文件路径") { perch.copy(path) }
                 Button("在 Finder 中显示") { perch.reveal(path) }
             }
         }
-    }
-
-    /// A conversation still running or waiting for the owner cannot write a handoff document yet.
-    /// Other accounts follow, most quota left first.
-    private func handoffMenu(_ title: String, scope: HandoffScope) -> some View {
-        Menu(title) {
-            Button("本账号新对话") { perch.handoff(row, from: account, to: account, scope: scope) }
-            let targets = perch.handoffTargets(from: account)
-            if !targets.isEmpty { Divider() }
-            ForEach(targets) { target in
-                Button(perch.handoffTargetLabel(target)) {
-                    perch.handoff(row, from: account, to: target, scope: scope)
-                }
-            }
-        }
-        .disabled(row.isActive)
     }
 }

@@ -23,7 +23,7 @@ public static class ClipboardWriter
             }
             catch (COMException e)
             {
-                throw new IOException("剪贴板暂时被占用，请稍后再试。接力待办已保留。", e);
+                throw new IOException("剪贴板暂时被占用，请稍后再试。", e);
             }
         }
     }

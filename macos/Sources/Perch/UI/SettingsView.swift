@@ -68,15 +68,6 @@ struct SettingsView: View {
                 }
             }
             Divider()
-            section("文档接力") {
-                Button { perch.revealHandoffs() } label: {
-                    Label("打开交接文件夹", systemImage: "folder")
-                }
-                .buttonStyle(.plain)
-                .help(perch.handoffs.directory.path)
-                if !perch.handoffLog.isEmpty { HandoffHistoryView(perch: perch) }
-            }
-            Divider()
             HStack {
                 Spacer()
                 Button("退出 Perch") { NSApp.terminate(nil) }

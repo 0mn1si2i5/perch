@@ -50,11 +50,16 @@ enum Diagnose {
             if account.localProvider != nil {
                 line += " localSessions=\(LocalProviderSessions.recent(account).count) quota=unsupported"
             }
-            print(HandoffDocument.redactingEmails(line))
+            print(redactingEmails(line))
         }
         let media = MediaMonitor()
         media.poll { value in print("mediaPlaying=\(value.playing) kind=\(value.kind.rawValue) source=\(value.source)") }
         PerchNotifications.shared.diagnose()
         withExtendedLifetime(media) { RunLoop.current.run(until: Date().addingTimeInterval(3)) }
+    }
+
+    private static func redactingEmails(_ text: String) -> String {
+        text.replacingOccurrences(of: #"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}"#,
+                                  with: "[邮箱已隐藏]", options: .regularExpression)
     }
 }

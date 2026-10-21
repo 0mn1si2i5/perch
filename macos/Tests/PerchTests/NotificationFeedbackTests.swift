@@ -17,14 +17,14 @@ final class NotificationFeedbackTests: XCTestCase {
 
     func testDeliveredEventDoesNotLeavePanelMessage() {
         let model = model(delivered: true)
-        model.notify(title: "接力完成", body: "交接文件已收到")
+        model.notify(title: "对话已完成", body: "Work：修复登录")
         after(0.01) { XCTAssertNil(model.message) }
     }
 
     func testDeniedBackgroundNotificationWaitsForPanelThenExpires() {
         let model = model(delivered: false)
-        model.notify(title: "接力完成", body: "交接文件已收到")
-        after(0.1) { XCTAssertEqual(model.message, "接力完成：交接文件已收到") }
+        model.notify(title: "对话已完成", body: "Work：修复登录")
+        after(0.1) { XCTAssertEqual(model.message, "对话已完成：Work：修复登录") }
         model.panelOpened()
         after(0.1) { XCTAssertNil(model.message) }
     }

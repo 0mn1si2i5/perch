@@ -83,7 +83,6 @@ public sealed class Store
     {
         get;
     }
-    public string Handoffs => Path.Combine(Root, "handoffs");
     private string? recoveryDetail;
     // Content last read from or written to disk, so Save skips files that did not change.
     private readonly Dictionary<string, string> saved = [];

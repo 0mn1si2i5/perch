@@ -24,10 +24,6 @@ public sealed partial class PanelModel : Observable, IDisposable
     {
         get;
     }
-    public Handoffs Handoffs
-    {
-        get;
-    }
     public bool Demo
     {
         get;
@@ -49,7 +45,6 @@ public sealed partial class PanelModel : Observable, IDisposable
     public event Action<string>? BackgroundError;
     public ObservableCollection<GroupModel> Groups { get; } = [];
     public ObservableCollection<DiscoveredModel> Discovered { get; } = [];
-    public ObservableCollection<HistoryModel> History { get; } = [];
 
     private readonly Dictionary<string, AccountModel> accounts = [];
     private readonly Dictionary<string, GroupModel> groups = [];
@@ -240,7 +235,6 @@ public sealed partial class PanelModel : Observable, IDisposable
     }
 
     public bool NoAccounts => Store.Accounts.Count == 0;
-    public string DataPath => Store.Handoffs;
     public Account? BusyAccount => Store.Accounts.FirstOrDefault(a => snapshots.TryGetValue(a.Id, out var s) && s.Sessions.Any(t => t.Status is "运行中" or "等待输入"));
     public Command Info
     {
@@ -278,30 +272,6 @@ public sealed partial class PanelModel : Observable, IDisposable
     {
         get;
     }
-    public Command RevealHandoffs
-    {
-        get;
-    }
-    public Command FinishHandoff
-    {
-        get;
-    }
-    public Command ExistingHandoff
-    {
-        get;
-    }
-    public Command CopyPrompt
-    {
-        get;
-    }
-    public Command CancelHandoff
-    {
-        get;
-    }
-    public Command MoreHistory
-    {
-        get;
-    }
     public Command DiscoverAgain
     {
         get;
@@ -317,7 +287,6 @@ public sealed partial class PanelModel : Observable, IDisposable
         Store = store;
         Demo = demo;
         Quotas = new QuotaService(Clients);
-        Handoffs = new Handoffs(store);
         Info = new(() => Navigate("info"));
         Settings = new(() => Navigate("settings"));
         Add = new(() => Navigate("add"));
@@ -332,28 +301,6 @@ public sealed partial class PanelModel : Observable, IDisposable
         });
         ClearMessage = new(() => Message = "");
         RefreshAllCommand = new(() => Run(RefreshAll));
-        RevealHandoffs = new(() => Run(() =>
-        {
-            Store.PrivateDirectory(Store.Handoffs);
-            Reveal(Store.Handoffs);
-        }));
-        FinishHandoff = new(() => Run(() => Finish(false)), () => !HandoffBusy);
-        ExistingHandoff = new(() => Run(() => Finish(true)), () => !HandoffBusy);
-        CopyPrompt = new(() => Run(() =>
-        {
-            var p = Handoffs.Pending ?? throw new IOException("没有待继续的接力。");
-            ClipboardWriter.Set(Handoffs.Prompt(Handoffs.Draft(p), p.Scope));
-        }));
-        CancelHandoff = new(() => Run(() =>
-        {
-            Handoffs.Clear();
-            UpdateHandoffs();
-        }));
-        MoreHistory = new(() =>
-        {
-            allHistory = !allHistory;
-            UpdateHandoffs();
-        });
         DiscoverAgain = new(() => Run(async () =>
         {
             await Clients.Discover();
@@ -371,7 +318,6 @@ public sealed partial class PanelModel : Observable, IDisposable
         if (Demo)
             PopulateDemo();
         MergeAccounts();
-        UpdateHandoffs();
         if (Store.TakeRecoveryDetail() is { } recovery)
             Notify(recovery);
     }

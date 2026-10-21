@@ -24,7 +24,7 @@
   <g fill="#273446" font-size="20">
     <text x="94" y="462">01</text><text x="145" y="462">账号与最近会话集中查看</text>
     <text x="94" y="512">02</text><text x="145" y="512">实时额度与重置时间</text>
-    <text x="94" y="562">03</text><text x="145" y="562">Markdown 文档接力</text>
+    <text x="94" y="562">03</text><text x="145" y="562">对话完成与等待提醒</text>
   </g>
   <rect x="92" y="628" width="244" height="44" rx="22" fill="#fff" fill-opacity=".75"/>
   <text x="214" y="656" text-anchor="middle" font-size="17" fill="#455267">macOS 14+ · Apple / Intel</text>

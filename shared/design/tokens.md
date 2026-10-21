@@ -38,7 +38,7 @@
 
 - `SubtleButton`：左对齐，无边框，悬停时显示 `CardFill`。用于会话行、折叠行、记录行、底栏“＋ 新建账号”。
 - `StandardButton`：高 24，左右内边距 10，1px `ControlStroke`，填充 `ControlFill`。用于启动/前台、复制提示词、立即同步、退出。
-- `AccentButton`：强调色填充，白字，设 `IsDefault=True`。用于创建并启动、继续接力。
+- `AccentButton`：强调色填充，白字，设 `IsDefault=True`。用于创建并启动。
 - `IconButton`：24×24 点击区，图标 16，默认次要色，选中时强调色。用于底栏、刷新。
 - `Disclosure`：整行可点，左侧 chevron 9px 旋转 90°。“最近会话”“桌宠选项”“数据与限制”都用这一个。
 - `SegmentedControl`：两段，用于 Codex / Claude。

@@ -6,13 +6,10 @@ struct PerchNotice: Equatable {
     enum Action: Equatable {
         /// Bring the conversation's client forward.
         case openSession(accountID: String, sessionID: String)
-        /// Copy the finished handoff document and open the target.
-        case continueHandoff(UUID)
 
         var userInfo: [String: String] {
             switch self {
             case .openSession(let account, let session): return ["action": "openSession", "account": account, "session": session]
-            case .continueHandoff(let id): return ["action": "continueHandoff", "handoff": id.uuidString]
             }
         }
 
@@ -21,9 +18,6 @@ struct PerchNotice: Equatable {
             case "openSession":
                 guard let account = userInfo["account"] as? String, let session = userInfo["session"] as? String else { return nil }
                 self = .openSession(accountID: account, sessionID: session)
-            case "continueHandoff":
-                guard let id = (userInfo["handoff"] as? String).flatMap(UUID.init(uuidString:)) else { return nil }
-                self = .continueHandoff(id)
             default:
                 return nil
             }

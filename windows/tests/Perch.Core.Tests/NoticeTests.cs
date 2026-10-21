@@ -3,8 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Perch.Windows;
 
-// Phase 3, mirroring macOS SessionChangeTrackerTests: status notices, the draft-written check and the
-// handoff target order.
+// Phase 3, mirroring macOS SessionChangeTrackerTests: status notices.
 internal static class NoticeTests
 {
     private static void Check(bool condition, string message)
@@ -20,8 +19,6 @@ internal static class NoticeTests
     public static void Run()
     {
         SessionChanges();
-        Drafts();
-        Targets();
     }
 
     private static void SessionChanges()
@@ -50,32 +47,5 @@ internal static class NoticeTests
         missing.Update([S("a", "运行中"), S("b", "已完成")]);
         Check(missing.Update([]).Count == 0, "A failed read reports nothing");
         Check(Ids(missing.Update([S("a", "已完成"), S("b", "已完成")])) == "a:已完成", "A running conversation missing from one read is still noticed");
-    }
-
-    private static void Drafts()
-    {
-        var writing = new DraftWatch("p");
-        Check(!writing.Observe(null, true) && !writing.Observe(0, true) && !writing.Observe(0, false) && !writing.Observe(120, false) && !writing.Observe(480, false), "A draft still being written is not reported");
-
-        var done = new DraftWatch("p");
-        Check(!done.Observe(900, true) && !done.Observe(900, true), "The source is still running");
-        Check(done.Observe(900, false), "A stable draft is reported once the source stops");
-        Check(!done.Observe(900, false) && !done.Observe(1200, false) && !done.Observe(1200, false), "It is reported once");
-
-        var rewritten = new DraftWatch("p");
-        Check(!rewritten.Observe(300, false) && !rewritten.Observe(null, false) && !rewritten.Observe(300, false) && rewritten.Observe(300, false), "A removed and rewritten draft needs two stable polls");
-    }
-
-    private static void Targets()
-    {
-        var now = DateTimeOffset.UtcNow;
-        Check(HandoffTargets.Remaining(new Quota([new("5h", 20, now.AddHours(1)), new("周", 70, now.AddDays(1))], now, ""), now) == 30, "The tightest window decides");
-        Check(HandoffTargets.Remaining(new Quota([new("5h", 95, now.AddMinutes(-1)), new("周", 40, now.AddDays(1))], now, ""), now) == 60, "A window that already reset counts as full");
-        Check(HandoffTargets.Remaining(new Quota([], now, ""), now) == null && HandoffTargets.Remaining(null, now) == null, "No windows, no number");
-
-        var left = new Dictionary<string, double> { ["low"] = 12, ["high"] = 80, ["mid"] = 50 };
-        var ordered = HandoffTargets.Ordered(["none-1", "low", "high", "none-2", "mid"], id => left.TryGetValue(id, out var v) ? v : null);
-        Check(string.Join(",", ordered) == "high,mid,low,none-1,none-2", "Most quota first; accounts without data keep their order at the end");
-        Check(HandoffTargets.Label(61.6) == "剩 62%" && HandoffTargets.Label(null) == null, "Menu label");
     }
 }

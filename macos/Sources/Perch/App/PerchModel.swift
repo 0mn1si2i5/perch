@@ -62,14 +62,6 @@ final class PerchModel: ObservableObject {
     private var quotaRetryAfter: [String: Date] = [:]
     private var quotaTimer: Timer?
     private let quotaQueue = DispatchQueue(label: "com.omnis.perch.quota", qos: .utility, attributes: .concurrent)
-    /// Handoff documents and log under ~/Library/Application Support/Perch/handoffs.
-    let handoffs: HandoffStore
-    /// Newest first, for the settings page.
-    @Published var handoffLog: [HandoffLogEntry] = []
-    @Published var pendingHandoff: HandoffPreparation?
-    @Published var completingHandoff = false
-    /// The pending handoff whose draft is being watched; see `watchDraft()`.
-    var draftWatch: (id: UUID, watch: DraftWatch)?
     /// All Codex tasks across accounts, plus at most one task whose completion was observed this poll.
     var onTasks: (([CodexTask], CodexTask?) -> Void)?
 
@@ -98,18 +90,10 @@ final class PerchModel: ObservableObject {
         self.accounts = store.accounts
         self.launcher = launcher
         self.sessionOrder = SessionOrderStore(root: store.root)
-        self.handoffs = HandoffStore(root: store.root)
         self.feedbackLifetime = feedbackLifetime
         self.notificationSender = notificationSender
         do { try sessionOrder.load() }
         catch { message = "会话顺序读取失败：\(error.localizedDescription)" }
-        do { pendingHandoff = try handoffs.pendingPreparation() }
-        catch {
-            do {
-                try handoffs.archivePreparationState()
-                message = "待接力记录无法读取，已保留备份。请重新准备接力；已有文档未删除。"
-            } catch { message = "待接力记录无法恢复：\(error.localizedDescription)" }
-        }
     }
 
     /// Background events remain visible outside the popover; denied notifications wait for the next opening,
@@ -160,7 +144,6 @@ final class PerchModel: ObservableObject {
 
     func start() {
         reload()
-        handoffLog = handoffs.recentLog(limit: .max)
         poll()
         timer = Timer.scheduledTimer(withTimeInterval: Self.pollInterval(panelVisible: panelVisible), repeats: true) { [weak self] _ in
             self?.poll()
@@ -396,14 +379,9 @@ final class PerchModel: ObservableObject {
         onTasks?(snapshots.values.flatMap(\.tasks), completed)
         if notifySessionChanges {
             // Claude Code history and `codex exec` runs are left out: Claude notifies for its Code sessions itself,
-            // and delegate runs are what the subagent panel shows. When a pending handoff's draft is already
-            // written, the draft notice from `watchDraft()` stands in for its source's completion.
-            let drafting = pendingHandoff.flatMap { draftNoticeDue($0) ? $0.conversationID : nil }
-            notifySessions(changes.filter {
-                !$0.row.isClaudeCode && !$0.row.isExec && ($0.row.id != drafting || $0.row.status != .completed)
-            })
+            // and delegate runs are what the subagent panel shows.
+            notifySessions(changes.filter { !$0.row.isClaudeCode && !$0.row.isExec })
         }
-        watchDraft()
     }
 
     /// One notification per poll: a single change opens its conversation when clicked, several open the panel.
@@ -433,11 +411,6 @@ final class PerchModel: ObservableObject {
             guard let account = accounts.first(where: { $0.id == accountID }) else { return false }
             if let row = rows(for: account).first(where: { $0.id == sessionID }) { open(row, in: account) } else { launch(account) }
             return true
-        case .continueHandoff(let id):
-            guard pendingHandoff?.id == id, !completingHandoff else { return false }
-            continueHandoff()
-            // Refused before starting (the source is still running, an account is gone): the panel shows why.
-            return completingHandoff
         }
     }
 
@@ -525,9 +498,8 @@ final class PerchModel: ObservableObject {
 
     /// Brings the account's client forward; opens the conversation link only when it cannot reach the wrong instance.
     /// Codex instances are counted from a fresh process list, so a Codex started outside Perch also counts.
-    func open(_ row: SessionRow, in account: Account, then completion: ((LaunchOutcome) -> Void)? = nil) {
+    func open(_ row: SessionRow, in account: Account) {
         launch(account) { outcome in
-            defer { completion?(outcome) }
             if case .local = row.kind {
                 if case .failed = outcome {} else { self.message = "已打开客户端，请在客户端选择会话。" }
                 return
