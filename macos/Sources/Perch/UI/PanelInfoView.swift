@@ -18,18 +18,13 @@ struct PanelInfoView: View {
                 Text("本机入口沿用现有登录；成功启动不代表登录已验证。")
                     .foregroundStyle(.secondary)
             }
-            item("文档接力", symbol: "doc.on.clipboard") {
-                Text("右键已停下的任务 → 接力到…，在源对话粘贴提示词。文档生成后回到 Perch 点“继续接力”，再到目标新对话粘贴发送。")
-                Text("目标可以是本账号的新对话。“拆出需求到…”只交接一项需求，原对话继续原来的任务。")
-                    .foregroundStyle(.secondary)
-            }
             item("桌面入口", symbol: "pawprint") {
                 Text("在设置开启桌宠，爪印控制显示与隐藏。单击打开面板，拖动换位置。原生浮球保留系统外观，Pox 使用角色主题。")
             }
             Divider()
             PanelDisclosure("数据与限制") {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("平时只读任务元数据。接力仅处理指定的交接文档，不提取或自动发送聊天；副本保存在本机。")
+                    Text("平时只读任务元数据，不提取或自动发送聊天。")
                     Text("Claude 额度使用对应账号授权，仅在内存中使用。首次手动同步可能需要钥匙串授权；后台不弹提示。")
                     Text("Codex 单实例可直接定位对话；多实例时只调出所属客户端。Claude 目前只调出客户端，需自行选择会话。")
                     Text("Claude 桌面会话按账号目录读取。“Code”表示本机 Claude Code 历史，仅显示在默认客户端卡片；其登录账号可能与桌面客户端不同。")
@@ -43,9 +38,6 @@ struct PanelInfoView: View {
                     if !perch.skippedImports.isEmpty {
                         Text("旧账号导入时跳过：\(perch.skippedImports.joined(separator: "、"))。该导入流程仅支持 Codex 与 Claude；其他供应商可在“新建账号”中添加。")
                     }
-                    Text("交接目录").fontWeight(.medium)
-                    Text(perch.handoffs.directory.path)
-                        .textSelection(.enabled)
                 }
                 .foregroundStyle(.secondary)
                 .padding(.top, 8)

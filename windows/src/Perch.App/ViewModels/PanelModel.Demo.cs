@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 
 namespace Perch.Windows;
 
@@ -45,11 +44,6 @@ public sealed partial class PanelModel
             demoQuotas[a.Id] = new Quota([new("5h", app == "codex" ? 72 : 92, now.AddHours(3)), new("周", 36, now.AddDays(4))], now.AddMinutes(-8), missing ? "网络暂不可用" : "", missing);
         }
 
-        var source = Store.Accounts[0];
-        var target = Store.Accounts[2];
-        Handoffs.Prepare(source, target, new Session("demo", "把实现与验证交给下一位 agent", "已完成", DateTimeOffset.UtcNow));
-        var history = Enumerable.Range(0, 7).Select(i => new HandoffRecord("demo-" + i, source.Id, target.Id, "交接文档已保存", Path.Combine(Store.Root, "demo.md"), DateTimeOffset.UtcNow.AddHours(-i), source.Name, target.Name)).ToList();
-        Store.Write("handoffs/history.json", history);
         Store.Preferences.MediaEnabled = false;
         Store.Preferences.PetEnabled = true;
         Store.Preferences.PetVisible = true;

@@ -79,7 +79,7 @@ public final class CodexReader {
                                           appRunning: appRunning || source == "exec", waiting: isWaiting)
             let title = String((row[1] ?? "Codex 聊天").prefix(140))
             tasks.append(CodexTask(id: id, title: title, status: status, turnID: rollout?.id ?? turn?[0] ?? "",
-                                   updatedAt: updated, source: historyPath, rolloutPath: rolloutPath))
+                                   updatedAt: updated, source: historyPath, rolloutPath: rolloutPath, isExec: source == "exec"))
         }
         lastRows = seen
         rolloutTurns = rolloutTurns.filter { path, _ in rows.contains { $0.count >= 5 && $0[4] == path } }

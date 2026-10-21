@@ -34,7 +34,7 @@ final class PerchModel: ObservableObject {
     private var messageDismissal: DispatchWorkItem?
     private var panelVisible = false
     private let feedbackLifetime: TimeInterval
-    private let notificationSender: (String, String, @escaping (Bool) -> Void) -> Void
+    private let notificationSender: (PerchNotice, @escaping (Bool) -> Void) -> Void
     private var notificationSequence: UInt64 = 0
     /// The system clipboard; tests pass a private one.
     let pasteboard: NSPasteboard
@@ -54,16 +54,14 @@ final class PerchModel: ObservableObject {
     @Published var automaticallySyncQuota = UserDefaults.standard.object(forKey: "automaticallySyncQuota") as? Bool ?? true {
         didSet { UserDefaults.standard.set(automaticallySyncQuota, forKey: "automaticallySyncQuota") }
     }
+    /// A system notification when a Codex or Claude conversation completes, fails or starts waiting for the owner.
+    @Published var notifySessionChanges = UserDefaults.standard.object(forKey: "notifySessionChanges") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(notifySessionChanges, forKey: "notifySessionChanges") }
+    }
     private var quotaThrottle = QuotaThrottle()
     private var quotaRetryAfter: [String: Date] = [:]
     private var quotaTimer: Timer?
     private let quotaQueue = DispatchQueue(label: "com.omnis.perch.quota", qos: .utility, attributes: .concurrent)
-    /// Handoff documents and log under ~/Library/Application Support/Perch/handoffs.
-    let handoffs: HandoffStore
-    /// Newest first, for the settings page.
-    @Published var handoffLog: [HandoffLogEntry] = []
-    @Published var pendingHandoff: HandoffPreparation?
-    @Published var completingHandoff = false
     /// All Codex tasks across accounts, plus at most one task whose completion was observed this poll.
     var onTasks: (([CodexTask], CodexTask?) -> Void)?
 
@@ -76,7 +74,7 @@ final class PerchModel: ObservableObject {
     private var localReaders: [String: LocalProviderSessionReader] = [:]
     /// Claude account → the organization its last live query used. History samples are matched against it.
     private var claudeOrganizations: [String: String] = [:]
-    private var trackers: [String: CompletionTracker] = [:]
+    private var trackers: [String: SessionChangeTracker] = [:]
     private let worker = DispatchQueue(label: "com.omnis.perch.poll", qos: .utility)
     private var reading = false
     private var timer: Timer?
@@ -84,34 +82,28 @@ final class PerchModel: ObservableObject {
 
     init(store: AccountStore = .standard(), launcher: Launcher = .live(), feedbackLifetime: TimeInterval = 6,
          pasteboard: NSPasteboard = .general,
-         notificationSender: @escaping (String, String, @escaping (Bool) -> Void) -> Void = {
-             PerchNotifications.shared.send(title: $0, body: $1, completion: $2)
+         notificationSender: @escaping (PerchNotice, @escaping (Bool) -> Void) -> Void = {
+             PerchNotifications.shared.send($0, completion: $1)
          }) {
         self.store = store
         self.pasteboard = pasteboard
         self.accounts = store.accounts
         self.launcher = launcher
         self.sessionOrder = SessionOrderStore(root: store.root)
-        self.handoffs = HandoffStore(root: store.root)
         self.feedbackLifetime = feedbackLifetime
         self.notificationSender = notificationSender
         do { try sessionOrder.load() }
         catch { message = "会话顺序读取失败：\(error.localizedDescription)" }
-        do { pendingHandoff = try handoffs.pendingPreparation() }
-        catch {
-            do {
-                try handoffs.archivePreparationState()
-                message = "待接力记录无法读取，已保留备份。请重新准备接力；已有文档未删除。"
-            } catch { message = "待接力记录无法恢复：\(error.localizedDescription)" }
-        }
     }
 
-    /// Background events remain visible outside the popover; denied notifications wait for the next opening.
-    func notify(title: String, body: String) {
-        notificationSequence &+= 1
+    /// Background events remain visible outside the popover; denied notifications wait for the next opening,
+    /// unless `fallback` is false because the panel already shows the same thing.
+    func notify(title: String, body: String, action: PerchNotice.Action? = nil, fallback: Bool = true) {
+        // Only a notice with a fallback may replace the panel message an earlier one is about to leave.
+        if fallback { notificationSequence &+= 1 }
         let sequence = notificationSequence
-        notificationSender(title, body) { [weak self] delivered in
-            guard !delivered else { return }
+        notificationSender(PerchNotice(title: title, body: body, action: action)) { [weak self] delivered in
+            guard !delivered, fallback else { return }
             DispatchQueue.main.async {
                 guard let self, self.notificationSequence == sequence else { return }
                 self.message = "\(title)：\(body)"
@@ -152,7 +144,6 @@ final class PerchModel: ObservableObject {
 
     func start() {
         reload()
-        handoffLog = handoffs.recentLog(limit: .max)
         poll()
         timer = Timer.scheduledTimer(withTimeInterval: Self.pollInterval(panelVisible: panelVisible), repeats: true) { [weak self] _ in
             self?.poll()
@@ -215,6 +206,7 @@ final class PerchModel: ObservableObject {
             accounts = store.accounts
             snapshots[account.id] = nil   // readers are keyed by session root, so the new data gets a fresh one
             claudeSessions[account.id] = nil
+            trackers[account.id] = nil
             quotas[account.id] = nil
             quotaThrottle.reset(account.id)
             quotaRetryAfter[account.id] = nil
@@ -348,7 +340,8 @@ final class PerchModel: ObservableObject {
         }
     }
 
-    private func apply(snapshots: [String: CodexSnapshot], running: Set<String>, sessions: [String: [ClaudeSession]], readAccounts: [Account]) {
+    /// Internal so tests can feed a poll result without real client data.
+    func apply(snapshots: [String: CodexSnapshot], running: Set<String>, sessions: [String: [ClaudeSession]], readAccounts: [Account]) {
         reading = false
         // A profile relocated while this read was in flight must not receive its old sessions.
         let live = Set(accounts.filter { account in
@@ -362,11 +355,63 @@ final class PerchModel: ObservableObject {
         if claudeSessions != sessions { claudeSessions = sessions }
         trackers = trackers.filter { live.contains($0.key) }
         if quotas.keys.contains(where: { !live.contains($0) }) { quotas = quotas.filter { live.contains($0.key) } }
-        var completed: CodexTask?
-        for (id, snapshot) in snapshots {
-            if let task = trackers[id, default: CompletionTracker()].update(snapshot), completed == nil { completed = task }
+        var changes: [(account: Account, row: SessionRow)] = []
+        for account in accounts where live.contains(account.id) {
+            let rows: [SessionRow]
+            switch account.app {
+            case .codex:
+                // An unreadable database says nothing about the tasks; keep the last statuses until it reads again.
+                guard let snapshot = snapshots[account.id], snapshot.available else { continue }
+                rows = snapshot.tasks.map { SessionRow(kind: .codex($0)) }
+            case .claude:
+                guard let list = sessions[account.id] else { continue }
+                rows = list.map { SessionRow(kind: .claude($0)) }
+            default:
+                continue
+            }
+            let found = trackers[account.id, default: SessionChangeTracker()].update(rows.map { ($0.id, $0.status) })
+            changes += found.compactMap { change in rows.first { $0.id == change.id }.map { (account, $0) } }
         }
+        let completed = changes.lazy.compactMap { change -> CodexTask? in
+            guard case .codex(let task) = change.row.kind, task.status == .completed else { return nil }
+            return task
+        }.first
         onTasks?(snapshots.values.flatMap(\.tasks), completed)
+        if notifySessionChanges {
+            // Claude Code history and `codex exec` runs are left out: Claude notifies for its Code sessions itself,
+            // and delegate runs are what the subagent panel shows.
+            notifySessions(changes.filter { !$0.row.isClaudeCode && !$0.row.isExec })
+        }
+    }
+
+    /// One notification per poll: a single change opens its conversation when clicked, several open the panel.
+    private func notifySessions(_ changes: [(account: Account, row: SessionRow)]) {
+        guard let first = changes.first else { return }
+        let line = { (change: (account: Account, row: SessionRow)) in "\(change.account.name)：\(change.row.title.prefix(60))" }
+        if changes.count == 1 {
+            let title: String
+            switch first.row.status {
+            case .waiting: title = "对话在等你回应"
+            case .failed: title = "对话遇到问题"
+            default: title = "对话已完成"
+            }
+            notify(title: title, body: line(first), action: .openSession(accountID: first.account.id, sessionID: first.row.id),
+                   fallback: false)
+        } else {
+            let lines = changes.prefix(3).map { line($0) + " · " + $0.row.status.label }
+                + (changes.count > 3 ? ["另有 \(changes.count - 3) 个"] : [])
+            notify(title: "\(changes.count) 个对话有新状态", body: lines.joined(separator: "\n"), fallback: false)
+        }
+    }
+
+    /// A clicked notification. Returns false when the panel should open instead.
+    func perform(_ action: PerchNotice.Action) -> Bool {
+        switch action {
+        case .openSession(let accountID, let sessionID):
+            guard let account = accounts.first(where: { $0.id == accountID }) else { return false }
+            if let row = rows(for: account).first(where: { $0.id == sessionID }) { open(row, in: account) } else { launch(account) }
+            return true
+        }
     }
 
     private func reader(for account: Account) -> CodexReader {
@@ -453,9 +498,8 @@ final class PerchModel: ObservableObject {
 
     /// Brings the account's client forward; opens the conversation link only when it cannot reach the wrong instance.
     /// Codex instances are counted from a fresh process list, so a Codex started outside Perch also counts.
-    func open(_ row: SessionRow, in account: Account, then completion: ((LaunchOutcome) -> Void)? = nil) {
+    func open(_ row: SessionRow, in account: Account) {
         launch(account) { outcome in
-            defer { completion?(outcome) }
             if case .local = row.kind {
                 if case .failed = outcome {} else { self.message = "已打开客户端，请在客户端选择会话。" }
                 return
@@ -585,6 +629,7 @@ final class PerchModel: ObservableObject {
             try store.relocate(id: account.id, profilePath: url.path)
             accounts = store.accounts
             quotas[account.id] = nil
+            trackers[account.id] = nil   // the new folder's conversations are a new baseline
             quotaThrottle.reset(account.id)
             quotaRetryAfter[account.id] = nil
             poll()

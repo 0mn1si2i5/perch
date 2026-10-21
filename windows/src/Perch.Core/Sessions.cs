@@ -103,7 +103,7 @@ public static class Sessions
             return "遇到问题";
         if (raw is "interrupted" or "cancelled")
             return "已停止";
-        // As on macOS, a turn untouched for 30 minutes was cut off; it must not keep blocking handoff.
+        // As on macOS, a turn untouched for 30 minutes was cut off; it must not keep showing as running.
         if (raw is "inProgress" or "running" or "in_progress")
             return running && DateTimeOffset.UtcNow - updated < TimeSpan.FromMinutes(30) ? waiting ? "等待输入" : "运行中" : "已停止";
         return "状态未知";
@@ -154,7 +154,7 @@ public static class Sessions
                 }
 
                 var title = titles.GetValueOrDefault(r[0]!) ?? r[1] ?? "Codex 聊天";
-                return new Session(r[0]!, title[..Math.Min(140, title.Length)], Status(raw, running || r[5] == "exec", updated, waiting), updated, r[3] ?? "", r[4] ?? "");
+                return new Session(r[0]!, title[..Math.Min(140, title.Length)], Status(raw, running || r[5] == "exec", updated, waiting), updated, r[3] ?? "", r[4] ?? "", r[5] == "exec");
             }).ToList();
         }
     }

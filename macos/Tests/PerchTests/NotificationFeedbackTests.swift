@@ -6,7 +6,7 @@ final class NotificationFeedbackTests: XCTestCase {
     private func model(lifetime: TimeInterval = 0.05, delivered: Bool) -> PerchModel {
         let unused = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let store = AccountStore(root: unused, agentDeskProfiles: unused.appendingPathComponent("missing"))
-        return PerchModel(store: store, feedbackLifetime: lifetime, notificationSender: { _, _, reply in reply(delivered) })
+        return PerchModel(store: store, feedbackLifetime: lifetime, notificationSender: { _, reply in reply(delivered) })
     }
 
     private func after(_ seconds: TimeInterval, _ check: @escaping () -> Void) {
@@ -17,14 +17,14 @@ final class NotificationFeedbackTests: XCTestCase {
 
     func testDeliveredEventDoesNotLeavePanelMessage() {
         let model = model(delivered: true)
-        model.notify(title: "接力完成", body: "交接文件已收到")
+        model.notify(title: "对话已完成", body: "Work：修复登录")
         after(0.01) { XCTAssertNil(model.message) }
     }
 
     func testDeniedBackgroundNotificationWaitsForPanelThenExpires() {
         let model = model(delivered: false)
-        model.notify(title: "接力完成", body: "交接文件已收到")
-        after(0.1) { XCTAssertEqual(model.message, "接力完成：交接文件已收到") }
+        model.notify(title: "对话已完成", body: "Work：修复登录")
+        after(0.1) { XCTAssertEqual(model.message, "对话已完成：Work：修复登录") }
         model.panelOpened()
         after(0.1) { XCTAssertNil(model.message) }
     }
@@ -53,7 +53,7 @@ final class NotificationFeedbackTests: XCTestCase {
         let unused = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let store = AccountStore(root: unused, agentDeskProfiles: unused.appendingPathComponent("missing"))
         var replies: [(Bool) -> Void] = []
-        let model = PerchModel(store: store, notificationSender: { _, _, reply in replies.append(reply) })
+        let model = PerchModel(store: store, notificationSender: { _, reply in replies.append(reply) })
         model.notify(title: "提示词已复制", body: "等待文件")
         model.notify(title: "文件已收到", body: "交接完成")
         replies[1](false)

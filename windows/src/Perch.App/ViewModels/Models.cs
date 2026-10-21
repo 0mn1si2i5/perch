@@ -313,5 +313,4 @@ public sealed class GroupModel : Observable
     }
 }
 
-public sealed record HistoryModel(string Id, string Label, string Title, string Path, Command Open, Command Forget);
 public sealed record DiscoveredModel(string App, string Label, bool HasAccounts, Command Add, Command Dismiss);

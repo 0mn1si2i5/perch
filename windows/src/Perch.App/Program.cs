@@ -51,7 +51,7 @@ public static class Program
         {
             // Off the UI thread nothing can be recovered; say so before the process ends.
             if (Option("--screenshot") == null)
-                MessageBox.Show("Perch 遇到意外错误，即将退出。账号和接力文档不受影响。", "Perch", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("Perch 遇到意外错误，即将退出。账号不受影响。", "Perch", MessageBoxButton.OK, MessageBoxImage.Error);
         };
         try
         {
@@ -107,7 +107,7 @@ public static class Program
                 Environment.ExitCode = 1;
             }
             else if (running)
-                MessageBox.Show("Perch 遇到意外错误，已退出。账号和接力文档不受影响。", "Perch", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("Perch 遇到意外错误，已退出。账号不受影响。", "Perch", MessageBoxButton.OK, MessageBoxImage.Error);
             else
                 MessageBox.Show(e is IOException ? e.Message : "Perch 无法启动，请检查本机数据目录。原始文件已保留。", "Perch", MessageBoxButton.OK, MessageBoxImage.Error);
         }

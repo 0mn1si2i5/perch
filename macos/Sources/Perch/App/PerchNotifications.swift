@@ -1,10 +1,41 @@
 import AppKit
 import UserNotifications
 
+/// What one system notification says and what clicking it does.
+struct PerchNotice: Equatable {
+    enum Action: Equatable {
+        /// Bring the conversation's client forward.
+        case openSession(accountID: String, sessionID: String)
+
+        var userInfo: [String: String] {
+            switch self {
+            case .openSession(let account, let session): return ["action": "openSession", "account": account, "session": session]
+            }
+        }
+
+        init?(userInfo: [AnyHashable: Any]) {
+            switch userInfo["action"] as? String {
+            case "openSession":
+                guard let account = userInfo["account"] as? String, let session = userInfo["session"] as? String else { return nil }
+                self = .openSession(accountID: account, sessionID: session)
+            default:
+                return nil
+            }
+        }
+    }
+
+    let title: String
+    let body: String
+    /// Without an action, clicking opens the panel.
+    var action: Action?
+}
+
 /// One exit for background events. A failed/disabled delivery returns to the panel.
 final class PerchNotifications: NSObject, UNUserNotificationCenterDelegate {
     static let shared = PerchNotifications()
     var openPanel: (() -> Void)?
+    /// Runs a clicked notification's action; returns false when the panel should open instead.
+    var perform: ((PerchNotice.Action) -> Bool)?
 
     private var center: UNUserNotificationCenter? {
         // UNUserNotificationCenter cannot run from an unbundled command-line binary.
@@ -13,8 +44,9 @@ final class PerchNotifications: NSObject, UNUserNotificationCenterDelegate {
         return UNUserNotificationCenter.current()
     }
 
-    func configure(openPanel: @escaping () -> Void) {
+    func configure(openPanel: @escaping () -> Void, perform: @escaping (PerchNotice.Action) -> Bool) {
         self.openPanel = openPanel
+        self.perform = perform
         center?.delegate = self
     }
 
@@ -26,14 +58,15 @@ final class PerchNotifications: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    func send(title: String, body: String, completion: @escaping (Bool) -> Void) {
+    func send(_ notice: PerchNotice, completion: @escaping (Bool) -> Void) {
         guard let center else { completion(false); return }
         center.getNotificationSettings { settings in
             let deliver = {
                 let content = UNMutableNotificationContent()
-                content.title = title
-                content.body = body
+                content.title = notice.title
+                content.body = notice.body
                 content.sound = .default
+                if let action = notice.action { content.userInfo = action.userInfo }
                 let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
                 center.add(request) { error in completion(error == nil) }
             }
@@ -57,8 +90,9 @@ final class PerchNotifications: NSObject, UNUserNotificationCenterDelegate {
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
+        let action = PerchNotice.Action(userInfo: response.notification.request.content.userInfo)
         DispatchQueue.main.async { [weak self] in
-            self?.openPanel?()
+            if let action, self?.perform?(action) == true {} else { self?.openPanel?() }
             completionHandler()
         }
     }

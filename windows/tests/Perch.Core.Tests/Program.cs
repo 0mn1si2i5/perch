@@ -1,8 +1,8 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Security.AccessControl;
 using System.Text.Json;
+using System.Security.AccessControl;
 using Perch.Windows;
 
 static class Program
@@ -75,60 +75,6 @@ static class Program
             Check(MediaPolicy.Classify("Chrome", "Video") == "video", "Explicit video metadata wins");
             File.WriteAllText(Path.Combine(root, "session_index.jsonl"), "{\"id\":\"12345678-1234-1234-1234-123456789abc\",\"thread_name\":\"Generated title\"}\n{\"id\":\"12345678-1234-1234-1234-123456789abc\",\"thread_name\":\"Renamed title\"}\n{partial");
             Check(Sessions.ReadCodexTitles(root).Values.Single() == "Renamed title", "Latest indexed title wins even during concurrent append");
-            var handoffs = new Handoffs(store);
-            bool refused = false;
-            try
-            {
-                handoffs.Prepare(a, b, new("s", "Task", "运行中", DateTimeOffset.UtcNow));
-            }
-            catch (InvalidOperationException)
-            {
-                refused = true;
-            }
-
-            Check(refused, "Running tasks must not hand off");
-            var p = handoffs.Prepare(a, b, new("s", "CON/test@example.com", "已完成", DateTimeOffset.UtcNow));
-            Check(!File.Exists(handoffs.Draft(p)), "Preparation must not fabricate a handoff document");
-            Check(new Handoffs(new Store(root)).Pending?.Id == p.Id, "Pending handoff must survive restart");
-            bool missing = false;
-            try
-            {
-                handoffs.Complete();
-            }
-            catch (IOException)
-            {
-                missing = true;
-            }
-
-            Check(missing && handoffs.Pending?.Id == p.Id, "Missing documents must preserve pending for retry");
-            var content = "# Real handoff\nUser supplied context";
-            File.WriteAllText(handoffs.Draft(p), content);
-            bool clipboardFailed = false;
-            try
-            {
-                handoffs.Deliver(_ => throw new IOException("Clipboard busy"), () => System.Threading.Tasks.Task.CompletedTask).GetAwaiter().GetResult();
-            }
-            catch (IOException)
-            {
-                clipboardFailed = true;
-            }
-
-            Check(clipboardFailed && handoffs.History.Count == 0 && Directory.GetFiles(store.Handoffs, "*.md").Length == 0 && handoffs.Pending != null, "Clipboard failure must not commit a copy or history");
-            var done = handoffs.Complete();
-            Check(File.ReadAllText(done.Record.Path) == content && done.Clipboard.Contains(content) && done.Clipboard.Contains(done.Record.Path), "Clipboard must include saved body and absolute path");
-            Check(handoffs.Pending != null && handoffs.History.Count == 1, "Pending survives until clipboard copying succeeds");
-            handoffs.Clear();
-            Check(handoffs.Pending == null, "Successful copy clears pending");
-            handoffs.Forget(done.Record.Id);
-            Check(File.Exists(done.Record.Path) && handoffs.History.Count == 0, "Removing a record must preserve its document");
-            var self = handoffs.Prepare(a, a, new("s2", "Split", "已完成", DateTimeOffset.UtcNow), Handoffs.SplitScope);
-            Check(self.SameAccount && new Handoffs(new Store(root)).Pending?.Scope == Handoffs.SplitScope, "A same-account split must survive restart");
-            File.WriteAllText(handoffs.Draft(self), "# Split");
-            var split = handoffs.Complete();
-            Check(split.Record.SameAccount && split.Record.Scope == Handoffs.SplitScope && split.Clipboard.StartsWith(Strings.Get("handoff.splitClipboardPreamble")), "A split keeps its scope and preamble");
-            handoffs.Clear();
-            File.WriteAllText(Path.Combine(store.Handoffs, "pending.json"), "{broken");
-            Check(handoffs.Pending == null && Directory.GetFiles(store.Handoffs, "pending.json.unreadable-*.json").Length == 1, "Corrupt handoff state must be preserved without blocking the application");
             var recoveryRoot = Path.Combine(root, "recovery");
             var recovery = new Store(recoveryRoot);
             File.WriteAllText(Path.Combine(recoveryRoot, "preferences.json"), "{broken");
@@ -156,10 +102,6 @@ static class Program
             Check(clamped.Bottom <= 800, "Pet in a display gap must move onto a display");
             Check(SessionRouting.CanDeepLink("codex", "12345678-1234-1234-1234-123456789abc", 1), "A single Codex instance can deep-link");
             Check(!SessionRouting.CanDeepLink("codex", "12345678-1234-1234-1234-123456789abc", 2) && !SessionRouting.CanDeepLink("claude", "bad", 1), "Multiple instances and Claude cannot deep-link");
-            var oldRecord = JsonSerializer.Deserialize<HandoffRecord>("{\"Id\":\"old\",\"SourceId\":\"a\",\"TargetId\":\"b\",\"Title\":\"task\",\"Path\":\"x\",\"Created\":\"2026-01-01T00:00:00Z\"}")!;
-            Check(oldRecord.SourceName == "已移除账号" && oldRecord.Scope == Handoffs.TaskScope, "Old handoff history remains readable");
-            var oldPending = JsonSerializer.Deserialize<PendingHandoff>("{\"Id\":\"old\",\"SourceId\":\"a\",\"TargetId\":\"b\",\"SessionId\":\"s\",\"Title\":\"task\",\"Created\":\"2026-01-01T00:00:00Z\"}")!;
-            Check(oldPending.Scope == Handoffs.TaskScope && !oldPending.SameAccount, "Older pending handoffs are whole-task handoffs");
             var insertion = new System.Collections.Generic.List<string>
             {
                 "a",
@@ -173,7 +115,8 @@ static class Program
             Check(Sessions.Status("error", true, DateTimeOffset.UtcNow) == "遇到问题", "Failed tasks must remain distinct from stopped tasks");
             FixtureTests.Run(root);
             RegressionTests.Run(root);
-            Console.WriteLine("PASS: persistence, ACLs, process isolation, quota windows, task lifecycle, handoff recovery, document preservation and launch failures");
+            NoticeTests.Run();
+            Console.WriteLine("PASS: persistence, ACLs, process isolation, quota windows, task lifecycle, launch failures and session notices");
         }
         finally
         {

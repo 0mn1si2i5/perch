@@ -78,6 +78,7 @@ public sealed partial class PanelModel
         Store.Save();
         Quotas.Clear(account.Id);
         snapshots.Remove(account.Id);
+        trackers.Remove(account.Id);
         MergeAccounts();
         return Task.CompletedTask;
     }
@@ -94,8 +95,6 @@ public sealed partial class PanelModel
 
     public async Task Remove(Account account)
     {
-        if (Handoffs.Pending is { } pending && (pending.SourceId == account.Id || pending.TargetId == account.Id))
-            throw new IOException("请先完成或取消这个账号的待接力任务。");
         var choice = ConfirmDelete?.Invoke(account) ?? (false, false);
         if (!choice.Item1)
             return;
@@ -110,6 +109,7 @@ public sealed partial class PanelModel
         Store.Remove(account);
         Quotas.Clear(account.Id);
         snapshots.Remove(account.Id);
+        trackers.Remove(account.Id);
         MergeAccounts();
     }
 
@@ -126,6 +126,7 @@ public sealed partial class PanelModel
         Store.Save();
         Quotas.Clear(account.Id);
         snapshots.Remove(account.Id);
+        trackers.Remove(account.Id);
         MergeAccounts();
     }
 

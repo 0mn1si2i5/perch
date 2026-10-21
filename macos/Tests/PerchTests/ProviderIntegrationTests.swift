@@ -133,7 +133,7 @@ final class ProviderIntegrationTests: XCTestCase {
 
     private func makeModel(_ store: AccountStore) -> PerchModel {
         PerchModel(store: store, launcher: Launcher(activate: { _ in false }, processes: { [] }),
-                   notificationSender: { _, _, completion in completion(true) })
+                   notificationSender: { _, completion in completion(true) })
     }
 
     @MainActor

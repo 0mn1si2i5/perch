@@ -1,6 +1,6 @@
 <!-- macOS: PerchPanel.swift -->
 <UserControl x:Class="Perch.Windows.AccountsPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:Perch.Windows" >
-<StackPanel><local:HandoffCard/><ItemsControl ItemsSource="{Binding Discovered}"><ItemsControl.ItemTemplate><DataTemplate><local:DiscoveredCard/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+<StackPanel><ItemsControl ItemsSource="{Binding Discovered}"><ItemsControl.ItemTemplate><DataTemplate><local:DiscoveredCard/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
  <TextBlock Text="还没有账号。点下面的“新建账号”添加一个。" Foreground="{DynamicResource TextSecondary}" Visibility="{Binding NoAccounts, Converter={StaticResource BoolVisibility}}"/>
  <ItemsControl ItemsSource="{Binding Groups}"><ItemsControl.ItemTemplate><DataTemplate><StackPanel>
  <Button Command="{Binding Toggle}" Padding="0,4" Margin="0,2,0,8" HorizontalContentAlignment="Stretch" local:DragSupport.Enabled="True" local:DragSupport.Target="True"><DockPanel>

@@ -8,7 +8,7 @@ final class PollingTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
         let store = AccountStore(root: root, agentDeskProfiles: root.appendingPathComponent("absent-agent-desk.json"), home: root.path)
         let model = PerchModel(store: store, launcher: Launcher(activate: { _ in false }, processes: { [] }),
-                               notificationSender: { _, _, completion in completion(true) })
+                               notificationSender: { _, completion in completion(true) })
         XCTAssertNil(model.pollingInterval)
         model.start()
         XCTAssertEqual(model.pollingInterval, 20)
