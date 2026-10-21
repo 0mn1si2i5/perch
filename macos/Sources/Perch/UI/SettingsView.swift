@@ -8,7 +8,7 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            section("桌面入口") {
+            section(Strings.get("settings.pet")) {
                 Toggle("桌宠", isOn: Binding(get: { pet.enabled }, set: { pet.setEnabled($0) }))
                     .toggleStyle(.switch)
                 if pet.enabled {
@@ -47,13 +47,13 @@ struct SettingsView: View {
                 }
             }
             Divider()
-            section("通知") {
+            section(Strings.get("settings.notifications")) {
                 Toggle("对话完成或等你回应时通知", isOn: $perch.notifySessionChanges)
                     .toggleStyle(.switch)
                     .help("Codex 和 Claude 对话从进行中变成已完成、等你回应或遇到问题时发系统通知；点通知调出所属客户端。启动前已结束的对话、Claude Code 历史和委派运行不通知。")
             }
             Divider()
-            section("额度") {
+            section(Strings.get("settings.quota")) {
                 Toggle("自动同步", isOn: $perch.automaticallySyncQuota)
                     .toggleStyle(.switch)
                     .help("每 5 分钟同步；后台不会弹出钥匙串授权")

@@ -3,7 +3,7 @@ import Foundation
 public enum PetPose: Int, CaseIterable {
     case idle, salute, thinking, listening, watching, celebrating, confused, lifted
     public var label: String {
-        ["待着也挺好", "收到", "正在琢磨", "听歌中", "陪你看片", "搞定了", "挠头", "好家伙，被提起来了"][rawValue]
+        Strings.get("pet.pose.\(rawValue)")
     }
 }
 
@@ -13,12 +13,12 @@ public enum TaskStatus: String {
     public var isActive: Bool { self == .running || self == .waiting }
     public var label: String {
         switch self {
-        case .running: return "进行中"
-        case .completed: return "已完成"
-        case .failed: return "遇到问题"
-        case .interrupted: return "已中断"
-        case .waiting: return "等你回应"
-        case .unknown: return "无记录"
+        case .running: return Strings.get("mac.status.running")
+        case .completed: return Strings.get("status.completed")
+        case .failed: return Strings.get("status.failed")
+        case .interrupted: return Strings.get("mac.status.interrupted")
+        case .waiting: return Strings.get("mac.status.waiting")
+        case .unknown: return Strings.get("mac.status.unknown")
         }
     }
 }

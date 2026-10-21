@@ -30,5 +30,11 @@
   "panel.info": "信息",
   "settings.pet": "桌面入口",
   "settings.notifications": "通知",
-  "settings.quota": "额度"
+  "settings.quota": "额度",
+  "mac.status.running": "进行中",
+  "mac.status.waiting": "等你回应",
+  "mac.status.interrupted": "已中断",
+  "mac.status.unknown": "无记录",
+  "mac.info.1": "Codex 与 Claude 的百分比为已用额度，悬停查看剩余。打开面板会同步，也可手动刷新。",
+  "mac.info.6": "Claude 额度使用对应账号授权，仅在内存中使用。首次手动同步可能需要钥匙串授权；后台不弹提示。"
 }

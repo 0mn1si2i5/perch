@@ -13,9 +13,9 @@ struct PerchPanel: View {
     private var title: String {
         switch page {
         case .accounts: return "Perch"
-        case .settings: return "设置"
-        case .info: return "信息"
-        case .newAccount: return "新建账号"
+        case .settings: return Strings.get("panel.settings")
+        case .info: return Strings.get("panel.info")
+        case .newAccount: return Strings.get("panel.add")
         }
     }
 
@@ -42,18 +42,18 @@ struct PerchPanel: View {
             }
             Divider()
             HStack(spacing: 14) {
-                Button { toggle(.newAccount) } label: { Label("新建账号", systemImage: "plus") }
+                Button { toggle(.newAccount) } label: { Label(Strings.get("panel.add"), systemImage: "plus") }
                     .foregroundStyle(page == .newAccount ? accent : Color.secondary)
                 Spacer()
                 Button { toggle(.info) } label: { footerIcon("info.circle") }
                     .foregroundStyle(page == .info ? accent : Color.secondary)
-                    .help(page == .info ? "返回账号列表" : "信息")
-                    .accessibilityLabel("信息")
+                    .help(page == .info ? "返回账号列表" : Strings.get("panel.info"))
+                    .accessibilityLabel(Strings.get("panel.info"))
                     .accessibilityValue(page == .info ? "已选中" : "未选中")
                 Button { toggle(.settings) } label: { footerIcon("gearshape") }
                     .foregroundStyle(page == .settings ? accent : Color.secondary)
-                    .help(page == .settings ? "返回账号列表" : "设置")
-                    .accessibilityLabel("设置")
+                    .help(page == .settings ? "返回账号列表" : Strings.get("panel.settings"))
+                    .accessibilityLabel(Strings.get("panel.settings"))
                     .accessibilityValue(page == .settings ? "已选中" : "未选中")
                 if pet.enabled {
                     Button { pet.setVisible(!pet.visible) } label: {

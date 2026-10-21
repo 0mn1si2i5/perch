@@ -726,7 +726,7 @@ final class PerchModel: ObservableObject {
         switch account.app {
         case .codex:
             guard let snapshot = snapshots[account.id] else { return "正在读取…" }
-            return snapshot.available ? "还没有对话" : snapshot.detail
+            return snapshot.available ? Strings.get("account.empty") : snapshot.detail
         case .claude:
             return claudeSessions[account.id] == nil ? "正在读取…" : "还没有本地会话"
         case .gemini, .antigravity, .deepseek: return "还没有本地会话"

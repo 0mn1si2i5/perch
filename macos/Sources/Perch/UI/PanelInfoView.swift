@@ -1,4 +1,5 @@
 import SwiftUI
+import PerchCore
 
 struct PanelInfoView: View {
     @ObservedObject var perch: PerchModel
@@ -8,9 +9,9 @@ struct PanelInfoView: View {
             item("账号与任务", symbol: "rectangle.stack") {
                 Text("点账号或会话调出客户端，右键查看更多操作。分组可收起；分组、账号可拖动排序。会话整行可拖动，仅限同一账号、同一状态分区。")
             }
-            item("额度", symbol: "gauge.with.dots.needle.50percent") {
-                Text("Codex 与 Claude 的百分比为已用额度，悬停查看剩余。打开面板会同步，也可手动刷新。")
-                Text("同步失败时保留缓存；标记表示记录时间，悬停警示查看原因。")
+            item(Strings.get("settings.quota"), symbol: "gauge.with.dots.needle.50percent") {
+                Text(Strings.get("mac.info.1"))
+                Text(Strings.get("info.2"))
                     .foregroundStyle(.secondary)
             }
             item("供应商入口", symbol: "point.3.connected.trianglepath.dotted") {
@@ -18,16 +19,16 @@ struct PanelInfoView: View {
                 Text("本机入口沿用现有登录；成功启动不代表登录已验证。")
                     .foregroundStyle(.secondary)
             }
-            item("桌面入口", symbol: "pawprint") {
-                Text("在设置开启桌宠，爪印控制显示与隐藏。单击打开面板，拖动换位置。原生浮球保留系统外观，Pox 使用角色主题。")
+            item(Strings.get("settings.pet"), symbol: "pawprint") {
+                Text(Strings.get("info.4"))
             }
             Divider()
             PanelDisclosure("数据与限制") {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("平时只读任务元数据，不提取或自动发送聊天。")
-                    Text("Claude 额度使用对应账号授权，仅在内存中使用。首次手动同步可能需要钥匙串授权；后台不弹提示。")
+                    Text(Strings.get("info.5"))
+                    Text(Strings.get("mac.info.6"))
                     Text("Codex 单实例可直接定位对话；多实例时只调出所属客户端。Claude 目前只调出客户端，需自行选择会话。")
-                    Text("Claude 桌面会话按账号目录读取。“Code”表示本机 Claude Code 历史，仅显示在默认客户端卡片；其登录账号可能与桌面客户端不同。")
+                    Text(Strings.get("info.8"))
                     Text("本机供应商只引用已有目录，不复制登录凭据。Gemini CLI、Antigravity 与 DeepSeek Harness 读取本机会话索引。")
                     Text("Antigravity 额度以 Gemini 应用为准。Antigravity CLI 卡片只在点刷新时运行一次 agy 查询，后台不运行。")
                     if let backup = perch.removedAccountsBackup {

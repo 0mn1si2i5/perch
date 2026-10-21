@@ -22,7 +22,7 @@
 | Codex 任务 30 分钟无更新视为停止 | ✅ | 🟡 | 两端阈值一致；Windows Core 测试 2026-10-20 在 CI 通过 |
 | 按账号读取 Claude 会话 | 🟡 | ✅ | Mac 已接入各 profile 桌面会话，信息页说明本机 Code 历史来源及账号限制；独立目录、audit 缓存与共享 fixture 测试通过，双真实账号待验收 |
 | 会话拖动排序 | 🟡 | 🟡 | Mac 拖动整行，同账号同分区排序并持久化；隐藏会话焦点蓝框，保留键盘操作；模型投放与重启恢复测试通过，鼠标拖动待验收 |
-| 共享 strings/fixtures 消费 | 🟡 | ✅ | Mac Claude 会话测试消费共享 fixture；共享 strings 和其余 fixture 待接入。`info.8` 已改成与 macOS 信息页同一句，只是共享文案更正：Windows 信息页不显示这一条，Mac 在阶段 5 接入共享文案后才会用到 |
+| 共享 strings/fixtures 消费 | 🟡 | ✅ | Mac 从 `shared/strings/zh-CN.json` 读取界面文案，文件打包进 Perch.app 的 `Resources/strings`；Mac 文字与 Windows 不同的几条放在 `mac.` 开头的键里（任务状态、信息页额度两句）。Mac Claude 会话测试消费共享 fixture，其余 fixture 待接入 |
 | 双个人账号同时登录 | 🟡 | 🟡 | 未具备两套个人账号验收条件 |
 | 原生 UI 明暗/Pox | ✅ | ✅ | Windows 三主题四页面渲染 |
 | 平台发布配置 | N/A | ✅ | `windows-v0.2.0` tag 已在远端完成测试、打包并发布预览 Release |

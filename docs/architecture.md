@@ -5,7 +5,7 @@ Perch 在本机管理 Codex、Claude 桌面账号，读取任务与额度，对�
 - `macos/`：SwiftPM、AppKit/SwiftUI；[macOS 架构](macos/architecture.md)。偏好域迁移仍保留。
 - `windows/src/Perch.Core/`：持久化、只读会话、进程隔离、额度、会话状态变化；不依赖 WPF/WinForms。
 - `windows/src/Perch.App/`：WPF 视图、增量 ViewModel、主题、托盘、全局快捷键、桌宠。WinForms 仅托盘宿主；无第三方 UI 框架。
-- `shared/assets/`：唯一品牌与精灵素材；`strings/`：共享文案；`fixtures/`：手工样本和期望值；`design/tokens.md`：设计依据；[功能对齐](../shared/parity.md)。Windows 消费共享文案和样本；macOS 会话测试也消费 Claude 共享样本，共享文案的 macOS 接入仍待单独处理。
+- `shared/assets/`：唯一品牌与精灵素材；`strings/`：共享文案；`fixtures/`：手工样本和期望值；`design/tokens.md`：设计依据；[功能对齐](../shared/parity.md)。两端都从共享文案读取界面文字，Mac 与 Windows 写法不同的几条用 `mac.` 开头的键；Windows 消费共享样本，macOS 会话测试消费 Claude 共享样本。
 
 Windows 轮询通过进程内 Win32 查询，显示时 5 秒、全部隐藏时 20 秒。客户端发现使用 WinRT 包管理，API 不可用时只回退一次 PowerShell。按账号 profile/home 匹配主进程；不会把子渲染进程当账号。
 
