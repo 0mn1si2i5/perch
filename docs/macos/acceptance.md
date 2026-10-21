@@ -2,6 +2,10 @@
 
 自动检查与真实界面验收分别记录，不以编译成功代替交互验证。
 
+## 1.2.0 本地打包与共享文案 — 2026-10-21
+
+界面文案改为读取 `shared/strings/zh-CN.json`，文字不变；与 Windows 写法不同的几条放在 `mac.` 开头的键里。`swift test --package-path macos` 通过（PerchCore 133 项，Perch 30 项中 1 项可选预览跳过），新增的测试检查源码里查找的每个键都在文件里。`macos/script/build_and_run.sh --build` 成功。`macos/script/package-release.sh` 生成 `Perch-1.2.0-universal.dmg`（约 3.8 MB）、`Perch-1.2.0-universal.zip`（约 3.4 MB）和 `SHA256SUMS`；应用版本 1.2.0，含 arm64 和 x86_64，`Contents/Resources/strings/zh-CN.json` 与仓库文件一致，签名为 ad-hoc，未公证。没有安装，没有打 tag 或发布。安装后要看：设置页、信息页、新建页、任务状态和桌宠动作名的文字和 1.1.0 之后的开发版一样。
+
 ## 删除接力和拆出需求 — 2026-10-21
 
 会话右键菜单的“接力到…”“拆出需求到…”、待接力卡片、设置页的交接文件夹和接力记录、交接文档写好的通知，以及 `PerchCore/Handoff` 和对应测试都已删除。对话完成、等你回应和遇到问题的通知保留，桌宠气泡照旧使用。`swift test --package-path macos` 通过（PerchCore 131 项，Perch 30 项中 1 项可选预览跳过），`macos/script/build_and_run.sh --build` 成功。没有安装新版，也没有在真实菜单栏面板上检查。安装后要看：右键菜单只剩打开、复制会话文件路径、在 Finder 中显示；设置页和信息页没有“文档接力”；对话完成照常通知；`~/Library/Application Support/Perch/handoffs/` 还在且没有被改动。
