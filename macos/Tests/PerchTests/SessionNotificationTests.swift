@@ -96,7 +96,7 @@ final class SessionNotificationTests: XCTestCase {
         XCTAssertEqual(notices.map(\.title), ["对话已完成"])
     }
 
-    func testDelegateRunsAndClaudeCodeHistoryAreNotNotified() throws {
+    func testExecRunsAndClaudeCodeHistoryAreNotNotified() throws {
         let (model, codex, claude) = try makeModel()
         poll(model, codex: codex, [task("exec", .running, exec: true)], claude: claude, [session("code", .running, code: true)])
         poll(model, codex: codex, [task("exec", .completed, exec: true)], claude: claude, [session("code", .completed, code: true)])
