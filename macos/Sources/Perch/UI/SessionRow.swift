@@ -50,7 +50,7 @@ struct SessionRow: Identifiable {
         return URL(fileURLWithPath: session.path).pathExtension == "jsonl"
             && URL(fileURLWithPath: session.path).lastPathComponent != "audit.jsonl"
     }
-    /// A `codex exec` run, such as one a delegate skill started; the subagent panel follows those.
+    /// A `codex exec` run, such as one a delegate skill started; these are not user conversations, so they are not notified.
     var isExec: Bool {
         guard case .codex(let task) = kind else { return false }
         return task.isExec

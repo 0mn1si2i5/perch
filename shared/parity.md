@@ -30,7 +30,6 @@
 | 共享 strings/fixtures 消费 | 🟡 | ✅ | Mac Claude 会话测试消费共享 fixture；共享 strings 和其余 fixture 待接入。`info.8` 已改成与 macOS 信息页同一句，只是共享文案更正：Windows 信息页不显示这一条，Mac 在阶段 5 接入共享文案后才会用到 |
 | 双个人账号同时登录 | 🟡 | 🟡 | 未具备两套个人账号验收条件 |
 | 原生 UI 明暗/Pox | ✅ | ✅ | Windows 三主题四页面渲染 |
-| 子代理面板 | 🟡 | N/A | Mac 读取 codex-delegate 和 Moot（`~/.moot/runs`）的运行记录，标出 Codex、Claude 或 Gemini；真实委派任务的折叠/展开截图已核对，展开按钮和右键菜单点击待验收；Windows 暂不做 |
 | 平台发布配置 | N/A | ✅ | `windows-v0.2.0` tag 已在远端完成测试、打包并发布预览 Release |
 | 本机 Gemini CLI / Antigravity / DeepSeek Harness | 🟡 | ❌ | macOS 引用既有配置、启动、会话索引（只解析最新 60 个文件并缓存，长会话读开头元数据）；Antigravity CLI 额度只在手动刷新时查询，DeepSeek 钱包余额；Gemini CLI 不再查询额度；客户端换了位置可在扫描结果里更新启动位置。详见 [供应商说明](../docs/macos/providers.md) |
 | Gemini 原生应用内 Antigravity | ✅ | ❌ | 独立 Gemini 分组；Antigravity 额度唯一的自动来源，从运行中的原生应用本地服务查询 Gemini 模型额度，Argon 周额度单独标注；真实面板刷新、明细及重启保留已验收；不复用 CLI 凭据 |
