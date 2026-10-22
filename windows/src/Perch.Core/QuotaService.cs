@@ -18,6 +18,8 @@ public sealed class QuotaService(Clients clients)
     private readonly Dictionary<string, Quota> cache = [];
     private readonly Dictionary<string, DateTimeOffset> nextQuery = [];
     private readonly HashSet<string> busy = [];
+    // Claude account uuid → organization of its last live query, to pick that organization's history samples.
+    private readonly Dictionary<string, string> organizations = [];
     public Quota? Get(string id) => cache.GetValueOrDefault(id);
     public bool IsBusy(string id) => busy.Contains(id);
     public void Clear(string id)
@@ -32,6 +34,10 @@ public sealed class QuotaService(Clients clients)
             return;
         if (!manual && cache.TryGetValue(account.Id, out var recent) && !recent.Cached && DateTimeOffset.UtcNow - recent.Observed < TimeSpan.FromMinutes(5))
             return;
+        // A Claude profile can switch login; values cached for the previous account are dropped, not shown as stale.
+        var owner = account.App == "claude" ? ClaudeOwner(clients.ClaudeRoot(account)) : "";
+        if (cache.TryGetValue(account.Id, out var held) && held.Owner != owner)
+            cache.Remove(account.Id);
         busy.Add(account.Id);
         try
         {
@@ -47,7 +53,8 @@ public sealed class QuotaService(Clients clients)
             {
                 // The rollout fallback walks every session folder recursively; keep it off the UI thread.
                 var root = account.App == "claude" ? clients.ClaudeRoot(account) : account.SessionRoot;
-                fallback = await Task.Run(() => account.App == "claude" ? ClaudeHistory(root) : CodexRollout(root));
+                var organization = organizations.GetValueOrDefault(owner);
+                fallback = await Task.Run(() => account.App == "claude" ? ClaudeHistory(root, organization) : CodexRollout(root));
             }
             catch (Exception fallbackError) when (fallbackError is IOException or JsonException or UnauthorizedAccessException)
             {
@@ -58,10 +65,11 @@ public sealed class QuotaService(Clients clients)
             cache[account.Id] = best != null ? best with
             {
                 Cached = true,
-                Detail = detail
+                Detail = detail,
+                Owner = owner
             }
 
-            : new([], DateTimeOffset.UtcNow, detail);
+            : new([], DateTimeOffset.UtcNow, detail, Owner: owner);
         }
         finally
         {
@@ -241,7 +249,23 @@ public sealed class QuotaService(Clients clients)
         return null;
     }
 
-    public static Quota? ClaudeHistory(string root)
+    /// The account a Claude profile is signed in to, or "" when config.json cannot tell.
+    public static string ClaudeOwner(string root)
+    {
+        try
+        {
+            using var cfg = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, "config.json")));
+            return cfg.RootElement.Text("lastKnownAccountUuid");
+        }
+        catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)
+        {
+            return "";
+        }
+    }
+
+    /// The newest history sample of `organization`. When the organization is unknown, samples are used only if
+    /// they all belong to one organization; otherwise nothing is shown rather than another account's usage.
+    public static Quota? ClaudeHistory(string root, string? organization = null)
     {
         var file = Path.Combine(root, "plan-usage-history.json");
         if (!File.Exists(file))
@@ -250,7 +274,12 @@ public sealed class QuotaService(Clients clients)
         var samples = doc.RootElement.At("samples");
         if (samples.ValueKind != JsonValueKind.Array)
             return null;
-        var sample = samples.EnumerateArray().OrderByDescending(e => e.Number("t")).FirstOrDefault();
+        var rows = samples.EnumerateArray().ToList();
+        if (organization != null)
+            rows = rows.Where(e => e.Text("org") == organization).ToList();
+        else if (rows.Select(e => e.Text("org")).Distinct().Count() > 1)
+            return null;
+        var sample = rows.OrderByDescending(e => e.Number("t")).FirstOrDefault();
         if (sample.ValueKind == JsonValueKind.Undefined)
             return null;
         var time = DateTimeOffset.FromUnixTimeMilliseconds((long)sample.Number("t"));
@@ -313,7 +342,8 @@ public sealed class QuotaService(Clients clients)
             var selected = preferred.Count > 0 ? preferred : candidates.Select(Organization).Distinct().Count() <= 1 ? candidates : [];
             if (selected.Count == 0)
                 throw new IOException("Claude 授权已过期或组织不明确，请在客户端确认登录。");
-            var token = selected.OrderByDescending(p => p.Value.Number("expiresAt")).First().Value.Text("token");
+            var chosen = selected.OrderByDescending(p => p.Value.Number("expiresAt")).First();
+            var token = chosen.Value.Text("token");
             if (token.Length == 0)
                 throw new IOException("没有可用的 Claude 访问令牌。");
             using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
@@ -330,7 +360,8 @@ public sealed class QuotaService(Clients clients)
             var windows = ParseClaude(usage.RootElement);
             if (windows.Count == 0)
                 throw new IOException("Claude 未返回额度窗口。");
-            return new(windows, DateTimeOffset.UtcNow, "实时额度");
+            organizations[account] = Organization(chosen);
+            return new(windows, DateTimeOffset.UtcNow, "实时额度", Owner: account);
         }
         finally
         {

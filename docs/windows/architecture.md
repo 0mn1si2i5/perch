@@ -34,7 +34,7 @@ Windows 版本来自 `windows/VERSION`，当前为 0.2.0。系统要求 Windows 
 - Codex 回合 30 分钟没有更新就按已停止处理，与 macOS 一致。
 - `accounts.json` 和 `preferences.json` 只在内容变化时写盘。损坏文件的恢复提示只显示一次。
 - Codex 以 READONLY 读取 SQLite，保留运行中 WAL 可见性，标题优先索引元数据；Claude 按各 profile 读取桌面会话 JSON 与 audit 尾部。未变化的文件使用缓存。
-- Codex 用原生 RPC 查询额度；Claude 通过当前账号授权访问官方 usage 服务，DPAPI 解密仅在内存。第三方模式不假造官方订阅额度。
+- Codex 用原生 RPC 查询额度；Claude 通过当前账号授权访问官方 usage 服务，DPAPI 解密仅在内存。第三方模式不假造官方订阅额度。额度记录所属 Claude 账号，客户端换了登录账号后丢弃旧值；失败回退只取当前账号所在组织的历史样本，组织未知且历史里有多个组织时不显示，与 macOS 一致。
 - 文档接力和拆出需求已删除。旧版留在 `%LOCALAPPDATA%\Perch\handoffs` 的交接文档和记录保留，不再读取。
 - 用户操作（对话框、启动客户端）期间面板不因失焦收起；启动、轮询和自动额度刷新在后台运行，不影响点外部收起。逃出处理函数的文件和剪贴板错误（IOException、UnauthorizedAccessException、COMException）只在面板提示，不退出程序；截图模式不装这个处理器，出错照常退出。启动期间的提示（文件恢复、快捷键占用）先保留，等托盘接上或面板第一次打开时再显示。
 - 原生浮球保持系统主题；Pox 主题在隐藏桌宠后保留。媒体感知只读取播放状态及类型，不读取歌曲、视频或窗口标题。

@@ -28,7 +28,8 @@ public sealed class Account
 // Exec: started by `codex exec` (for example a delegate run) rather than in the desktop app.
 public sealed record Session(string Id, string Title, string Status, DateTimeOffset Updated, string Cwd = "", string Path = "", bool Exec = false);
 public sealed record QuotaWindow(string Name, double Used, DateTimeOffset? Resets);
-public sealed record Quota(List<QuotaWindow> Windows, DateTimeOffset Observed, string Detail, bool Cached = false);
+/// `Owner` is the Claude account the values belong to (empty for Codex), so a switched login never shows them.
+public sealed record Quota(List<QuotaWindow> Windows, DateTimeOffset Observed, string Detail, bool Cached = false, string Owner = "");
 public sealed record Client(string App, string Executable, string DefaultProfile, string DefaultSessions);
 public sealed record Running(int Pid, string Executable, string CommandLine, long Handle);
 /// `Complete` is false when some client process could not be read, so a missing match proves nothing.

@@ -34,6 +34,19 @@ internal static class RegressionTests
         StallThreshold();
         Recycling(Path.Combine(root, "recycle"));
         BringingForward(root);
+        ClaudeHistoryOwnership(Path.Combine(root, "claude-history"));
+    }
+
+    private static void ClaudeHistoryOwnership(string dir)
+    {
+        Directory.CreateDirectory(dir);
+        var now = DateTimeOffset.UtcNow;
+        long older = now.AddHours(-2).ToUnixTimeMilliseconds(), newer = now.AddMinutes(-10).ToUnixTimeMilliseconds();
+        File.WriteAllText(Path.Combine(dir, "plan-usage-history.json"), "{\"version\":2,\"samples\":[{\"t\":" + older + ",\"org\":\"org-new\",\"u\":{\"fh\":10,\"sd\":20}},{\"t\":" + newer + ",\"org\":\"org-old\",\"u\":{\"fh\":70,\"sd\":60}}]}");
+        Check(QuotaService.ClaudeHistory(dir, "org-new")?.Windows.Last().Used == 20, "History fallback keeps the current organization's samples");
+        Check(QuotaService.ClaudeHistory(dir) == null, "With several organizations and none known, history shows nothing");
+        File.WriteAllText(Path.Combine(dir, "config.json"), "{\"lastKnownAccountUuid\":\"acct-1\"}");
+        Check(QuotaService.ClaudeOwner(dir) == "acct-1" && QuotaService.ClaudeOwner(Path.Combine(dir, "missing")) == "", "The signed-in Claude account is read from config.json");
     }
 
     private static void SavesOnlyChanges(string dir)
