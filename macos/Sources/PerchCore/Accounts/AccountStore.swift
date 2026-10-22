@@ -1,7 +1,7 @@
 import Foundation
 
 public enum AccountError: LocalizedError, Equatable {
-    case emptyName, notFound, notLoaded, alreadyAdded, importFailed(String)
+    case emptyName, notFound, notLoaded, alreadyAdded, importFailed(String), dataInUse, runningUnknown
     public var errorDescription: String? {
         switch self {
         case .emptyName: return "名称不能为空"
@@ -9,6 +9,8 @@ public enum AccountError: LocalizedError, Equatable {
         case .notLoaded: return "账号列表尚未成功读取，已停止写入以免覆盖"
         case .alreadyAdded: return "已经有账号在使用这份数据"
         case .importFailed(let detail): return "无法读取 agent-desk 的账号列表：\(detail)"
+        case .dataInUse: return "客户端仍在使用这个数据目录，请先退出它再移除并回收。"
+        case .runningUnknown: return "无法确认客户端是否还在使用这个数据目录，已取消移除。"
         }
     }
 }
@@ -25,16 +27,20 @@ public final class AccountStore {
     public let agentDeskProfiles: URL
     /// Home directory used to find clients' default data; injectable for tests.
     public let home: String
+    /// Running processes, checked before data goes to the Trash; nil means they could not be read. Injectable for tests.
+    public let processes: () -> [RunningProcess]?
     public private(set) var accounts: [Account] = []
     public private(set) var skippedImports: [String] = []
     /// Set once `load()` succeeds; `save()` refuses to run before that so a failed read never overwrites accounts.json.
     private var loaded = false
     public var fileURL: URL { root.appendingPathComponent("accounts.json") }
 
-    public init(root: URL, agentDeskProfiles: URL, home: String = NSHomeDirectory()) {
+    public init(root: URL, agentDeskProfiles: URL, home: String = NSHomeDirectory(),
+                processes: @escaping () -> [RunningProcess]? = { ProcessMatcher.snapshot() }) {
         self.root = root
         self.agentDeskProfiles = agentDeskProfiles
         self.home = home
+        self.processes = processes
     }
 
     public static func standard() -> AccountStore {
@@ -185,12 +191,19 @@ public final class AccountStore {
     }
 
     /// Removes the slot. Data goes to the Trash only when asked; it is never deleted permanently.
+    /// Data a client still uses (or might use, when processes cannot be read) is refused and the account kept.
     public func delete(id: String, moveDataToTrash: Bool) throws {
         guard let index = accounts.firstIndex(where: { $0.id == id }) else { throw AccountError.notFound }
+        // The client's own default data is what the Dock instance uses; deleting the account only forgets it.
+        let trash = moveDataToTrash && accounts[index].localProvider == nil && !isDefaultData(accounts[index])
+            && FileManager.default.fileExists(atPath: accounts[index].profilePath)
+        if trash {
+            guard let running = processes() else { throw AccountError.runningUnknown }
+            if ProcessMatcher.owner(of: accounts[index].profilePath, in: running, home: home) != nil { throw AccountError.dataInUse }
+        }
         let account = accounts.remove(at: index)
         do { try save() } catch { accounts.insert(account, at: index); throw error }
-        // The client's own default data is what the Dock instance uses; deleting the account only forgets it.
-        if moveDataToTrash, account.localProvider == nil, !isDefaultData(account), FileManager.default.fileExists(atPath: account.profilePath) {
+        if trash {
             try FileManager.default.trashItem(at: URL(fileURLWithPath: account.profilePath), resultingItemURL: nil)
         }
     }

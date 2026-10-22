@@ -32,6 +32,7 @@ Codex 使用所属账号的 app-server 查询额度，本地 rollout 尾部记�
 ## 数据与兼容
 
 - 数据根目录：`~/Library/Application Support/Perch/`。`accounts.json` 保存账号槽；客户端原目录继续原地引用。
+- 删除账号并把数据目录移到废纸篓前重新运行 `ps`：客户端仍在使用这个目录时拒绝，`ps` 失败时也拒绝，账号保留。客户端默认数据和本机供应商引用的目录不提供回收。
 - `removed-accounts.json`：升级时从 `accounts.json` 移出的旧 API 供应商和自定义客户端账号（0600），只写不读。
 - `session-order.json` 按账号保存会话 ID 顺序（0600），不改客户端记录。只允许在同一账号、同一活动状态分区内拖动；新会话保留来序，活动会话仍显示在上方。
 - `handoffs/`：旧版文档接力留下的副本、`log.jsonl` 和 `pending.json`。接力和拆出需求已删除，Perch 不再读写这个目录，也不删除它。
