@@ -120,13 +120,13 @@ struct NewAccountView: View {
 
     private var desktopAccount: some View {
         VStack(alignment: .leading, spacing: 12) {
-            TextField("名称，例如 Omnix", text: $name).textFieldStyle(.roundedBorder)
-            Text("创建后会立刻启动一次客户端，请在里面登录。")
+            TextField(Strings.get("account.nameHint"), text: $name).textFieldStyle(.roundedBorder)
+            Text(Strings.get("account.createHelp"))
                 .font(.system(size: 11)).foregroundStyle(.secondary)
             HStack {
                 Button("取消", action: close)
                 Spacer()
-                Button("创建并启动") { if perch.create(name: name, app: app) { close() } }
+                Button(Strings.get("account.create")) { if perch.create(name: name, app: app) { close() } }
                     .keyboardShortcut(.defaultAction)
                     .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }

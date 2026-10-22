@@ -1,6 +1,6 @@
 # Windows 架构与本地运行
 
-Windows 版本来自 `windows/VERSION`，当前为 0.2.0。系统要求 Windows 10 19041+ x64，实际界面检查在 Windows 11 完成。使用 C# / .NET 10 / WPF，运行自包含便携包无需 SDK。
+Windows 版本来自 `windows/VERSION`，当前为 0.3.0。系统要求 Windows 10 19041+ x64，实际界面检查在 Windows 11 完成。使用 C# / .NET 10 / WPF，运行自包含便携包无需 SDK。
 
 ## 模块
 
