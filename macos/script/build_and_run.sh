@@ -81,9 +81,15 @@ fi
 pkill -x Perch >/dev/null 2>&1 || true
 pkill -x PoxDesktop >/dev/null 2>&1 || true
 mkdir -p "$HOME/Applications"
-ditto "$APP_BUNDLE" "$INSTALL_PATH"
-# ditto keeps the bundle folder's old mtime, so Finder and the Dock keep showing a cached icon.
-# Bump it and re-register so icon changes appear right away.
+# Replace the installed bundle instead of merging into it: ditto keeps files the new build no longer has,
+# which breaks the code signature seal. Copy beside it, verify, then swap.
+STAGING="$(dirname "$INSTALL_PATH")/.Perch.app.installing"
+rm -rf "$STAGING"
+ditto "$APP_BUNDLE" "$STAGING"
+codesign --verify --deep --strict "$STAGING" >/dev/null
+rm -rf "$INSTALL_PATH"
+mv "$STAGING" "$INSTALL_PATH"
+# Bump the bundle's mtime and re-register so Finder and the Dock show icon changes right away.
 touch "$INSTALL_PATH"
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$INSTALL_PATH" >/dev/null 2>&1 || true
 # The renamed app replaces the old Pox.app. Move it to the Trash only when it is really ours.
