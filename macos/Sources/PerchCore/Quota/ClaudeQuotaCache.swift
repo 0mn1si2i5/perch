@@ -12,12 +12,25 @@ import Foundation
 public enum ClaudeQuotaCache {
     /// History samples carry the organization they were fetched for. `organization` keeps only that
     /// organization's samples; without it, samples of organizations known to belong to other accounts are skipped.
+    /// Events carry no organization, so each is attributed to the newest history sample at or before it.
     public static func latest(dataDir: URL, organization: String? = nil, excluding: Set<String> = [],
                               now: Date = Date()) -> CachedQuota? {
-        let candidates = [history(dataDir.appendingPathComponent("plan-usage-history.json"), organization: organization,
-                                  excluding: excluding, now: now),
-                          events(dataDir.appendingPathComponent("IndexedDB/https_claude.ai_0.indexeddb.blob"), now: now)]
+        let historyURL = dataDir.appendingPathComponent("plan-usage-history.json")
+        let samples = sampleOrganizations(historyURL)
+        let event = events(dataDir.appendingPathComponent("IndexedDB/https_claude.ai_0.indexeddb.blob"), now: now)
+            .filter { eventBelongs(at: $0.observedAt, samples: samples, organization: organization, excluding: excluding) }
+            .max { $0.observedAt < $1.observedAt }
+        let candidates = [history(historyURL, organization: organization, excluding: excluding, now: now), event]
         return combining(candidates.compactMap { $0 })
+    }
+
+    /// An event belongs to the organization of the newest sample at or before it. With no history at all it is
+    /// kept; when it falls before every sample, or the filter cannot be checked, it is dropped.
+    static func eventBelongs(at time: Date, samples: [(Date, String?)], organization: String?, excluding: Set<String>) -> Bool {
+        guard organization != nil || !excluding.isEmpty, !samples.isEmpty else { return true }
+        guard let owner = samples.filter({ $0.0 <= time }).max(by: { $0.0 < $1.0 }) else { return false }
+        if let organization { return owner.1 == organization }
+        return owner.1.map { !excluding.contains($0) } ?? true
     }
 
     /// History samples omit resets. Retain an event's reset when the newest observation falls inside
@@ -61,12 +74,21 @@ public enum ClaudeQuotaCache {
         return windows.isEmpty ? nil : CachedQuota(windows: windows, observedAt: observed)
     }
 
+    static func sampleOrganizations(_ url: URL) -> [(Date, String?)] {
+        guard let data = try? Data(contentsOf: url),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let samples = object["samples"] as? [[String: Any]] else { return [] }
+        return samples.compactMap { sample in
+            QuotaParser.number(sample["t"]).map { (Date(timeIntervalSince1970: $0 / 1000), sample["org"] as? String) }
+        }
+    }
+
     // MARK: IndexedDB rate_limit_event
 
-    /// Scans the most recently written blob files (at most 12, each under 32 MB, written in the last 8 days).
-    static func events(_ directory: URL, now: Date) -> CachedQuota? {
+    /// Every event in the most recently written blob files (at most 12, each under 32 MB, written in the last 8 days).
+    static func events(_ directory: URL, now: Date) -> [CachedQuota] {
         let keys: [URLResourceKey] = [.isRegularFileKey, .contentModificationDateKey, .fileSizeKey]
-        guard let walker = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: keys) else { return nil }
+        guard let walker = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: keys) else { return [] }
         var files: [(URL, Date)] = []
         for case let url as URL in walker {
             guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
@@ -74,39 +96,42 @@ public enum ClaudeQuotaCache {
                   (values.fileSize ?? 0) < 32 << 20 else { continue }
             files.append((url, modified))
         }
-        var best: CachedQuota?
-        for (url, _) in files.sorted(by: { $0.1 > $1.1 }).prefix(12) {
-            guard let raw = try? Data(contentsOf: url), let found = latestEvent(inBlob: [UInt8](raw)) else { continue }
-            if best.map({ found.observedAt > $0.observedAt }) ?? true { best = found }
+        return files.sorted(by: { $0.1 > $1.1 }).prefix(12).flatMap { url, _ -> [CachedQuota] in
+            guard let raw = try? Data(contentsOf: url) else { return [] }
+            return allEvents(inBlob: [UInt8](raw))
         }
-        return best
     }
 
     static func latestEvent(inBlob raw: [UInt8]) -> CachedQuota? {
+        allEvents(inBlob: raw).max { $0.observedAt < $1.observedAt }
+    }
+
+    static func allEvents(inBlob raw: [UInt8]) -> [CachedQuota] {
         let bytes: [UInt8]
         if raw.count > 3, raw[0] == 0xFF, raw[1] == 0x11, raw[2] == 0x02 {
-            guard let plain = Snappy.decompress(raw, from: 3) else { return nil }
+            guard let plain = Snappy.decompress(raw, from: 3) else { return [] }
             bytes = plain
         } else {
             bytes = raw
         }
-        return latestEvent(inValue: bytes)
+        return allEvents(inValue: bytes)
     }
 
-    /// Finds every `rate_limit_info` object in V8-serialized bytes and keeps the newest event's windows.
     static func latestEvent(inValue bytes: [UInt8]) -> CachedQuota? {
+        allEvents(inValue: bytes).max { $0.observedAt < $1.observedAt }
+    }
+
+    /// Finds every `rate_limit_info` object in V8-serialized bytes.
+    static func allEvents(inValue bytes: [UInt8]) -> [CachedQuota] {
         let marker = Array("rate_limit_info".utf8)
-        var best: CachedQuota?
+        var found: [CachedQuota] = []
         var start = 0
         while let hit = find(marker, in: bytes, from: start) {
             let next = find(marker, in: bytes, from: hit + marker.count) ?? bytes.count
-            let end = min(next, hit + 4096)
-            if let event = parseEvent(bytes, hit, end), best.map({ event.observedAt > $0.observedAt }) ?? true {
-                best = event
-            }
+            if let event = parseEvent(bytes, hit, min(next, hit + 4096)) { found.append(event) }
             start = hit + marker.count
         }
-        return best
+        return found
     }
 
     private static func parseEvent(_ bytes: [UInt8], _ lower: Int, _ upper: Int) -> CachedQuota? {
