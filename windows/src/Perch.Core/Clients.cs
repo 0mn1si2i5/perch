@@ -18,6 +18,15 @@ public sealed class Clients
 {
     public List<Client> Installed { get; private set; } = [];
     public List<Running> Processes { get; private set; } = [];
+    public bool ScanComplete { get; private set; }
+    private readonly Func<ProcessScan> scanner;
+
+    /// `scanner` and `installed` are injectable for tests; the defaults read this machine.
+    public Clients(Func<ProcessScan>? scanner = null, List<Client>? installed = null)
+    {
+        this.scanner = scanner ?? Perch.Windows.Processes.Scan;
+        Installed = installed ?? [];
+    }
 
     private static ProcessStartInfo Shell(string script)
     {
@@ -99,8 +108,21 @@ public sealed class Clients
 
     public Task Scan()
     {
-        Processes = Perch.Windows.Processes.Scan();
+        var scan = scanner();
+        Processes = scan.Items;
+        ScanComplete = scan.Complete;
         return Task.CompletedTask;
+    }
+
+    /// Whether a client uses this account's data, for recycling. Processes are matched by executable name,
+    /// so a client outside the discovered install is still seen. With no match, an incomplete scan or a
+    /// failed discovery means the answer is unknown, not "not running".
+    public RunState State(Account account)
+    {
+        var exe = account.App == "claude" ? "Claude.exe" : "ChatGPT.exe";
+        if (Processes.Any(p => string.Equals(Path.GetFileName(p.Executable), exe, StringComparison.OrdinalIgnoreCase) && Matches(p.CommandLine, account)))
+            return RunState.Running;
+        return ScanComplete && Installed.Any(c => c.App == account.App) ? RunState.NotRunning : RunState.Unknown;
     }
 
     public Running? Find(Account account)

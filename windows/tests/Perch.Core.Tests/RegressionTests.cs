@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Perch.Windows;
@@ -84,10 +85,29 @@ internal static class RegressionTests
             ProfilePath = Path.Combine(dir, "profile"),
             SessionRoot = Path.Combine(dir, "profile")
         };
-        Check(Throws<IOException>(() => store.CheckRecycle(account, true)), "A profile in use by a running client is not recycled");
-        Check(Throws<IOException>(() => store.CheckRecycle(new Account { ProfilePath = store.Root }, false)), "Perch's own root is not recycled");
-        Check(Throws<IOException>(() => store.CheckRecycle(new Account { ProfilePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) }, false)), "The user folder is not recycled");
-        store.CheckRecycle(account, false);
+        Check(Throws<IOException>(() => store.CheckRecycle(account, RunState.Running)), "A profile in use by a running client is not recycled");
+        Check(Throws<IOException>(() => store.CheckRecycle(account, RunState.Unknown)), "A profile is not recycled when it is unknown whether a client uses it");
+        Check(Throws<IOException>(() => store.CheckRecycle(new Account { ProfilePath = store.Root }, RunState.NotRunning)), "Perch's own root is not recycled");
+        Check(Throws<IOException>(() => store.CheckRecycle(new Account { ProfilePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) }, RunState.NotRunning)), "The user folder is not recycled");
+        store.CheckRecycle(account, RunState.NotRunning);
+
+        // From the process scan to the decision: what the scan or discovery could not see is never "not running".
+        var installed = new List<Client> { new("codex", @"C:\Apps\ChatGPT.exe", account.ProfilePath, account.SessionRoot) };
+        RunState StateAfterScan(ProcessScan scan, List<Client> clients)
+        {
+            var c = new Clients(() => scan, clients);
+            c.Scan().Wait();
+            return c.State(account);
+        }
+
+        var unreadable = StateAfterScan(new ProcessScan([], false), installed);
+        Check(unreadable == RunState.Unknown && Throws<IOException>(() => store.CheckRecycle(account, unreadable)), "A process the scan could not read blocks recycling");
+        var undiscovered = StateAfterScan(new ProcessScan([], true), []);
+        Check(undiscovered == RunState.Unknown && Throws<IOException>(() => store.CheckRecycle(account, undiscovered)), "A failed client discovery blocks recycling");
+        var elsewhere = StateAfterScan(new ProcessScan([new Running(7, @"D:\Other\ChatGPT.exe", "ChatGPT.exe \"--user-data-dir=" + account.ProfilePath + "\"", 0)], false), []);
+        Check(elsewhere == RunState.Running, "A client outside the discovered install is still seen as running");
+        Check(StateAfterScan(new ProcessScan([new Running(8, @"C:\Apps\Claude.exe", "Claude.exe \"--user-data-dir=" + account.ProfilePath + "\"", 0)], true), installed) == RunState.NotRunning, "Another client's process does not count");
+        Check(StateAfterScan(new ProcessScan([], true), installed) == RunState.NotRunning, "A complete scan with no match allows recycling");
     }
 
     private static void BringingForward(string root)

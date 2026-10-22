@@ -31,6 +31,15 @@ public sealed record QuotaWindow(string Name, double Used, DateTimeOffset? Reset
 public sealed record Quota(List<QuotaWindow> Windows, DateTimeOffset Observed, string Detail, bool Cached = false);
 public sealed record Client(string App, string Executable, string DefaultProfile, string DefaultSessions);
 public sealed record Running(int Pid, string Executable, string CommandLine, long Handle);
+/// `Complete` is false when some client process could not be read, so a missing match proves nothing.
+public sealed record ProcessScan(List<Running> Items, bool Complete);
+public enum RunState
+{
+    NotRunning,
+    Running,
+    Unknown
+}
+
 public sealed record Snapshot(bool Running, List<Session> Sessions, string Detail, long Handle);
 public sealed class Preferences
 {
@@ -202,10 +211,12 @@ public sealed class Store
     }
 
     /// Refuses to recycle the user folder, Perch's own root, or a profile a client still has open.
-    public void CheckRecycle(Account account, bool running)
+    public void CheckRecycle(Account account, RunState state)
     {
-        if (running)
+        if (state == RunState.Running)
             throw new IOException("客户端仍在使用这个数据目录，请先退出它再移除并回收。");
+        if (state == RunState.Unknown)
+            throw new IOException("无法确认客户端是否还在使用这个数据目录，已取消移除。");
         if (SamePath(account.ProfilePath, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)) || SamePath(account.ProfilePath, Root))
             throw new IOException("不能回收用户目录或 Perch 数据根目录。");
     }

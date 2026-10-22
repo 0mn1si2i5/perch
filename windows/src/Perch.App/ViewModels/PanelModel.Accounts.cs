@@ -102,7 +102,7 @@ public sealed partial class PanelModel
         {
             // The last poll can be 20 seconds old; check the processes now.
             await Task.Run(Clients.Scan);
-            Store.CheckRecycle(account, Clients.Find(account) != null);
+            Store.CheckRecycle(account, Clients.State(account));
             FileSystem.DeleteDirectory(account.ProfilePath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
         }
 
