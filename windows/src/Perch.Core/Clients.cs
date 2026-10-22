@@ -18,6 +18,15 @@ public sealed class Clients
 {
     public List<Client> Installed { get; private set; } = [];
     public List<Running> Processes { get; private set; } = [];
+    public bool ScanComplete { get; private set; }
+    private readonly Func<ProcessScan> scanner;
+
+    /// `scanner` and `installed` are injectable for tests; the defaults read this machine.
+    public Clients(Func<ProcessScan>? scanner = null, List<Client>? installed = null)
+    {
+        this.scanner = scanner ?? Perch.Windows.Processes.Scan;
+        Installed = installed ?? [];
+    }
 
     private static ProcessStartInfo Shell(string script)
     {
@@ -91,16 +100,49 @@ public sealed class Clients
     private bool fallbackAttempted;
     private static Client MakeClient(string app, string executable, string family)
     {
-        var profile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Packages", family, "LocalCache", "Roaming", app == "codex" ? "Codex" : "Claude");
+        var profile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Packages", family, "LocalCache", "Roaming", DataName(app));
         if (!Directory.Exists(profile))
-            profile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), app == "codex" ? "Codex" : "Claude");
-        return new Client(app, executable, profile, app == "codex" ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex") : profile);
+            profile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), DataName(app));
+        return new Client(app, executable, profile, DefaultSessions(app, profile));
+    }
+
+    private static string DataName(string app) => app == "codex" ? "Codex" : "Claude";
+    public static string DefaultSessions(string app, string profile) => app == "codex" ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex") : profile;
+
+    /// Whether this is where the client keeps data when opened directly: %APPDATA%\<name>, or the MSIX
+    /// redirect Packages\<any family>\LocalCache\Roaming\<name>. Decided by path alone, so it holds when discovery failed.
+    public static bool IsDefaultProfile(string app, string path)
+    {
+        var name = DataName(app);
+        var full = Path.GetFullPath(path).TrimEnd('\\');
+        if (Store.SamePath(full, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), name)))
+            return true;
+        var roaming = Path.GetDirectoryName(full);
+        var cache = roaming == null ? null : Path.GetDirectoryName(roaming);
+        var package = cache == null ? null : Path.GetDirectoryName(cache);
+        return package != null && string.Equals(Path.GetFileName(full), name, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(Path.GetFileName(roaming), "Roaming", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(Path.GetFileName(cache), "LocalCache", StringComparison.OrdinalIgnoreCase)
+            && Store.SamePath(Path.GetDirectoryName(package)!, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Packages"));
     }
 
     public Task Scan()
     {
-        Processes = Perch.Windows.Processes.Scan();
+        var scan = scanner();
+        Processes = scan.Items;
+        ScanComplete = scan.Complete;
         return Task.CompletedTask;
+    }
+
+    /// Whether a client uses this account's data, for recycling. Processes are matched by executable name,
+    /// so a client outside the discovered install is still seen. With no match, an incomplete scan or a
+    /// failed discovery means the answer is unknown, not "not running".
+    public RunState State(Account account)
+    {
+        var exe = account.App == "claude" ? "Claude.exe" : "ChatGPT.exe";
+        if (Processes.Any(p => string.Equals(Path.GetFileName(p.Executable), exe, StringComparison.OrdinalIgnoreCase) && Matches(p.CommandLine, account)))
+            return RunState.Running;
+        return ScanComplete && Installed.Any(c => c.App == account.App) ? RunState.NotRunning : RunState.Unknown;
     }
 
     public Running? Find(Account account)

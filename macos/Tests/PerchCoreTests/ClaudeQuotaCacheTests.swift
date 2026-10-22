@@ -97,6 +97,27 @@ final class ClaudeQuotaCacheTests: XCTestCase {
         XCTAssertNil(ClaudeQuotaCache.latest(dataDir: dir, organization: "org-c", now: now))
     }
 
+    func testEventsFollowTheOrganizationOfTheSampleBeforeThem() throws {
+        let dir = try makeTempDir(); cleanup.append(dir)
+        let now = Date(timeIntervalSince1970: 1_791_450_000)
+        // org-old fetched usage two hours ago; the profile then switched to org-new, which has not fetched yet.
+        let older = (now.timeIntervalSince1970 - 7200) * 1000
+        let history = #"{"version":2,"samples":[{"t":\#(older),"org":"org-old","u":{"fh":10,"sd":20}}]}"#
+        try history.write(to: dir.appendingPathComponent("plan-usage-history.json"), atomically: true, encoding: .utf8)
+        let blobs = dir.appendingPathComponent("IndexedDB/https_claude.ai_0.indexeddb.blob/4/00")
+        try FileManager.default.createDirectory(at: blobs, withIntermediateDirectories: true)
+        try Data(event(fiveHour: 0.9, weekly: 0.95, created: ISO8601.string(now.addingTimeInterval(-600))))
+            .write(to: blobs.appendingPathComponent("60"))
+
+        XCTAssertNil(ClaudeQuotaCache.latest(dataDir: dir, organization: "org-new", now: now), "前一个账号的事件不能顶替当前账号")
+        XCTAssertNil(ClaudeQuotaCache.latest(dataDir: dir, excluding: ["org-old"], now: now))
+        XCTAssertEqual(ClaudeQuotaCache.latest(dataDir: dir, organization: "org-old", now: now)?.windows.last?.usedPercent ?? 0, 95, accuracy: 0.001)
+
+        // Without any history the event is all there is, and is kept.
+        try FileManager.default.removeItem(at: dir.appendingPathComponent("plan-usage-history.json"))
+        XCTAssertEqual(ClaudeQuotaCache.latest(dataDir: dir, organization: "org-new", now: now)?.windows.last?.usedPercent ?? 0, 95, accuracy: 0.001)
+    }
+
     func testNewerHistoryRetainsSameCycleResetWithoutRevivingExpiredFiveHourUsage() throws {
         let dir = try makeTempDir(); cleanup.append(dir)
         let now = ISO8601.parse("2026-10-09T09:00:00Z")!

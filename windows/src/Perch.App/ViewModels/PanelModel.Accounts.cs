@@ -51,9 +51,8 @@ public sealed partial class PanelModel
         var app = NewKind == 0 ? "codex" : "claude";
         if (Store.Accounts.Any(a => a.App == app && Store.SamePath(a.ProfilePath, folder.FolderName)))
             throw new IOException("这个目录已被其他账号引用。");
-        var client = Clients.Installed.FirstOrDefault(c => c.App == app);
-        bool isDefault = client != null && Store.SamePath(client.DefaultProfile, folder.FolderName);
-        Store.Add(new Account { Name = string.IsNullOrWhiteSpace(NewName) ? Label(app) + " 账号" : NewName.Trim(), App = app, ProfilePath = folder.FolderName, SessionRoot = isDefault ? client!.DefaultSessions : app == "codex" ? Path.Combine(folder.FolderName, "codex-home") : folder.FolderName, Default = isDefault, ThirdParty = !isDefault && app == "claude" && ThirdParty });
+        bool isDefault = Clients.IsDefaultProfile(app, folder.FolderName);
+        Store.Add(new Account { Name = string.IsNullOrWhiteSpace(NewName) ? Label(app) + " 账号" : NewName.Trim(), App = app, ProfilePath = folder.FolderName, SessionRoot = isDefault ? Clients.DefaultSessions(app, folder.FolderName) : app == "codex" ? Path.Combine(folder.FolderName, "codex-home") : folder.FolderName, Default = isDefault, ThirdParty = !isDefault && app == "claude" && ThirdParty });
         Page = "accounts";
         MergeAccounts();
         return Task.CompletedTask;
@@ -70,11 +69,10 @@ public sealed partial class PanelModel
         if (Store.Accounts.Any(a => a.Id != account.Id && a.App == account.App && Store.SamePath(a.ProfilePath, folder.FolderName)))
             throw new IOException("这个目录已被其他账号引用。");
         account.ProfilePath = folder.FolderName;
-        var client = Clients.Installed.FirstOrDefault(c => c.App == account.App);
-        account.Default = client != null && Store.SamePath(client.DefaultProfile, folder.FolderName);
+        account.Default = Clients.IsDefaultProfile(account.App, folder.FolderName);
         if (account.Default)
             account.ThirdParty = false;
-        account.SessionRoot = account.Default ? client!.DefaultSessions : account.App == "codex" ? Path.Combine(folder.FolderName, "codex-home") : folder.FolderName;
+        account.SessionRoot = account.Default ? Clients.DefaultSessions(account.App, folder.FolderName) : account.App == "codex" ? Path.Combine(folder.FolderName, "codex-home") : folder.FolderName;
         Store.Save();
         Quotas.Clear(account.Id);
         snapshots.Remove(account.Id);
@@ -102,7 +100,7 @@ public sealed partial class PanelModel
         {
             // The last poll can be 20 seconds old; check the processes now.
             await Task.Run(Clients.Scan);
-            Store.CheckRecycle(account, Clients.Find(account) != null);
+            Store.CheckRecycle(account, Clients.State(account));
             FileSystem.DeleteDirectory(account.ProfilePath, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
         }
 

@@ -15,9 +15,12 @@ public static class Processes
         public nint Buffer;
     }
 
-    public static List<Running> Scan()
+    /// Reads ChatGPT and Claude processes. A process whose path or command line cannot be read
+    /// marks the scan incomplete instead of disappearing from it; one that exited meanwhile does not.
+    public static ProcessScan Scan()
     {
         var results = new List<Running>();
+        bool complete = true;
         foreach (var name in new[]
         {
             "ChatGPT",
@@ -26,61 +29,100 @@ public static class Processes
 
         )
         {
-            foreach (var process in Process.GetProcessesByName(name))
+            Process[] processes;
+            try
+            {
+                processes = Process.GetProcessesByName(name);
+            }
+            catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException)
+            {
+                complete = false;
+                continue;
+            }
+
+            foreach (var process in processes)
             {
                 using (process)
                 {
+                    // PROCESS_QUERY_LIMITED_INFORMATION also opens clients started as administrator.
+                    var handle = OpenProcess(0x1000, false, process.Id);
+                    if (handle == 0)
+                    {
+                        if (Marshal.GetLastPInvokeError() != 87)
+                            complete = false;
+                        continue;
+                    }
+
                     try
                     {
-                        var executable = process.MainModule?.FileName;
-                        var command = CommandLine(process.Id);
-                        if (!string.IsNullOrEmpty(executable) && command != null)
-                            results.Add(new Running(process.Id, executable, command, process.MainWindowHandle.ToInt64()));
+                        var executable = ImagePath(handle);
+                        var command = CommandLine(handle);
+                        if (executable == null || command == null)
+                        {
+                            if (!Exited(handle))
+                                complete = false;
+                            continue;
+                        }
+
+                        long window = 0;
+                        try
+                        {
+                            window = process.MainWindowHandle.ToInt64();
+                        }
+                        catch (Exception e) when (e is InvalidOperationException or NotSupportedException)
+                        {
+                        }
+
+                        results.Add(new Running(process.Id, executable, command, window));
                     }
-                    catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException or NotSupportedException)
+                    finally
                     {
+                        CloseHandle(handle);
                     }
                 }
             }
         }
 
-        return results;
+        return new ProcessScan(results, complete);
     }
 
-    private static string? CommandLine(int pid)
+    private static string? ImagePath(nint handle)
     {
-        var handle = OpenProcess(0x1000, false, pid);
-        if (handle == 0)
+        var buffer = new char[32768];
+        int size = buffer.Length;
+        return QueryFullProcessImageName(handle, 0, buffer, ref size) ? new string(buffer, 0, size) : null;
+    }
+
+    private static bool Exited(nint handle) => GetExitCodeProcess(handle, out var code) && code != 259;
+
+    private static string? CommandLine(nint handle)
+    {
+        NtQueryInformationProcess(handle, 60, 0, 0, out var length);
+        if (length < Marshal.SizeOf<UnicodeString>() || length > 131072)
             return null;
+        var buffer = Marshal.AllocHGlobal(length);
         try
         {
-            NtQueryInformationProcess(handle, 60, 0, 0, out var length);
-            if (length < Marshal.SizeOf<UnicodeString>() || length > 131072)
+            if (NtQueryInformationProcess(handle, 60, buffer, length, out _) != 0)
                 return null;
-            var buffer = Marshal.AllocHGlobal(length);
-            try
-            {
-                if (NtQueryInformationProcess(handle, 60, buffer, length, out _) != 0)
-                    return null;
-                var value = Marshal.PtrToStructure<UnicodeString>(buffer);
-                long start = buffer.ToInt64(), end = start + length, text = value.Buffer.ToInt64();
-                if (value.Length % 2 != 0 || text < start || text + value.Length > end)
-                    return null;
-                return Marshal.PtrToStringUni(value.Buffer, value.Length / 2);
-            }
-            finally
-            {
-                Marshal.FreeHGlobal(buffer);
-            }
+            var value = Marshal.PtrToStructure<UnicodeString>(buffer);
+            long start = buffer.ToInt64(), end = start + length, text = value.Buffer.ToInt64();
+            if (value.Length % 2 != 0 || text < start || text + value.Length > end)
+                return null;
+            return Marshal.PtrToStringUni(value.Buffer, value.Length / 2);
         }
         finally
         {
-            CloseHandle(handle);
+            Marshal.FreeHGlobal(buffer);
         }
     }
 
-    [DllImport("kernel32.dll")]
+    [DllImport("kernel32.dll", SetLastError = true)]
     private static extern nint OpenProcess(uint access, bool inherit, int pid);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    private static extern bool QueryFullProcessImageName(nint process, uint flags, char[] name, ref int size);
+    [DllImport("kernel32.dll")]
+    private static extern bool GetExitCodeProcess(nint process, out uint code);
     [DllImport("kernel32.dll")]
     private static extern bool CloseHandle(nint handle);
     [DllImport("ntdll.dll")]

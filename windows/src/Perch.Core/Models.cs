@@ -23,14 +23,28 @@ public sealed class Account
     {
         get; set;
     }
+
+    /// A copy for background reads, so a relocation on the UI thread never changes paths mid-read.
+    public Account Copy() => (Account)MemberwiseClone();
+    public bool SameData(Account other) => Id == other.Id && ProfilePath == other.ProfilePath && SessionRoot == other.SessionRoot && ThirdParty == other.ThirdParty;
 }
 
 // Exec: started by `codex exec` (for example a delegate run) rather than in the desktop app.
 public sealed record Session(string Id, string Title, string Status, DateTimeOffset Updated, string Cwd = "", string Path = "", bool Exec = false);
 public sealed record QuotaWindow(string Name, double Used, DateTimeOffset? Resets);
-public sealed record Quota(List<QuotaWindow> Windows, DateTimeOffset Observed, string Detail, bool Cached = false);
+/// `Owner` is the Claude account the values belong to (empty for Codex), so a switched login never shows them.
+public sealed record Quota(List<QuotaWindow> Windows, DateTimeOffset Observed, string Detail, bool Cached = false, string Owner = "");
 public sealed record Client(string App, string Executable, string DefaultProfile, string DefaultSessions);
 public sealed record Running(int Pid, string Executable, string CommandLine, long Handle);
+/// `Complete` is false when some client process could not be read, so a missing match proves nothing.
+public sealed record ProcessScan(List<Running> Items, bool Complete);
+public enum RunState
+{
+    NotRunning,
+    Running,
+    Unknown
+}
+
 public sealed record Snapshot(bool Running, List<Session> Sessions, string Detail, long Handle);
 public sealed class Preferences
 {
@@ -201,13 +215,17 @@ public sealed class Store
         Save();
     }
 
-    /// Refuses to recycle the user folder, Perch's own root, or a profile a client still has open.
-    public void CheckRecycle(Account account, bool running)
+    /// Refuses to recycle the user folder, Perch's own root, a client's default data, or a profile a client may still have open.
+    public void CheckRecycle(Account account, RunState state)
     {
-        if (running)
+        if (state == RunState.Running)
             throw new IOException("客户端仍在使用这个数据目录，请先退出它再移除并回收。");
+        if (state == RunState.Unknown)
+            throw new IOException("无法确认客户端是否还在使用这个数据目录，已取消移除。");
         if (SamePath(account.ProfilePath, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)) || SamePath(account.ProfilePath, Root))
             throw new IOException("不能回收用户目录或 Perch 数据根目录。");
+        if (Clients.IsDefaultProfile("codex", account.ProfilePath) || Clients.IsDefaultProfile("claude", account.ProfilePath))
+            throw new IOException("不能回收客户端直接打开时使用的数据目录。");
     }
 
     public void Remove(Account account)

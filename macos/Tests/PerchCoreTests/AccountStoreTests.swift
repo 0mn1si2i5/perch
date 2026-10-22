@@ -74,6 +74,32 @@ final class AccountStoreTests: XCTestCase {
         XCTAssertThrowsError(try store.create(name: "   ", app: .claude))
     }
 
+    func testTrashIsRefusedWhileTheClientMayStillUseTheData() throws {
+        var running: [RunningProcess]? = nil
+        let store = AccountStore(root: root.appendingPathComponent("Perch"),
+                                 agentDeskProfiles: root.appendingPathComponent("missing.json"),
+                                 processes: { running })
+        try store.load()
+        let account = try store.create(name: "Omnid", app: .claude)
+
+        XCTAssertThrowsError(try store.delete(id: account.id, moveDataToTrash: true)) {
+            XCTAssertEqual($0 as? AccountError, .runningUnknown, "ps 失败时不能当成没在运行")
+        }
+        XCTAssertEqual(store.accounts.map(\.id), [account.id])
+
+        running = [RunningProcess(pid: 42, args: "/Applications/Claude.app/Contents/MacOS/Claude --user-data-dir=\(account.profilePath)")]
+        XCTAssertThrowsError(try store.delete(id: account.id, moveDataToTrash: true)) {
+            XCTAssertEqual($0 as? AccountError, .dataInUse)
+        }
+        XCTAssertEqual(store.accounts.map(\.id), [account.id], "拒绝时保留账号")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: account.profilePath))
+
+        // Only removing the slot never needs the process list.
+        running = nil
+        try store.delete(id: account.id, moveDataToTrash: false)
+        XCTAssertTrue(store.accounts.isEmpty)
+    }
+
     func testMoveReordersAndPersists() throws {
         let store = try emptyStore()
         let a = try store.create(name: "A", app: .codex), b = try store.create(name: "B", app: .codex)
@@ -94,6 +120,12 @@ final class AccountStoreTests: XCTestCase {
         let store = try emptyStore()
         let account = try store.create(name: "X", app: .codex)
         try store.relocate(id: account.id, profilePath: "/new/place")
+        let other = try store.create(name: "Z", app: .claude)
+        XCTAssertThrowsError(try store.relocate(id: other.id, profilePath: "/new/place")) {
+            XCTAssertEqual($0 as? AccountError, .alreadyAdded, "不能把账号定位到另一个账号的目录")
+        }
+        XCTAssertEqual(store.accounts.first { $0.id == other.id }?.profilePath, other.profilePath)
+        try store.delete(id: other.id, moveDataToTrash: false)
         let launched = Date(timeIntervalSince1970: 1_800_000_000)
         try store.markLaunched(id: account.id, at: launched)
         XCTAssertThrowsError(try store.rename(id: "nope", to: "Y"))

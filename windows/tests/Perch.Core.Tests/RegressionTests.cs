@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Perch.Windows;
@@ -33,6 +34,19 @@ internal static class RegressionTests
         StallThreshold();
         Recycling(Path.Combine(root, "recycle"));
         BringingForward(root);
+        ClaudeHistoryOwnership(Path.Combine(root, "claude-history"));
+    }
+
+    private static void ClaudeHistoryOwnership(string dir)
+    {
+        Directory.CreateDirectory(dir);
+        var now = DateTimeOffset.UtcNow;
+        long older = now.AddHours(-2).ToUnixTimeMilliseconds(), newer = now.AddMinutes(-10).ToUnixTimeMilliseconds();
+        File.WriteAllText(Path.Combine(dir, "plan-usage-history.json"), "{\"version\":2,\"samples\":[{\"t\":" + older + ",\"org\":\"org-new\",\"u\":{\"fh\":10,\"sd\":20}},{\"t\":" + newer + ",\"org\":\"org-old\",\"u\":{\"fh\":70,\"sd\":60}}]}");
+        Check(QuotaService.ClaudeHistory(dir, "org-new")?.Windows.Last().Used == 20, "History fallback keeps the current organization's samples");
+        Check(QuotaService.ClaudeHistory(dir) == null, "With several organizations and none known, history shows nothing");
+        File.WriteAllText(Path.Combine(dir, "config.json"), "{\"lastKnownAccountUuid\":\"acct-1\"}");
+        Check(QuotaService.ClaudeOwner(dir) == "acct-1" && QuotaService.ClaudeOwner(Path.Combine(dir, "missing")) == "", "The signed-in Claude account is read from config.json");
     }
 
     private static void SavesOnlyChanges(string dir)
@@ -84,10 +98,40 @@ internal static class RegressionTests
             ProfilePath = Path.Combine(dir, "profile"),
             SessionRoot = Path.Combine(dir, "profile")
         };
-        Check(Throws<IOException>(() => store.CheckRecycle(account, true)), "A profile in use by a running client is not recycled");
-        Check(Throws<IOException>(() => store.CheckRecycle(new Account { ProfilePath = store.Root }, false)), "Perch's own root is not recycled");
-        Check(Throws<IOException>(() => store.CheckRecycle(new Account { ProfilePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) }, false)), "The user folder is not recycled");
-        store.CheckRecycle(account, false);
+        Check(Throws<IOException>(() => store.CheckRecycle(account, RunState.Running)), "A profile in use by a running client is not recycled");
+        Check(Throws<IOException>(() => store.CheckRecycle(account, RunState.Unknown)), "A profile is not recycled when it is unknown whether a client uses it");
+        Check(Throws<IOException>(() => store.CheckRecycle(new Account { ProfilePath = store.Root }, RunState.NotRunning)), "Perch's own root is not recycled");
+        Check(Throws<IOException>(() => store.CheckRecycle(new Account { ProfilePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) }, RunState.NotRunning)), "The user folder is not recycled");
+        store.CheckRecycle(account, RunState.NotRunning);
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var msix = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Packages", "Claude_pzs8sxrjxfjjc", "LocalCache", "Roaming", "Claude");
+        Check(Clients.IsDefaultProfile("codex", Path.Combine(appData, "Codex")) && Clients.IsDefaultProfile("claude", msix + "\\"), "Default data is recognized by path, without discovery");
+        Check(!Clients.IsDefaultProfile("codex", msix) && !Clients.IsDefaultProfile("claude", account.ProfilePath), "Other folders are not default data");
+        Check(Throws<IOException>(() => store.CheckRecycle(new Account { App = "claude", ProfilePath = msix }, RunState.NotRunning)), "A client's default data is not recycled even when not flagged Default");
+
+        var copy = account.Copy();
+        Check(copy.SameData(account), "A poll's copy matches the account it was taken from");
+        account.ProfilePath = Path.Combine(dir, "moved");
+        Check(!copy.SameData(account) && copy.ProfilePath != account.ProfilePath, "A relocation during a poll does not change the copy, and its result is discarded");
+        account.ProfilePath = copy.ProfilePath;
+
+        // From the process scan to the decision: what the scan or discovery could not see is never "not running".
+        var installed = new List<Client> { new("codex", @"C:\Apps\ChatGPT.exe", account.ProfilePath, account.SessionRoot) };
+        RunState StateAfterScan(ProcessScan scan, List<Client> clients)
+        {
+            var c = new Clients(() => scan, clients);
+            c.Scan().Wait();
+            return c.State(account);
+        }
+
+        var unreadable = StateAfterScan(new ProcessScan([], false), installed);
+        Check(unreadable == RunState.Unknown && Throws<IOException>(() => store.CheckRecycle(account, unreadable)), "A process the scan could not read blocks recycling");
+        var undiscovered = StateAfterScan(new ProcessScan([], true), []);
+        Check(undiscovered == RunState.Unknown && Throws<IOException>(() => store.CheckRecycle(account, undiscovered)), "A failed client discovery blocks recycling");
+        var elsewhere = StateAfterScan(new ProcessScan([new Running(7, @"D:\Other\ChatGPT.exe", "ChatGPT.exe \"--user-data-dir=" + account.ProfilePath + "\"", 0)], false), []);
+        Check(elsewhere == RunState.Running, "A client outside the discovered install is still seen as running");
+        Check(StateAfterScan(new ProcessScan([new Running(8, @"C:\Apps\Claude.exe", "Claude.exe \"--user-data-dir=" + account.ProfilePath + "\"", 0)], true), installed) == RunState.NotRunning, "Another client's process does not count");
+        Check(StateAfterScan(new ProcessScan([], true), installed) == RunState.NotRunning, "A complete scan with no match allows recycling");
     }
 
     private static void BringingForward(string root)
