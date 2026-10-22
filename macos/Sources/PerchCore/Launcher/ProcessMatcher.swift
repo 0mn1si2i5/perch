@@ -7,7 +7,7 @@ public struct RunningProcess: Equatable {
 }
 
 /// Identifies which client process belongs to an account by its exact `--user-data-dir` argument.
-/// This also sees clients started by agent-desk or by hand. Arguments are only held in memory.
+/// This also sees clients started by hand. Arguments are only held in memory.
 public enum ProcessMatcher {
     /// Parses `ps -axww -o pid=,args=` output.
     public static func parse(_ text: String) -> [RunningProcess] {

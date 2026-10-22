@@ -28,7 +28,7 @@ final class LauncherTests: XCTestCase {
               101 /Applications/ChatGPT.app/Contents/MacOS/ChatGPT --user-data-dir=/A/Codex/x-1
               102 /Applications/ChatGPT.app/Contents/Frameworks/ChatGPT Helper (Renderer).app/Contents/MacOS/ChatGPT Helper (Renderer) --type=renderer --user-data-dir=/A/Codex/x-12
               103 /Applications/ChatGPT.app/Contents/MacOS/ChatGPT --user-data-dir=/A/Codex/x-12 --flag
-              104 /Applications/Claude.app/Contents/MacOS/Claude --user-data-dir=/Users/me/Library/Application Support/AgentDesk/Profiles/Claude/e-1
+              104 /Applications/Claude.app/Contents/MacOS/Claude --user-data-dir=/Users/me/Library/Application Support/Perch/Profiles/Claude/e-1
               105 /usr/bin/open -n -a /Applications/ChatGPT.app --args --user-data-dir=/A/Codex/y-1
               106 grep ChatGPT --user-data-dir=/A/Codex/y-1
             """)
@@ -36,7 +36,7 @@ final class LauncherTests: XCTestCase {
         XCTAssertNil(ProcessMatcher.owner(of: "/A/Codex/y-1", in: processes))
         XCTAssertEqual(ProcessMatcher.owner(of: "/A/Codex/x-1", in: processes)?.pid, 101)
         XCTAssertEqual(ProcessMatcher.owner(of: "/A/Codex/x-12", in: processes)?.pid, 103)
-        XCTAssertEqual(ProcessMatcher.owner(of: "/Users/me/Library/Application Support/AgentDesk/Profiles/Claude/e-1", in: processes)?.pid, 104)
+        XCTAssertEqual(ProcessMatcher.owner(of: "/Users/me/Library/Application Support/Perch/Profiles/Claude/e-1", in: processes)?.pid, 104)
         XCTAssertNil(ProcessMatcher.owner(of: "/A/Codex/x", in: processes))
     }
 

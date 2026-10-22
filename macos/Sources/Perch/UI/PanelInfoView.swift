@@ -35,9 +35,6 @@ struct PanelInfoView: View {
                         Text(backup.path).textSelection(.enabled)
                         Text("它们的 API 密钥仍在钥匙串里，Perch 不会删除。要清理，打开“钥匙串访问”，搜索 com.omnis.perch.api-provider，删除找到的条目。")
                     }
-                    if !perch.skippedImports.isEmpty {
-                        Text("旧账号导入时跳过：\(perch.skippedImports.joined(separator: "、"))。该导入流程仅支持 Codex 与 Claude；其他供应商可在“新建账号”中添加。")
-                    }
                 }
                 .foregroundStyle(.secondary)
                 .padding(.top, 8)

@@ -23,7 +23,7 @@ final class SessionNotificationTests: XCTestCase {
     private func makeModel(launcher: Launcher = Launcher(activate: { _ in false }, processes: { [] }, run: { _ in }),
                            pasteboard: NSPasteboard = NSPasteboard(name: NSPasteboard.Name("perch-test-\(UUID().uuidString)")))
         throws -> (PerchModel, codex: Account, claude: Account) {
-        let store = AccountStore(root: root, agentDeskProfiles: root.appendingPathComponent("missing"), home: root.path)
+        let store = AccountStore(root: root, home: root.path)
         try store.load()
         let codex = try store.create(name: "Work", app: .codex)
         let claude = try store.create(name: "Personal", app: .claude)

@@ -5,7 +5,7 @@ import PerchCore
 final class NotificationFeedbackTests: XCTestCase {
     private func model(lifetime: TimeInterval = 0.05, delivered: Bool) -> PerchModel {
         let unused = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let store = AccountStore(root: unused, agentDeskProfiles: unused.appendingPathComponent("missing"))
+        let store = AccountStore(root: unused)
         return PerchModel(store: store, feedbackLifetime: lifetime, notificationSender: { _, reply in reply(delivered) })
     }
 
@@ -51,7 +51,7 @@ final class NotificationFeedbackTests: XCTestCase {
 
     func testOlderAuthorizationCallbackCannotOverwriteCompletion() {
         let unused = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let store = AccountStore(root: unused, agentDeskProfiles: unused.appendingPathComponent("missing"))
+        let store = AccountStore(root: unused)
         var replies: [(Bool) -> Void] = []
         let model = PerchModel(store: store, notificationSender: { _, reply in replies.append(reply) })
         model.notify(title: "提示词已复制", body: "等待文件")

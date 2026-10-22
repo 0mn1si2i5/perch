@@ -2,7 +2,7 @@ import XCTest
 @testable import PerchCore
 
 final class CodexCLITests: XCTestCase {
-    func testCandidateOrderMatchesAgentDesk() {
+    func testCandidateOrder() {
         let list = CodexCLI.candidates(env: ["PATH": "/p/bin:/q/bin", "CODEX_CLI_PATH": "/x/codex"], home: "/h", arch: "arm64")
         let native = { (root: String) in [
             "\(root)/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex",

@@ -77,7 +77,7 @@
 | Perch 设置 | `~/Library/Application Support/Perch/` | `%LOCALAPPDATA%\Perch\` |
 | 在 Perch 里新建的客户端数据 | 上述目录下的 `Profiles/` | `%USERPROFILE%\.perch\profiles\` |
 
-- 已有的客户端数据原地使用，Perch 不会移动或删除；从旧版 agent-desk 导入账号也不会删除它的数据。
+- 已有的客户端数据原地使用，Perch 不会移动或删除。
 - 平时只读取会话的标题、状态和工作目录，不读取聊天内容。
 - 查询额度时，Perch 会读取对应账号在客户端里的登录授权，只在内存中用于向官方服务查询额度，不保存到文件或日志，也不会改变客户端的登录状态。
 - Perch 不会自动发送任何聊天消息，不上传你的数据，没有跨设备同步。

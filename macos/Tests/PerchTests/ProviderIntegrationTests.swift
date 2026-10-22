@@ -128,7 +128,7 @@ final class ProviderIntegrationTests: XCTestCase {
     }
 
     private func makeStore(_ root: URL) -> AccountStore {
-        AccountStore(root: root, agentDeskProfiles: root.appendingPathComponent("absent-agent-desk.json"), home: root.path)
+        AccountStore(root: root, home: root.path)
     }
 
     private func makeModel(_ store: AccountStore) -> PerchModel {
