@@ -25,7 +25,6 @@ final class PerchModel: ObservableObject {
     @Published private(set) var snapshots: [String: CodexSnapshot] = [:]
     @Published private(set) var claudeSessions: [String: [ClaudeSession]] = [:]
     @Published private(set) var runningIDs: Set<String> = []
-    @Published private(set) var skippedImports: [String] = []
     /// Set when earlier API provider or custom client accounts were moved out of the account list.
     @Published private(set) var removedAccountsBackup: URL?
     @Published var message: String? {
@@ -158,7 +157,6 @@ final class PerchModel: ObservableObject {
     private func reload() {
         do { try store.load() } catch { message = "账号列表读取失败：\(error.localizedDescription)" }
         accounts = store.accounts
-        skippedImports = store.skippedImports
         removedAccountsBackup = FileManager.default.fileExists(atPath: store.removedAccountsURL.path) ? store.removedAccountsURL : nil
     }
 

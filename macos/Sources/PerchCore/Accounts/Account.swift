@@ -61,7 +61,7 @@ public struct Account: Codable, Identifiable, Equatable {
     }
 }
 
-/// ISO 8601 with milliseconds, matching agent-desk's `toISOString()` output.
+/// ISO 8601 with milliseconds, as JavaScript's `toISOString()` writes it.
 enum ISO8601 {
     static func string(_ date: Date) -> String {
         let formatter = ISO8601DateFormatter()

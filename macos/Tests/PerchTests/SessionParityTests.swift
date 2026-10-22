@@ -10,7 +10,7 @@ final class SessionParityTests: XCTestCase {
     func testPollingUsesEachProfileAndRowDropsPersistWithoutCrossAccountMoves() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = AccountStore(root: root, agentDeskProfiles: root.appendingPathComponent("missing"))
+        let store = AccountStore(root: root)
         try store.load()
         let a = try store.create(name: "A", app: .claude)
         let b = try store.create(name: "B", app: .claude)
@@ -50,7 +50,7 @@ final class SessionParityTests: XCTestCase {
     func testDefaultSlotRestoresLocalCodeHistoryWithoutLeakingToIsolatedProfiles() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = AccountStore(root: root.appendingPathComponent("perch"), agentDeskProfiles: root.appendingPathComponent("missing"), home: root.path)
+        let store = AccountStore(root: root.appendingPathComponent("perch"), home: root.path)
         try store.load()
         // Create the isolated account first: list order must never determine ownership.
         let isolated = try store.create(name: "Other", app: .claude)
@@ -90,7 +90,7 @@ final class SessionParityTests: XCTestCase {
     func testCodexOrderingPreservesActivitySections() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = AccountStore(root: root, agentDeskProfiles: root.appendingPathComponent("missing"))
+        let store = AccountStore(root: root)
         try store.load()
         let account = try store.create(name: "Codex", app: .codex)
         let time = Int(Date().timeIntervalSince1970)

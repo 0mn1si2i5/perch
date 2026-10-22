@@ -1,14 +1,13 @@
 import Foundation
 
 public enum AccountError: LocalizedError, Equatable {
-    case emptyName, notFound, notLoaded, alreadyAdded, importFailed(String), dataInUse, runningUnknown
+    case emptyName, notFound, notLoaded, alreadyAdded, dataInUse, runningUnknown
     public var errorDescription: String? {
         switch self {
         case .emptyName: return "名称不能为空"
         case .notFound: return "找不到这个账号"
         case .notLoaded: return "账号列表尚未成功读取，已停止写入以免覆盖"
         case .alreadyAdded: return "已经有账号在使用这份数据"
-        case .importFailed(let detail): return "无法读取 agent-desk 的账号列表：\(detail)"
         case .dataInUse: return "客户端仍在使用这个数据目录，请先退出它再移除并回收。"
         case .runningUnknown: return "无法确认客户端是否还在使用这个数据目录，已取消移除。"
         }
@@ -18,35 +17,30 @@ public enum AccountError: LocalizedError, Equatable {
 struct AccountFile: Codable {
     var version = 1
     var accounts: [Account]
-    var skippedImports: [String]
 }
 
-/// Account slots stored in `<root>/accounts.json` (mode 0600). Imports agent-desk slots on first load.
+/// Account slots stored in `<root>/accounts.json` (mode 0600).
 public final class AccountStore {
     public let root: URL
-    public let agentDeskProfiles: URL
     /// Home directory used to find clients' default data; injectable for tests.
     public let home: String
     /// Running processes, checked before data goes to the Trash; nil means they could not be read. Injectable for tests.
     public let processes: () -> [RunningProcess]?
     public private(set) var accounts: [Account] = []
-    public private(set) var skippedImports: [String] = []
     /// Set once `load()` succeeds; `save()` refuses to run before that so a failed read never overwrites accounts.json.
     private var loaded = false
     public var fileURL: URL { root.appendingPathComponent("accounts.json") }
 
-    public init(root: URL, agentDeskProfiles: URL, home: String = NSHomeDirectory(),
+    public init(root: URL, home: String = NSHomeDirectory(),
                 processes: @escaping () -> [RunningProcess]? = { ProcessMatcher.snapshot() }) {
         self.root = root
-        self.agentDeskProfiles = agentDeskProfiles
         self.home = home
         self.processes = processes
     }
 
     public static func standard() -> AccountStore {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return AccountStore(root: support.appendingPathComponent("Perch"),
-                            agentDeskProfiles: support.appendingPathComponent("AgentDesk/profiles.json"))
+        return AccountStore(root: support.appendingPathComponent("Perch"))
     }
 
     public func load() throws {
@@ -54,13 +48,12 @@ public final class AccountStore {
             let (data, removed) = try Self.separatingRemoved(Data(contentsOf: fileURL))
             let file = try Self.decoder.decode(AccountFile.self, from: data)
             accounts = file.accounts
-            skippedImports = file.skippedImports
             // Back up before rewriting accounts.json, so a failed backup leaves the old file as it was.
             if !removed.isEmpty { try backUpRemoved(removed) }
             loaded = true
             if !removed.isEmpty { try save() }
         } else {
-            (accounts, skippedImports) = try Self.importAgentDesk(agentDeskProfiles)
+            accounts = []
             loaded = true
             try save()
         }
@@ -236,57 +229,9 @@ public final class AccountStore {
         let fm = FileManager.default
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
         try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: root.path)
-        let data = try Self.encoder.encode(AccountFile(accounts: accounts, skippedImports: skippedImports))
+        let data = try Self.encoder.encode(AccountFile(accounts: accounts))
         try data.write(to: fileURL, options: .atomic)
         try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
-    }
-
-    static func importAgentDesk(_ url: URL) throws -> ([Account], [String]) {
-        // If file doesn't exist, return empty import
-        guard FileManager.default.fileExists(atPath: url.path) else { return ([], []) }
-
-        // File exists but may not be readable/parseable - throw on any error
-        let data: Data
-        do {
-            data = try Data(contentsOf: url)
-        } catch {
-            throw AccountError.importFailed("无法读取文件：\(error.localizedDescription)")
-        }
-
-        let json: [String: Any]
-        do {
-            guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw AccountError.importFailed("JSON 根元素不是对象")
-            }
-            json = obj
-        } catch let error as AccountError {
-            throw error
-        } catch {
-            throw AccountError.importFailed("无效的 JSON：\(error.localizedDescription)")
-        }
-
-        guard let profiles = json["profiles"] as? [[String: Any]] else {
-            throw AccountError.importFailed("缺少 profiles 数组")
-        }
-
-        var accounts: [Account] = [], skipped: [String] = []
-        for profile in profiles {
-            let name = profile["name"] as? String ?? "未命名"
-            let raw = profile["appId"] as? String ?? "?"
-            guard let app = AppKind(rawValue: raw), AppKind.desktopClients.contains(app),
-                  let id = profile["id"] as? String,
-                  let profilePath = profile["profilePath"] as? String,
-                  let sessionRoot = profile["sessionRoot"] as? String else {
-                skipped.append("\(name)（\(raw)）")
-                continue
-            }
-            accounts.append(Account(
-                id: id, name: name, app: app,
-                profilePath: profilePath, sessionRoot: sessionRoot,
-                createdAt: (profile["createdAt"] as? String).flatMap(ISO8601.parse) ?? Date(),
-                lastLaunchedAt: (profile["lastLaunchedAt"] as? String).flatMap(ISO8601.parse)))
-        }
-        return (accounts, skipped)
     }
 
     static func folderName(_ name: String) -> String {

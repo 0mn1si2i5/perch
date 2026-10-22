@@ -6,7 +6,7 @@ final class LaunchCompletionTests: XCTestCase {
     func testConcurrentLaunchRequestsAllReceiveTheOneOutcome() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("perch-launch-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = AccountStore(root: root, agentDeskProfiles: root.appendingPathComponent("missing"))
+        let store = AccountStore(root: root)
         try store.load()
         let account = try store.create(name: "测试", app: .codex)
         var activations = 0

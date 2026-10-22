@@ -20,7 +20,7 @@ enum Diagnose {
         let store = AccountStore.standard()
         do { try store.load() } catch { print("accountsError=\(error.localizedDescription)"); return }
         let processes = ProcessMatcher.snapshot() ?? []
-        print("accounts=\(store.accounts.count) skipped=\(store.skippedImports)")
+        print("accounts=\(store.accounts.count)")
         for account in store.accounts {
             let running = ProcessMatcher.owner(of: account.profilePath, in: processes) != nil
             let data = FileManager.default.fileExists(atPath: account.profilePath)

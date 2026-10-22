@@ -11,7 +11,7 @@ final class LocalProviderTests: XCTestCase {
         try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
         let info = try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "com.google.GeminiMacOS"], format: .xml, options: 0)
         try info.write(to: contents.appendingPathComponent("Info.plist"))
-        let store = AccountStore(root: root.appendingPathComponent("Perch"), agentDeskProfiles: root.appendingPathComponent("none"), home: root.path)
+        let store = AccountStore(root: root.appendingPathComponent("Perch"), home: root.path)
         try store.load()
         let candidates = LocalProviderDiscovery.scan(home: root.path, path: "", applicationRoots: [root.appendingPathComponent("Applications")])
         let candidate = try XCTUnwrap(candidates.first { $0.app == .geminiApp })
@@ -86,7 +86,7 @@ final class LocalProviderTests: XCTestCase {
     func testLegacyAndNewAccountsRoundTripWithoutTouchingReferencedData() throws {
         let root = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = AccountStore(root: root.appendingPathComponent("Perch"), agentDeskProfiles: root.appendingPathComponent("none"))
+        let store = AccountStore(root: root.appendingPathComponent("Perch"))
         try store.load()
         let legacy = try store.create(name: "Existing", app: .codex)
         let client = root.appendingPathComponent("client-data")
@@ -159,7 +159,7 @@ final class LocalProviderTests: XCTestCase {
     func testScanOffersNewLaunchLocationAndUpdateKeepsDataAndArguments() throws {
         let root = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = AccountStore(root: root.appendingPathComponent("Perch"), agentDeskProfiles: root.appendingPathComponent("none"))
+        let store = AccountStore(root: root.appendingPathComponent("Perch"))
         try store.load()
         let data = root.appendingPathComponent("antigravity-cli")
         try FileManager.default.createDirectory(at: data, withIntermediateDirectories: true)

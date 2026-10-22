@@ -17,8 +17,7 @@ final class DefaultDataTests: XCTestCase {
         let root = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: root) }
         let home = root.appendingPathComponent("home").path
-        let store = AccountStore(root: root.appendingPathComponent("Perch"),
-                                 agentDeskProfiles: root.appendingPathComponent("missing.json"), home: home)
+        let store = AccountStore(root: root.appendingPathComponent("Perch"), home: home)
         try store.load()
         XCTAssertEqual(store.unclaimedDefaults(), [], "客户端从没用过（默认目录不存在）时不提示")
 

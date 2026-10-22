@@ -1,6 +1,6 @@
 import Foundation
 
-/// Finds the `codex` command-line tool in the same order as agent-desk's `codexCliCandidates` (macOS part).
+/// Finds the `codex` command-line tool, checking known install locations in a fixed order.
 public enum CodexCLI {
     /// npm's name for this machine's architecture.
     public static var hostArch: String {
