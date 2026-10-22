@@ -210,7 +210,7 @@ public sealed class Store
         Save();
     }
 
-    /// Refuses to recycle the user folder, Perch's own root, or a profile a client still has open.
+    /// Refuses to recycle the user folder, Perch's own root, a client's default data, or a profile a client may still have open.
     public void CheckRecycle(Account account, RunState state)
     {
         if (state == RunState.Running)
@@ -219,6 +219,8 @@ public sealed class Store
             throw new IOException("无法确认客户端是否还在使用这个数据目录，已取消移除。");
         if (SamePath(account.ProfilePath, Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)) || SamePath(account.ProfilePath, Root))
             throw new IOException("不能回收用户目录或 Perch 数据根目录。");
+        if (Clients.IsDefaultProfile("codex", account.ProfilePath) || Clients.IsDefaultProfile("claude", account.ProfilePath))
+            throw new IOException("不能回收客户端直接打开时使用的数据目录。");
     }
 
     public void Remove(Account account)

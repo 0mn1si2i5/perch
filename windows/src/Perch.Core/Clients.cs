@@ -100,10 +100,30 @@ public sealed class Clients
     private bool fallbackAttempted;
     private static Client MakeClient(string app, string executable, string family)
     {
-        var profile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Packages", family, "LocalCache", "Roaming", app == "codex" ? "Codex" : "Claude");
+        var profile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Packages", family, "LocalCache", "Roaming", DataName(app));
         if (!Directory.Exists(profile))
-            profile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), app == "codex" ? "Codex" : "Claude");
-        return new Client(app, executable, profile, app == "codex" ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex") : profile);
+            profile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), DataName(app));
+        return new Client(app, executable, profile, DefaultSessions(app, profile));
+    }
+
+    private static string DataName(string app) => app == "codex" ? "Codex" : "Claude";
+    public static string DefaultSessions(string app, string profile) => app == "codex" ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex") : profile;
+
+    /// Whether this is where the client keeps data when opened directly: %APPDATA%\<name>, or the MSIX
+    /// redirect Packages\<any family>\LocalCache\Roaming\<name>. Decided by path alone, so it holds when discovery failed.
+    public static bool IsDefaultProfile(string app, string path)
+    {
+        var name = DataName(app);
+        var full = Path.GetFullPath(path).TrimEnd('\\');
+        if (Store.SamePath(full, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), name)))
+            return true;
+        var roaming = Path.GetDirectoryName(full);
+        var cache = roaming == null ? null : Path.GetDirectoryName(roaming);
+        var package = cache == null ? null : Path.GetDirectoryName(cache);
+        return package != null && string.Equals(Path.GetFileName(full), name, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(Path.GetFileName(roaming), "Roaming", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(Path.GetFileName(cache), "LocalCache", StringComparison.OrdinalIgnoreCase)
+            && Store.SamePath(Path.GetDirectoryName(package)!, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Packages"));
     }
 
     public Task Scan()

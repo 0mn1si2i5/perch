@@ -90,6 +90,11 @@ internal static class RegressionTests
         Check(Throws<IOException>(() => store.CheckRecycle(new Account { ProfilePath = store.Root }, RunState.NotRunning)), "Perch's own root is not recycled");
         Check(Throws<IOException>(() => store.CheckRecycle(new Account { ProfilePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) }, RunState.NotRunning)), "The user folder is not recycled");
         store.CheckRecycle(account, RunState.NotRunning);
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        var msix = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Packages", "Claude_pzs8sxrjxfjjc", "LocalCache", "Roaming", "Claude");
+        Check(Clients.IsDefaultProfile("codex", Path.Combine(appData, "Codex")) && Clients.IsDefaultProfile("claude", msix + "\\"), "Default data is recognized by path, without discovery");
+        Check(!Clients.IsDefaultProfile("codex", msix) && !Clients.IsDefaultProfile("claude", account.ProfilePath), "Other folders are not default data");
+        Check(Throws<IOException>(() => store.CheckRecycle(new Account { App = "claude", ProfilePath = msix }, RunState.NotRunning)), "A client's default data is not recycled even when not flagged Default");
 
         // From the process scan to the decision: what the scan or discovery could not see is never "not running".
         var installed = new List<Client> { new("codex", @"C:\Apps\ChatGPT.exe", account.ProfilePath, account.SessionRoot) };
