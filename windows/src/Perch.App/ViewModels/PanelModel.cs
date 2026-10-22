@@ -438,11 +438,13 @@ public sealed partial class PanelModel : Observable, IDisposable
         try
         {
             await Task.Run(() => Clients.Scan());
-            var list = Store.Accounts.ToArray();
-            var reads = await Task.Run(() => list.Select(a => (a.Id, Snapshot: Sessions.Read(a, Clients))).ToArray());
-            foreach (var (id, snapshot) in reads)
-                snapshots[id] = snapshot;
-            CheckChanges(list);
+            var list = Store.Accounts.Select(a => a.Copy()).ToArray();
+            var reads = await Task.Run(() => list.Select(a => (Account: a, Snapshot: Sessions.Read(a, Clients))).ToArray());
+            // An account removed or relocated while reading keeps what the UI thread set; its next poll reads the new folder.
+            var current = reads.Where(r => Store.Accounts.Any(a => a.SameData(r.Account))).ToArray();
+            foreach (var (account, snapshot) in current)
+                snapshots[account.Id] = snapshot;
+            CheckChanges(current.Select(r => Store.Accounts.First(a => a.Id == r.Account.Id)).ToArray());
             MergeAccounts();
             ConfigurationChanged?.Invoke();
             if (AutoQuota && DateTimeOffset.UtcNow - lastQuota > TimeSpan.FromMinutes(5))

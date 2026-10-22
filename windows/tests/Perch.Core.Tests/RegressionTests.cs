@@ -109,6 +109,12 @@ internal static class RegressionTests
         Check(!Clients.IsDefaultProfile("codex", msix) && !Clients.IsDefaultProfile("claude", account.ProfilePath), "Other folders are not default data");
         Check(Throws<IOException>(() => store.CheckRecycle(new Account { App = "claude", ProfilePath = msix }, RunState.NotRunning)), "A client's default data is not recycled even when not flagged Default");
 
+        var copy = account.Copy();
+        Check(copy.SameData(account), "A poll's copy matches the account it was taken from");
+        account.ProfilePath = Path.Combine(dir, "moved");
+        Check(!copy.SameData(account) && copy.ProfilePath != account.ProfilePath, "A relocation during a poll does not change the copy, and its result is discarded");
+        account.ProfilePath = copy.ProfilePath;
+
         // From the process scan to the decision: what the scan or discovery could not see is never "not running".
         var installed = new List<Client> { new("codex", @"C:\Apps\ChatGPT.exe", account.ProfilePath, account.SessionRoot) };
         RunState StateAfterScan(ProcessScan scan, List<Client> clients)

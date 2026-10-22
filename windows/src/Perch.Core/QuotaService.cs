@@ -22,10 +22,13 @@ public sealed class QuotaService(Clients clients)
     private readonly Dictionary<string, string> organizations = [];
     public Quota? Get(string id) => cache.GetValueOrDefault(id);
     public bool IsBusy(string id) => busy.Contains(id);
+    // Bumped by Clear, so a query that was in flight when an account was removed or relocated is discarded.
+    private readonly Dictionary<string, int> generation = [];
     public void Clear(string id)
     {
         cache.Remove(id);
         nextQuery.Remove(id);
+        generation[id] = generation.GetValueOrDefault(id) + 1;
     }
 
     public async Task Refresh(Account account, bool manual = false)
@@ -39,9 +42,13 @@ public sealed class QuotaService(Clients clients)
         if (cache.TryGetValue(account.Id, out var held) && held.Owner != owner)
             cache.Remove(account.Id);
         busy.Add(account.Id);
+        var started = generation.GetValueOrDefault(account.Id);
+        account = account.Copy();
         try
         {
-            cache[account.Id] = account.App == "codex" ? await Codex(account) : await Claude(account);
+            var live = account.App == "codex" ? await Codex(account) : await Claude(account);
+            if (generation.GetValueOrDefault(account.Id) == started)
+                cache[account.Id] = live;
         }
         catch (Exception e)
         {
@@ -60,6 +67,8 @@ public sealed class QuotaService(Clients clients)
             {
             }
 
+            if (generation.GetValueOrDefault(account.Id) != started)
+                return;
             var previous = cache.GetValueOrDefault(account.Id);
             var best = previous != null && (fallback == null || previous.Observed > fallback.Observed) ? previous : fallback;
             cache[account.Id] = best != null ? best with

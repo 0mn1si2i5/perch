@@ -23,6 +23,10 @@ public sealed class Account
     {
         get; set;
     }
+
+    /// A copy for background reads, so a relocation on the UI thread never changes paths mid-read.
+    public Account Copy() => (Account)MemberwiseClone();
+    public bool SameData(Account other) => Id == other.Id && ProfilePath == other.ProfilePath && SessionRoot == other.SessionRoot && ThirdParty == other.ThirdParty;
 }
 
 // Exec: started by `codex exec` (for example a delegate run) rather than in the desktop app.
