@@ -120,6 +120,12 @@ final class AccountStoreTests: XCTestCase {
         let store = try emptyStore()
         let account = try store.create(name: "X", app: .codex)
         try store.relocate(id: account.id, profilePath: "/new/place")
+        let other = try store.create(name: "Z", app: .claude)
+        XCTAssertThrowsError(try store.relocate(id: other.id, profilePath: "/new/place")) {
+            XCTAssertEqual($0 as? AccountError, .alreadyAdded, "不能把账号定位到另一个账号的目录")
+        }
+        XCTAssertEqual(store.accounts.first { $0.id == other.id }?.profilePath, other.profilePath)
+        try store.delete(id: other.id, moveDataToTrash: false)
         let launched = Date(timeIntervalSince1970: 1_800_000_000)
         try store.markLaunched(id: account.id, at: launched)
         XCTAssertThrowsError(try store.rename(id: "nope", to: "Y"))

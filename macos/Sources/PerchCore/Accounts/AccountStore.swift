@@ -121,6 +121,7 @@ public final class AccountStore {
     }
 
     public func relocate(id: String, profilePath: String) throws {
+        if accounts.contains(where: { $0.id != id && $0.profilePath == profilePath }) { throw AccountError.alreadyAdded }
         try update(id) {
             $0.profilePath = profilePath
             $0.sessionRoot = $0.app.sessionRoot(forProfile: profilePath, home: home)
