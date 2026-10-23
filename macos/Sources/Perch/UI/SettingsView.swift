@@ -48,7 +48,7 @@ struct SettingsView: View {
             }
             Divider()
             section("扩展") {
-                HStack { Label("Moot", systemImage: "person.3.sequence"); Spacer(); Button("管理…") { MootWindowController.show(perch: perch, pet: pet) } }
+                HStack { Label("Moot", systemImage: "person.3.sequence"); Spacer(); Button("管理…") { (NSApp.delegate as? AppDelegate)?.showMoot() } }
                 Text("模型协作 · 能力、圆桌与运行记录").foregroundStyle(.secondary)
             }
             Divider()

@@ -32,7 +32,7 @@
 | 接力、拆出需求 | N/A | N/A | 2026-10-21 两端删除，包括右键菜单、待接力卡片、接力记录和交接文档写好提醒；数据目录里旧的 `handoffs/` 保留，不再读取。对话状态通知保留 |
 | 自定义客户端 / API 供应商 | N/A | N/A | macOS 已删除；旧账号升级时移到 `removed-accounts.json`，钥匙串里的密钥需手动清理 |
 
-| 可选 Moot 模型协作扩展 | 🟡 | ❌ | macOS Apple Silicon 已完成原生安装、更新、卸载重装、技能迁移、真实委派/订阅生图与三模型圆桌验证；API/Intel/宿主限制见 [验收记录](../docs/macos/moot-acceptance.md)。Windows 未实现，未公开发布 |
+| 可选 Moot 模型协作扩展 | 🟡 | ❌ | macOS Apple Silicon 已完成原生安装、更新、卸载重装、技能迁移、真实委派/订阅生图与三模型圆桌验证；打开管理窗口时先收起 Perch 浮动面板，重复打开唤回同一窗口；API/Intel/宿主限制见 [验收记录](../docs/macos/moot-acceptance.md)。Windows 未实现，未公开发布 |
 
 macOS 开发更新：沿用稳定代码签名；Claude 后台额度读取禁止旧式钥匙串弹窗，手动刷新可请求授权。Windows 不适用这套 macOS 钥匙串机制。
 

@@ -74,7 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         syncCompanion()
         pet.start()
         perch.start()
-        if CommandLine.arguments.contains("--moot") { MootWindowController.show(perch: perch, pet: pet) }
+        if CommandLine.arguments.contains("--moot") { showMoot() }
     }
 
     private func windowSize() -> NSSize {
@@ -202,6 +202,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         } else {
             togglePopover(fromPet: false)
         }
+    }
+
+    @MainActor func showMoot() {
+        // The application-defined popover stays above normal windows until explicitly closed.
+        // Dismiss it before activating Moot so it cannot obscure or reclaim focus from the window.
+        popover.close()
+        MootWindowController.show(perch: perch, pet: pet)
     }
 
     @objc private func togglePet() {
