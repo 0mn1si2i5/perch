@@ -69,6 +69,12 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<PLIST
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST
+# Optional Moot payload is installed only when the user enables the extension.
+codesign "${SIGN_FLAGS[@]}" "$BUILD_DIR/PerchMootCredentials" >/dev/null
+MOOT_ARCHS="${PERCH_ARCHS:-$(uname -m)}" MOOT_CREDENTIAL_HELPER="$BUILD_DIR/PerchMootCredentials" bash "$ROOT_DIR/script/package-moot.sh" --local
+for arch in ${PERCH_ARCHS:-$(uname -m)}; do
+  cp -R "$ROOT_DIR/dist.noindex/moot/Moot-0.1.0-$arch.mootpkg" "$APP_BUNDLE/Contents/Resources/Moot-$arch.mootpkg"
+done
 codesign "${SIGN_FLAGS[@]}" "$APP_BUNDLE"
 codesign --verify --deep --strict "$APP_BUNDLE" >/dev/null
 
@@ -81,7 +87,21 @@ fi
 pkill -x Perch >/dev/null 2>&1 || true
 pkill -x PoxDesktop >/dev/null 2>&1 || true
 mkdir -p "$HOME/Applications"
-ditto "$APP_BUNDLE" "$INSTALL_PATH"
+# Copy into a fresh bundle: overlaying with ditto retains deleted resources and breaks the seal.
+INSTALL_STAGE="$HOME/Applications/.Perch-install-$$.app"
+INSTALL_BACKUP="$ROOT_DIR/dist.noindex/install-backups/Perch-$(date +%Y%m%d-%H%M%S)-$$.app"
+trap 'rm -rf "$INSTALL_STAGE"' EXIT
+ditto "$APP_BUNDLE" "$INSTALL_STAGE"
+codesign --verify --deep --strict "$INSTALL_STAGE"
+if [[ -d "$INSTALL_PATH" ]]; then
+  mkdir -p "$(dirname "$INSTALL_BACKUP")"
+  mv "$INSTALL_PATH" "$INSTALL_BACKUP"
+fi
+if ! mv "$INSTALL_STAGE" "$INSTALL_PATH"; then
+  [[ ! -d "$INSTALL_BACKUP" ]] || mv "$INSTALL_BACKUP" "$INSTALL_PATH"
+  exit 1
+fi
+codesign --verify --deep --strict "$INSTALL_PATH"
 # ditto keeps the bundle folder's old mtime, so Finder and the Dock keep showing a cached icon.
 # Bump it and re-register so icon changes appear right away.
 touch "$INSTALL_PATH"

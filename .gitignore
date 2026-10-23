@@ -24,3 +24,7 @@ scratch/
 # Windows .NET build output
 **/bin/
 **/obj/
+
+# Moot executable source (not generated build output)
+!extensions/moot/bin/
+!extensions/moot/bin/moot.js

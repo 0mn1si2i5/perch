@@ -1,0 +1,17 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+const api = await import('../lib/config.js').catch(() => ({}));
+const routing = await import('../lib/routing.js').catch(() => ({}));
+const fixture = () => ({schemaVersion:1,revision:0,apiEnabled:false,automaticRoundtable:false,connections:[{id:'sub',adapter:'codex',authMode:'subscription',enabled:true,executable:'/bin/echo',accountRoot:'/tmp',defaultModel:'a',tools:[]},{id:'api',adapter:'google-image-api',authMode:'api',enabled:true,executable:'',accountRoot:'',defaultModel:'image',tools:['image']}],capabilities:[{id:'general',enabled:true,primaryConnectionID:'sub',completionMode:'delegate',requiredTools:[],fallbackConnectionIDs:['api'],instructions:''}],meetingPreset:{seats:[],maxRounds:3,allowEarlyFinish:false}});
+test('stale config revision does not overwrite',()=>{const root=fs.mkdtempSync(path.join(os.tmpdir(),'moot-config-'));try{assert.equal(typeof api.saveConfig,'function');const c=api.saveConfig(root,fixture(),0);assert.equal(c.revision,1);assert.throws(()=>api.saveConfig(root,fixture(),0),/revision/i);assert.equal(api.loadConfig(root).revision,1);}finally{fs.rmSync(root,{recursive:true,force:true});}});
+test('explicit unavailable model never falls back',()=>{assert.equal(typeof routing.resolveRoute,'function');assert.throws(()=>routing.resolveRoute(fixture(),{capabilityID:'general',explicitModel:'a'},{sub:false,api:true}),/explicit/i);});
+test('disabled API ignores ambient keys',()=>{assert.equal(typeof routing.resolveRoute,'function');assert.throws(()=>routing.resolveRoute(fixture(),{capabilityID:'general'},{sub:false,api:true}),/available/i);});
+test('automatic roundtable requires opt in',()=>{assert.equal(typeof routing.resolveRoute,'function');assert.throws(()=>routing.resolveRoute(fixture(),{mode:'roundtable',trigger:'automatic'},{}),/automatic/i);});
+test('user requested roundtable works with opt in off',()=>{assert.equal(typeof routing.resolveRoute,'function');assert.equal(routing.resolveRoute(fixture(),{mode:'roundtable',trigger:'userRequested',capabilityID:'general'},{}).connectionID,'sub');});
+test('unconfigured capability uses general',()=>{assert.equal(typeof routing.resolveRoute,'function');assert.equal(routing.resolveRoute(fixture(),{capabilityID:'unknown'},{}).connectionID,'sub');});
+test('invalid references rejected',()=>{assert.equal(typeof api.validateConfig,'function');const c=fixture();c.capabilities[0].primaryConnectionID='missing';assert.throws(()=>api.validateConfig(c),/connection/i);});
+export {fixture};
+test('fallback uses its own model rather than primary provider override',()=>{const c=fixture();c.connections.push({id:'backup',adapter:'claude',authMode:'subscription',enabled:true,executable:'/bin/echo',accountRoot:'/tmp',defaultModel:'sonnet',tools:[]});c.capabilities[0].modelOverride='primary-only';c.capabilities[0].fallbackConnectionIDs=['backup'];assert.equal(routing.resolveRoute(c,{capabilityID:'general'},{sub:false}).model,'sonnet');});

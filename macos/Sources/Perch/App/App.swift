@@ -74,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         syncCompanion()
         pet.start()
         perch.start()
+        if CommandLine.arguments.contains("--moot") { MootWindowController.show(perch: perch, pet: pet) }
     }
 
     private func windowSize() -> NSSize {

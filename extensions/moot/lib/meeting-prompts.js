@@ -1,0 +1,4 @@
+export function meetingPrompt(run,seat,round) {
+ const previous=round>1?run.rounds.filter(r=>r.number<round):[];
+ return [run.brief,`Round ${round}/${run.meeting.maxRounds}. Seat ${seat.seatID}; role: ${seat.role||'participant'}.`,seat.instructions||'',round===1?'Give your independent opinion. No other participant opinions are supplied.':'Respond explicitly to other positions and unresolved disagreements. Cite seat and round. Do not invent agreement.',previous.length?'Previous completed rounds (same material for every seat):\n'+JSON.stringify(previous):'',run.issues?.length?'Unresolved issues:\n'+JSON.stringify(run.issues):'','Provide your own concise statement only. The current dialogue agent hosts and summarizes. No file edits, further delegation or external actions.'].filter(Boolean).join('\n\n');
+}

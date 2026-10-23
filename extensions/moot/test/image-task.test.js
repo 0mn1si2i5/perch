@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import path from 'node:path';import os from 'node:os';
+const images=await import('../lib/image-task.js').catch(()=>({}));
+test('prompt without image is not success; invalid image rejected',async()=>{assert.equal(typeof images.validateImageArtifacts,'function');const root=fs.mkdtempSync(path.join(os.tmpdir(),'moot-image'));try{fs.writeFileSync(path.join(root,'fake.png'),'a drawing prompt');assert.deepEqual(await images.validateImageArtifacts([path.join(root,'fake.png')],root),[]);assert.deepEqual(await images.validateImageArtifacts([],root),[]);}finally{fs.rmSync(root,{recursive:true,force:true});}});
+test('image outside output root not accepted',async()=>{assert.equal(typeof images.validateImageArtifacts,'function');await assert.rejects(()=>images.validateImageArtifacts(['/tmp/not-an-image.png'],os.homedir()),/outside/);});

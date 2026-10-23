@@ -14,3 +14,7 @@ The MIT License in LICENSE covers the Perch source code. The following are not c
   belongs to Google. Source: https://www.antigravity.google/assets/image/antigravity-logo.png
   It is used only to identify the corresponding provider; no endorsement is implied.
   Gemini and DeepSeek icons are read from installed application bundles at runtime.
+- Optional Moot packages include an official Node.js v24.22.1 binary and
+  its bundled dependencies under their respective licenses. Each package
+  includes the complete upstream Node-LICENSE. Source and checksums:
+  https://nodejs.org/dist/v24.22.1/
