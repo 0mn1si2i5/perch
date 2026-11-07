@@ -92,6 +92,7 @@ struct AccountCard: View {
         } isTargeted: { targeted = $0 }
         .contextMenu {
             Button("改名…") { perch.rename(account) }
+            if account.app == .claudeCode { Button("设置额度…") { perch.setCredit(account) } }
             if account.app.hasQuota, !perch.isDefaultData(account) {
                 Button("改用直接打开的 \(account.app.displayName)…") { perch.useDefaultData(account) }
             }

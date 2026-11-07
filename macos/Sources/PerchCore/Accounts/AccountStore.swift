@@ -180,6 +180,16 @@ public final class AccountStore {
         do { try save() } catch { accounts[index] = previous; throw error }
     }
 
+    /// Replaces the credit grants of a Claude Code CLI account; an empty list clears them.
+    public func setCredit(id: String, grants: [CreditGrant]) throws {
+        guard let index = accounts.firstIndex(where: { $0.id == id }) else { throw AccountError.notFound }
+        guard accounts[index].app == .claudeCode else { throw ProviderError.invalid("只有 Claude Code CLI 账号能设置额度") }
+        guard grants.allSatisfy(\.isValid) else { throw ProviderError.invalid("额度金额或日期无效") }
+        let previous = accounts[index]
+        accounts[index].creditGrants = grants.isEmpty ? nil : grants
+        do { try save() } catch { accounts[index] = previous; throw error }
+    }
+
     public func markLaunched(id: String, at date: Date) throws {
         try update(id) { $0.lastLaunchedAt = date }
     }

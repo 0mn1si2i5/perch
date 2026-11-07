@@ -55,7 +55,7 @@ extension PerchModel {
 
 extension PerchModel {
     func supportsProviderUsage(_ account: Account) -> Bool {
-        [.geminiApp, .antigravity, .deepseek].contains(account.app) && account.localProvider != nil
+        [.geminiApp, .antigravity, .deepseek, .claudeCode].contains(account.app) && account.localProvider != nil
     }
 
     func refreshProviderUsage(_ account: Account) {
@@ -67,6 +67,7 @@ extension PerchModel {
                 case .deepseek: result = .success(try await DeepSeekUsage.query(account))
                 case .geminiApp: result = .success(try await NativeGeminiUsage.query(account))
                 case .antigravity: result = .success(try await AntigravityCLIUsage.query(account))
+                case .claudeCode: result = .success(try await ClaudeCodeCredit.query(account))
                 default: return
                 }
             } catch { result = .failure(error) }
@@ -74,7 +75,8 @@ extension PerchModel {
             self.refreshingQuotas.remove(account.id)
             guard self.accounts.contains(where: {
                 $0.id == account.id && $0.app == account.app && $0.profilePath == account.profilePath &&
-                $0.sessionRoot == account.sessionRoot && $0.localProvider == account.localProvider
+                $0.sessionRoot == account.sessionRoot && $0.localProvider == account.localProvider &&
+                $0.creditGrants == account.creditGrants
             }) else { return }
             switch result {
             case .success(let usage):

@@ -27,6 +27,7 @@
 | 原生 UI 明暗/Pox | ✅ | ✅ | Windows 三主题四页面渲染 |
 | 平台发布配置 | N/A | ✅ | `windows-v0.2.0` tag 已在远端完成测试、打包并发布预览 Release |
 | 本机 Gemini CLI / Antigravity / DeepSeek Harness | 🟡 | ❌ | macOS 引用既有配置、启动、会话索引（只解析最新 60 个文件并缓存，长会话读开头元数据）；Antigravity CLI 额度只在手动刷新时查询，DeepSeek 钱包余额；Gemini CLI 不再查询额度；客户端换了位置可在扫描结果里更新启动位置。详见 [供应商说明](../docs/macos/providers.md) |
+| Claude Code CLI 组织额度估算 | 🟡 | N/A | 扫描 `~/.perch/claude/<名字>`（含 `.claude.json`），用 `CLAUDE_CONFIG_DIR` 在终端启动；Console API 组织不向 CLI 登录提供余额，额度按该目录 `projects/**/*.jsonl` 的 token 用量和 API 价格表估算已用；右键卡片按 Console 账单逐笔填写额度（金额、生效日、到期日），按先到期先扣估算总剩余和每笔剩余。Windows 不适用：这个账号只给 macOS 上的 Moot 子代理用 |
 | Gemini 原生应用内 Antigravity | ✅ | ❌ | 独立 Gemini 分组；Antigravity 额度唯一的自动来源，从运行中的原生应用本地服务查询 Gemini 模型额度，Argon 周额度单独标注；真实面板刷新、明细及重启保留已验收；不复用 CLI 凭据 |
 | 从访达重新打开面板 | ✅ | ❌ | macOS 重新打开 Perch 时展示菜单栏面板，不依赖桌宠可见性 |
 | 接力、拆出需求 | N/A | N/A | 2026-10-21 两端删除，包括右键菜单、待接力卡片、接力记录和交接文档写好提醒；数据目录里旧的 `handoffs/` 保留，不再读取。对话状态通知保留 |

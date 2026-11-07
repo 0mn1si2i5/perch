@@ -591,6 +591,37 @@ final class PerchModel: ObservableObject {
         }
     }
 
+    func setCredit(_ account: Account) {
+        let alert = NSAlert()
+        alert.messageText = "设置“\(account.name)”的额度"
+        alert.informativeText = "按 Console 账单历史，每行填一笔：金额 生效日 到期日，日期用 UTC，例如\n157.94 2026-11-06 2026-12-09\n全部清空表示不设。"
+        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 300, height: 84))
+        scroll.hasVerticalScroller = true
+        scroll.borderType = .bezelBorder
+        let text = NSTextView(frame: scroll.contentView.bounds)
+        text.autoresizingMask = [.width]
+        text.isRichText = false
+        text.isAutomaticQuoteSubstitutionEnabled = false
+        text.isAutomaticDashSubstitutionEnabled = false
+        text.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        text.string = CreditGrant.format(account.creditGrants ?? [])
+        scroll.documentView = text
+        alert.accessoryView = scroll
+        alert.window.initialFirstResponder = text
+        alert.addButton(withTitle: "保存")
+        alert.addButton(withTitle: "取消")
+        NSApp.activate()
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        guard let grants = CreditGrant.parse(text.string) else {
+            message = "额度没有保存：每行要是“金额 生效日 到期日”，日期写成 2026-11-06，到期日不能早于生效日"; return
+        }
+        do {
+            try store.setCredit(id: account.id, grants: grants)
+            accounts = store.accounts
+            if let updated = accounts.first(where: { $0.id == account.id }) { refreshQuota(updated) }
+        } catch { message = "设置额度失败：\(error.localizedDescription)" }
+    }
+
     func delete(_ account: Account) {
         let alert = NSAlert()
         alert.messageText = "删除账号“\(account.name)”？"
@@ -675,6 +706,7 @@ final class PerchModel: ObservableObject {
         case .gemini, .geminiApp: names = ["Gemini.app"]
         case .antigravity: names = ["Antigravity.app"]
         case .deepseek: names = ["DSH Desktop.app"]
+        case .claudeCode: names = ["Claude.app"]
         default: names = []
         }
         let installed = AppLocator.locate(app) ?? AppLocator.searchRoots().flatMap { root in
@@ -693,6 +725,7 @@ final class PerchModel: ObservableObject {
             case .gemini, .geminiApp: symbol = "sparkles"
             case .antigravity: symbol = "a.circle.fill"
             case .deepseek: symbol = "d.circle.fill"
+            case .claudeCode: symbol = "terminal"
             default: symbol = "app"
             }
             guard let fallback = NSImage(systemSymbolName: symbol, accessibilityDescription: app.displayName) else { return nil }
@@ -731,6 +764,7 @@ final class PerchModel: ObservableObject {
             return claudeSessions[account.id] == nil ? "正在读取…" : "还没有本地会话"
         case .gemini, .antigravity, .deepseek: return "还没有本地会话"
         case .geminiApp: return "Gemini 内的 Antigravity；与 CLI 分别保留启动入口"
+        case .claudeCode: return "额度按这个目录的会话记录估算"
         }
     }
 

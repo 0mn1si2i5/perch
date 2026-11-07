@@ -109,6 +109,20 @@ public enum LocalProviderDiscovery {
         return fm.fileExists(atPath: path, isDirectory: &directory) && directory.boolValue ? path : nil
     }
 
+    /// Claude Code CLI config directories Perch keeps for other accounts: `~/.perch/claude/<name>`, each with its own
+    /// `.claude.json`. Launched with `CLAUDE_CONFIG_DIR` pointing at the directory.
+    static func claudeCodeCandidates(home: String, path: String) -> [LocalProviderCandidate] {
+        let root = URL(fileURLWithPath: home).appendingPathComponent(".perch/claude", isDirectory: true)
+        guard let executable = executable("claude", home: home, path: path),
+              let names = try? FileManager.default.contentsOfDirectory(atPath: root.path) else { return [] }
+        return names.sorted().compactMap { name in
+            let dir = root.appendingPathComponent(name, isDirectory: true)
+            guard !name.hasPrefix("."), FileManager.default.fileExists(atPath: dir.appendingPathComponent(".claude.json").path) else { return nil }
+            return LocalProviderCandidate(name: "Claude Code · " + name, app: .claudeCode, profilePath: dir.path,
+                                          configuration: .init(kind: .terminal, target: executable, workingDirectory: home))
+        }
+    }
+
     public static func scan(home: String = NSHomeDirectory(), path: String = ProcessInfo.processInfo.environment["PATH"] ?? "",
                             applicationRoots: [URL] = AppLocator.searchRoots()) -> [LocalProviderCandidate] {
         let entries: [(AppKind, String, String, [String])] = [
@@ -128,6 +142,7 @@ public enum LocalProviderDiscovery {
             return LocalProviderCandidate(name: app.displayName, app: app, profilePath: data,
                                           configuration: .init(kind: .terminal, target: executable, arguments: arguments, workingDirectory: home))
         }
+        candidates += claudeCodeCandidates(home: home, path: path)
         let nativeData = home + "/Library/Application Support/com.google.GeminiMacOS"
         if let nativeGemini = applicationRoots.map({ $0.appendingPathComponent("Gemini.app") })
             .first(where: { AppLocator.bundleID(at: $0) == "com.google.GeminiMacOS" }),

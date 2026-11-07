@@ -139,3 +139,14 @@ macos/dist.noindex/Perch.app/Contents/MacOS/Perch --diagnose-providers
 - Antigravity 会话数据库打开或查询失败时不缓存，保留上次的列表，下次轮询重读。
 - 子进程退出后最多再读 2 秒管道就返回，然后照常结束整个进程组。之前要等管道全部关闭，agy 留下的后台进程会让手动刷新等到 35 秒超时。
 
+
+## Claude Code CLI 组织额度估算（2026-11-08）
+
+- 用途：用另一个 Anthropic 账号（Console API 组织，预付额度）跑 Claude Code，给 Moot 当子代理。账号目录放在 `~/.perch/claude/<名字>`，用 `CLAUDE_CONFIG_DIR=<目录> claude` 登录，选 Console 账号。
+- 扫描：`~/.perch/claude` 下含 `.claude.json` 的目录作为「Claude Code · <名字>」候选，启动脚本导出 `CLAUDE_CONFIG_DIR`。
+- 余额来源：这类组织的 `organization_type` 是 `api_individual`。`/api/oauth/organizations/<id>/prepaid/credits` 返回 403（只开放给 Pro、Max、Ultra），`/api/oauth/usage` 返回 400，profile 里没有余额字段，所以不发请求。
+- 估算：读目录下 `projects/**/*.jsonl`（含 subagents）里本期的 assistant 响应，按 `message.id` 去重，用 token 用量乘价格表。Haiku 5.5 提示超过 100K 按 5 倍，fast 模式按 2 倍，网页搜索每次 0.01 美元。用 2026-11-08 的一次 Haiku 5.5 运行核对，结果与 Claude Code 报的 `total_cost_usd` 0.0021318 一致。
+- 价格表里没有的模型不计入，悬停明细里列出名字。价格变了要改 `ClaudeCodeCredit.prices`。
+- 额度：Console 的赠送额度是一笔一笔发的，各有到期日，有效期会重叠（例如 10 月 29 日的 $100 到 11 月 22 日，11 月 6 日的 $157.94 到 12 月 9 日），不按月重置。账号的 `creditGrants` 字段逐笔存金额、生效日、到期日（UTC 日期，到期日当天仍可用），右键卡片「设置额度…」每行填一笔。
+- 剩余：从最早一笔的生效日起读用量，按时间顺序扣在当时有效、最先到期的那笔上。Anthropic 没有公开扣费顺序，这是假设，悬停说明里写明。面板显示已用、有效各笔合计的估算剩余，以及每笔的剩余。不在任何一笔有效期内的用量单独说明。剩余金额向下取到分。
+- 凭据：Console 登录的令牌在 `~/.config/anthropic/credentials/default.json`，不随 `CLAUDE_CONFIG_DIR` 走。Perch 不读这个文件。

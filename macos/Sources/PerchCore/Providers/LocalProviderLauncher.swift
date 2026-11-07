@@ -34,6 +34,8 @@ public enum LocalProviderLauncher {
             lines += ["export GEMINI_CLI_HOME=" + quote(URL(fileURLWithPath: account.profilePath).deletingLastPathComponent().path)]
         } else if account.app == .deepseek {
             lines += ["export DSH_HOME=" + quote(account.profilePath)]
+        } else if account.app == .claudeCode {
+            lines += ["export CLAUDE_CONFIG_DIR=" + quote(account.profilePath)]
         }
         if !config.workingDirectory.isEmpty { lines += ["cd -- " + quote(config.workingDirectory) + " || exit 1"] }
         lines += [([config.target] + config.arguments).map(quote).joined(separator: " "),
