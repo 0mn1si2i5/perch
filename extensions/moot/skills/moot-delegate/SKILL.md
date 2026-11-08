@@ -9,7 +9,7 @@ Use the managed executable `__MOOT_EXECUTABLE__`. Quote its path as a single arg
 
 `{"protocolVersion":1,"requestID":"unique-id","operation":"config.read","payload":{}}`
 
-Read enabled capabilities and connections. Match the user's task to a capability; otherwise use `general`. Explicit model/account instructions always win; preserve them in `explicitModel` / `explicitConnectionID`. If unavailable, report why; do not silently replace. API is off unless enabled beforehand and configured as fallback. Do not pass API keys or override billing environment variables. Ordinary tasks need no extra delegation; use it when a bounded contribution is useful.
+Read enabled capabilities and connections. Match the user's task to a capability; otherwise use `general`. Explicit model/account instructions always win; preserve them in `explicitModel` / `explicitConnectionID`. If unavailable, report why; do not silently replace. A connection with `authMode` `console` is a Claude Code account billed to a Console organization's prepaid credits; Moot runs it only when named in `explicitConnectionID`, set as a capability's primary or seated in a roundtable, so name it only when the user asks for that account. API is off unless enabled beforehand and configured as fallback. Do not pass API keys or override billing environment variables. Ordinary tasks need no extra delegation; use it when a bounded contribution is useful.
 
 Write a minimal brief to a file inside the authorized workspace. Include necessary context, task, expected deliverable and limits; omit irrelevant private conversation. Start with operation `delegate.start` and payload:
 

@@ -35,7 +35,7 @@ export async function startMeeting(root,task) {
   check(meeting.seats.length>=2&&meeting.seats.length<=6&&Number.isInteger(meeting.maxRounds)&&meeting.maxRounds>=1&&meeting.maxRounds<=10,'invalidMeeting','Use 2–6 seats and 1–10 rounds');
   check(new Set(meeting.seats.map(s=>s.seatID)).size===meeting.seats.length,'invalidMeeting','Seat IDs must be unique');
   for(const seat of meeting.seats)safeID(seat.seatID);
-  for(const seat of meeting.seats)check(config.connections.some(c=>c.id===seat.connectionID&&c.enabled&&c.authMode==='subscription'),'unavailableSeat','Each meeting seat must use an enabled subscription connection');
+  for(const seat of meeting.seats)check(config.connections.some(c=>c.id===seat.connectionID&&c.enabled&&['subscription','console'].includes(c.authMode)),'unavailableSeat','Each meeting seat must use an enabled subscription or Console connection');
   check(path.isAbsolute(task.workdir)&&fs.statSync(task.workdir).isDirectory(),'invalidWorkspace','Workspace required');
   const brief=fs.readFileSync(task.briefPath,'utf8');check(brief.trim()&&brief.length<=200000,'invalidBrief','Brief required');
   const id=randomUUID(),now=new Date().toISOString();const dir=runDirectory(root,id);fs.mkdirSync(dir,{recursive:true,mode:0o700});
@@ -63,7 +63,8 @@ export async function executeMeetingRound(root,id) {
   let result;
   try {
    const briefPath=path.join(dir,`round-${round.number}-${seat.seatID}.txt`);fs.writeFileSync(briefPath,meetingPrompt(run,seat,round.number),{mode:0o600});
-   const route={connectionID:seat.connectionID,model:seat.model||run.configSnapshot.connections.find(c=>c.id===seat.connectionID).defaultModel,authMode:'subscription',completionMode:'audit',requiredTools:[],reason:'Configured roundtable seat',instructions:''};
+   const connection=run.configSnapshot.connections.find(c=>c.id===seat.connectionID);
+   const route={connectionID:seat.connectionID,model:seat.model||connection.defaultModel,authMode:connection.authMode,completionMode:'audit',requiredTools:[],reason:'Configured roundtable seat',instructions:''};
    let child=await startRun(root,{requestID:`${id}-${round.number}-${seat.seatID}-${attempt}`,parentID:id,mode:'audit',trigger:run.task.trigger,capabilityID:'general',explicitConnectionID:seat.connectionID,explicitModel:seat.model,workdir:run.task.workdir,briefPath,hostRef:run.hostRef},route,{configSnapshot:run.configSnapshot,runtime:run.runtime});
    while(!terminal(child)){await new Promise(r=>setTimeout(r,500));if(readRun(root,id).state==='cancelled')break;child=readRun(root,child.id);}
    result={...seat,model:route.model,state:child.state,output:child.output,error:child.error,runID:child.id,messageID:randomUUID(),attempt,previousAttempts};

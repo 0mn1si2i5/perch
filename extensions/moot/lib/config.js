@@ -10,9 +10,10 @@ export function validateConfig(c) {
   for(const x of c.connections) {
     check(x.id && !ids.has(x.id),'invalidConfig','Duplicate connection');ids.add(x.id);
     check(['codex','claude','agy','google-image-api'].includes(x.adapter),'invalidConfig','Unsupported adapter');
-    check(['subscription','api'].includes(x.authMode) && (x.authMode==='api')===(x.adapter==='google-image-api'),'invalidConfig','Adapter/authentication mismatch');
+    // console: a Claude Code account signed in to a Console organization. The CLI keeps the login; usage is billed to the organization's prepaid credits.
+    check(['subscription','api','console'].includes(x.authMode) && (x.authMode==='api')===(x.adapter==='google-image-api') && (x.authMode!=='console'||x.adapter==='claude'),'invalidConfig','Adapter/authentication mismatch');
     check(Array.isArray(x.tools),'invalidConfig','Tool list required');
-    if(x.authMode==='subscription')check(path.isAbsolute(x.executable)&&path.isAbsolute(x.accountRoot),'invalidConfig','Executable and account root must be absolute paths');
+    if(x.authMode!=='api')check(path.isAbsolute(x.executable)&&path.isAbsolute(x.accountRoot),'invalidConfig','Executable and account root must be absolute paths');
     check(!('secret' in x)&&!('apiKey' in x),'invalidConfig','Store credentials in Keychain');
   }
   const capabilities=new Set();
@@ -21,8 +22,10 @@ export function validateConfig(c) {
     check(!x.enabled || ids.has(x.primaryConnectionID),'invalidConfig','Unknown primary connection');
     check(Array.isArray(x.requiredTools)&&Array.isArray(x.fallbackConnectionIDs),'invalidConfig','Capability tools/fallbacks required');
     check(x.fallbackConnectionIDs.every(id=>ids.has(id)),'invalidConfig','Unknown fallback connection');
+    // Console credits are spent only on a connection chosen explicitly or as a primary, never to replace an unavailable one.
+    check(x.fallbackConnectionIDs.every(id=>c.connections.find(v=>v.id===id).authMode!=='console'),'invalidConfig','A Console connection cannot be a fallback');
     check(['delegate','audit','draft','image'].includes(x.completionMode),'invalidConfig','Unknown completion mode');
-    check(!x.enabled || c.connections.find(v=>v.id===x.primaryConnectionID)?.authMode==='subscription','invalidConfig','API is a fallback only');
+    check(!x.enabled || ['subscription','console'].includes(c.connections.find(v=>v.id===x.primaryConnectionID)?.authMode),'invalidConfig','API is a fallback only');
   }
   const m=c.meetingPreset;
   check(m&&Number.isInteger(m.maxRounds)&&m.maxRounds>=1&&m.maxRounds<=10&&Array.isArray(m.seats)&&m.seats.length<=6,'invalidConfig','Meeting requires 1–10 rounds and up to 6 seats');

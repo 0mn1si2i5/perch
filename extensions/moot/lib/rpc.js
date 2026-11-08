@@ -1,5 +1,5 @@
-import fs from 'node:fs';import os from 'node:os';import {fileURLToPath} from 'node:url';import path from 'node:path';import {spawn,spawnSync} from 'node:child_process';
-import {validateRequest,requireValue as check} from './protocol.js';import {loadConfig,saveConfig} from './config.js';import {startRun,listRuns,readRun,cancelRun} from './runner.js';import {terminal} from './runs.js';import {startMeeting,submitHostSummary,advanceMeeting,retryMeeting} from './meeting.js';import {atomicJSON,readJSON} from './storage.js';import {subscriptionEnv} from './adapters/index.js';
+import fs from 'node:fs';import {fileURLToPath} from 'node:url';import path from 'node:path';import {spawn} from 'node:child_process';
+import {validateRequest,requireValue as check} from './protocol.js';import {loadConfig,saveConfig} from './config.js';import {startRun,listRuns,readRun,cancelRun} from './runner.js';import {terminal} from './runs.js';import {startMeeting,submitHostSummary,advanceMeeting,retryMeeting} from './meeting.js';import {atomicJSON,readJSON} from './storage.js';import {checkLogin,consoleOrganization} from './adapters/index.js';
 export async function handleRequest(request,{root}) {
  try {
   validateRequest(request);const p=request.payload??{};let data;
@@ -24,12 +24,10 @@ export async function handleRequest(request,{root}) {
     const c=p.connection??loadConfig(root).connections.find(c=>c.id===p.connectionID);check(c,'missingConnection','Select a connection');
     if(c.authMode==='api'){data={status:'unverified',message:'API invocation requires opt in and an actual task'};break;}
     check(fs.existsSync(c.executable),'missingExecutable','Executable not found');
-    const env=subscriptionEnv();if(c.adapter==='codex')env.CODEX_HOME=c.accountRoot;if(c.adapter==='claude'){if(path.resolve(c.accountRoot)===path.join(os.homedir(),'.claude'))delete env.CLAUDE_CONFIG_DIR;else env.CLAUDE_CONFIG_DIR=c.accountRoot;}
-    const args=c.adapter==='codex'?['login','status']:c.adapter==='claude'?['auth','status']:['models'];
-    const result=spawnSync(c.executable,args,{env,encoding:'utf8',timeout:20000,maxBuffer:1024*1024});
-    const output=(result.stdout||'')+(result.stderr||'');
-    const subscription=c.adapter==='codex'?/using ChatGPT/i.test(output):c.adapter==='claude'?/"authMethod"\s*:\s*"claude.ai"/.test(output):result.status===0;
-    data={status:subscription?'loginDetected':'unavailable',message:subscription?'Login detected; use an actual task to verify model and tools':'Subscription login unavailable',models:c.adapter==='agy'?output.split('\n').filter(l=>l.includes('\t')).map(l=>l.split('\t')[0]):[]};break;
+    const {valid,output}=checkLogin(c,20000),org=c.authMode==='console';
+    const organization=valid&&org?consoleOrganization(c):undefined;
+    const message=!valid?(org?'Console organization login unavailable':'Subscription login unavailable'):org?`Console organization login detected${organization?': '+organization:''}; usage is billed to its prepaid credits`:'Login detected; use an actual task to verify model and tools';
+    data={status:valid?'loginDetected':'unavailable',message,models:c.adapter==='agy'?output.split('\n').filter(l=>l.includes('\t')).map(l=>l.split('\t')[0]):[]};break;
    }
    default:throw Object.assign(Error('Unknown operation'),{code:'unknownOperation'});
   }

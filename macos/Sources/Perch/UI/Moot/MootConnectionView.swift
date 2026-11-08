@@ -17,15 +17,16 @@ struct MootConnectionView: View {
                 Text("只开放你选择的接入。桌面账号与命令行登录分别验证。").foregroundStyle(.secondary)
                 ForEach($model.config.connections) { $connection in
                     VStack(alignment: .leading, spacing: 12) {
-                        HStack { Toggle("启用", isOn: $connection.enabled).labelsHidden(); TextField("账号名称", text: $connection.name).font(.headline); Spacer(); Text(connection.authMode == "api" ? "API 备用" : "订阅").foregroundStyle(.secondary); Button { model.config.connections.removeAll { $0.id == connection.id } } label: { Image(systemName: "minus.circle") }.buttonStyle(.plain) }
+                        HStack { Toggle("启用", isOn: $connection.enabled).labelsHidden(); TextField("账号名称", text: $connection.name).font(.headline); Spacer(); Text(connection.authMode == "api" ? "API 备用" : connection.authMode == "console" ? "Console 组织额度" : "订阅").foregroundStyle(.secondary); Button { model.config.connections.removeAll { $0.id == connection.id } } label: { Image(systemName: "minus.circle") }.buttonStyle(.plain) }
                         if connection.adapter == "agy" { Text("Gemini → 内置生图工具（Nano Banana）").font(.callout) }
                         if connection.adapter == "claude" { Text("使用独立 Claude Code 登录，不沿用 Claude 桌面 profile。").font(.callout).foregroundStyle(.secondary) }
+                        if connection.authMode == "console" { Text("按 Console 组织的预付额度计费。只在明确指定、作为能力的主执行者或圆桌座位时使用，不做备用。").font(.callout).foregroundStyle(.secondary) }
                         HStack { Text(verificationLabel(connection)).font(.callout).foregroundStyle(.secondary); Spacer(); Button("检查接入") { model.check(connection) } }
                         PanelDisclosure("详细配置") {
                             VStack(alignment: .leading, spacing: 10) {
                                 TextField("默认模型（留空使用客户端默认值）", text: $connection.defaultModel)
                                 if let models = connection.models, !models.isEmpty { Menu("选择已发现模型") { ForEach(models, id: \.self) { name in Button(name) { connection.defaultModel = name } } } }
-                                if connection.authMode == "subscription" { TextField("可执行程序绝对路径", text: $connection.executable); TextField("CLI 账号目录", text: $connection.accountRoot) }
+                                if connection.authMode != "api" { TextField("可执行程序绝对路径", text: $connection.executable); TextField("CLI 账号目录", text: $connection.accountRoot) }
                                 Toggle("可调用内置生图工具", isOn: Binding(get: { connection.tools.contains("image") }, set: { value in connection.tools = value ? ["image"] : [] }))
                                 if connection.authMode == "api" { MootCredentialField(connection: $connection) }
                                 Text("路径与模型会用于后续任务；实际调用记录保留原配置。").font(.caption).foregroundStyle(.secondary)
