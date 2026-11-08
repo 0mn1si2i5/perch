@@ -15,6 +15,13 @@ public enum LocalProviderLauncher {
 
     public static func quote(_ value: String) -> String { "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'" }
 
+    /// Claude Code keeps a Console (API Usage Billing) login in an Anthropic profile directory, by default the shared
+    /// `~/.config/anthropic`, not in `CLAUDE_CONFIG_DIR`. Any Claude Code without a login of its own uses that profile and
+    /// bills the organization, so each Claude Code CLI account gets its own profile directory inside its config directory.
+    public static func anthropicConfigDirectory(claudeConfig: String) -> String {
+        URL(fileURLWithPath: claudeConfig).appendingPathComponent("anthropic").path
+    }
+
     public static func script(for account: Account, directory: URL = directory) throws -> String {
         guard let config = account.localProvider, config.kind == .terminal else { throw ProviderError.invalid("不是终端客户端") }
         try config.validate()
@@ -35,7 +42,8 @@ public enum LocalProviderLauncher {
         } else if account.app == .deepseek {
             lines += ["export DSH_HOME=" + quote(account.profilePath)]
         } else if account.app == .claudeCode {
-            lines += ["export CLAUDE_CONFIG_DIR=" + quote(account.profilePath)]
+            lines += ["export CLAUDE_CONFIG_DIR=" + quote(account.profilePath),
+                      "export ANTHROPIC_CONFIG_DIR=" + quote(anthropicConfigDirectory(claudeConfig: account.profilePath))]
         }
         if !config.workingDirectory.isEmpty { lines += ["cd -- " + quote(config.workingDirectory) + " || exit 1"] }
         lines += [([config.target] + config.arguments).map(quote).joined(separator: " "),

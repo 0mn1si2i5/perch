@@ -104,7 +104,7 @@ final class ClaudeCodeCreditTests: XCTestCase {
         XCTAssertEqual(after.metrics.count, 3)
     }
 
-    func testScanFindsPerchClaudeDirsAndLauncherSetsConfigDir() throws {
+    func testScanFindsPerchClaudeDirsAndLauncherSetsConfigDirs() throws {
         let home = try makeTempDir()
         let bin = home.appendingPathComponent(".local/bin")
         try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
@@ -124,6 +124,9 @@ final class ClaudeCodeCreditTests: XCTestCase {
                               createdAt: Date(), lastLaunchedAt: nil, localProvider: found.first?.configuration)
         let script = try LocalProviderLauncher.script(for: account, directory: home)
         XCTAssertTrue(script.contains("export CLAUDE_CONFIG_DIR=" + LocalProviderLauncher.quote(org.path)))
+        // A Console login lives in the Anthropic profile directory, not in CLAUDE_CONFIG_DIR. Each account gets its own,
+        // so the default ~/.claude never falls back to this organization's sign-in.
+        XCTAssertTrue(script.contains("export ANTHROPIC_CONFIG_DIR=" + LocalProviderLauncher.quote(org.appendingPathComponent("anthropic").path)))
     }
 
     func testStoreSavesCreditOnlyForClaudeCode() throws {

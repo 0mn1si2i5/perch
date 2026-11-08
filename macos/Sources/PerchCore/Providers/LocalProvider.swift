@@ -110,7 +110,8 @@ public enum LocalProviderDiscovery {
     }
 
     /// Claude Code CLI config directories Perch keeps for other accounts: `~/.perch/claude/<name>`, each with its own
-    /// `.claude.json`. Launched with `CLAUDE_CONFIG_DIR` pointing at the directory.
+    /// `.claude.json`. Launched with `CLAUDE_CONFIG_DIR` pointing at the directory and `ANTHROPIC_CONFIG_DIR` at its
+    /// `anthropic` subdirectory, where a Console login is stored.
     static func claudeCodeCandidates(home: String, path: String) -> [LocalProviderCandidate] {
         let root = URL(fileURLWithPath: home).appendingPathComponent(".perch/claude", isDirectory: true)
         guard let executable = executable("claude", home: home, path: path),
