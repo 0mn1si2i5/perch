@@ -4,9 +4,9 @@
 
 ## 配置与使用
 
-1. 模型接入中选择 Perch 账号，或显式添加独立 CLI 绑定。仅所选接入可用。Claude 桌面账号与 Claude Code 不是同一凭据目录；默认 Claude Code 绑定保留它原有的 Keychain 身份。
+1. 模型接入中选择 Perch 账号，或显式添加独立 CLI 绑定。仅所选接入可用。已经加过的 Perch 账号不再出现在「添加接入」菜单里。Claude 桌面账号与 Claude Code 不是同一凭据目录；默认 Claude Code 绑定保留它原有的 Keychain 身份。
 2. 能力配置中设置「交给谁」「怎么完成」。详细配置包含模型覆盖与备用；具体路径集中在接入。通用委派使用能力 ID `general`。
-3. Claude Code 账号登录在 Console 组织（API Usage Billing）时，接入类型为 `console`：按该组织的预付额度计费，Moot 不经手密钥。它只在任务明确指定这个接入、作为能力的主执行者或占圆桌座位时使用，不能作为备用，也不受 API 总开关影响。检查接入要求它确实是 Console 组织登录，并显示组织名。非默认的 Claude Code 账号目录同时导出 `CLAUDE_CONFIG_DIR=<目录>` 和 `ANTHROPIC_CONFIG_DIR=<目录>/anthropic`，和 Perch 启动这类账号的方式一致；默认 `~/.claude` 两者都不设。
+3. Claude Code 账号登录在 Console 组织（API Usage Billing）时，接入类型为 `console`：按该组织的预付额度计费，Moot 不经手密钥。它只在任务明确指定这个接入、作为能力的主执行者或占圆桌座位时使用，不能作为备用，也不受 API 总开关影响。检查接入要求它确实是 Console 组织登录，并显示组织名。「添加接入」会列出 Perch 扫描到的 Claude Code CLI 账号（`~/.perch/claude/<名字>`），加进来就是 `console` 接入；如果某个目录里其实是订阅登录，检查接入会报不可用。非默认的 Claude Code 账号目录同时导出 `CLAUDE_CONFIG_DIR=<目录>` 和 `ANTHROPIC_CONFIG_DIR=<目录>/anthropic`，和 Perch 启动这类账号的方式一致；默认 `~/.claude` 两者都不设。
 4. API 默认关闭。图像生成默认 Gemini 订阅的内置工具；Nano Banana 在这里是工具能力，不是独立订阅账号。API 凭据只存系统钥匙串，需要总开关、接入与能力备用均配置才会调用。失败文字或绘图提示不算图片。
 5. 在模型接入页选择客户端的 skills 目录安装统一家族。已有同名文件不会覆盖；「预览旧技能迁移」会先备份选定目录内的旧入口，再安装新技能。新对话通常才能发现更新后的技能。
 6. 当前对话 agent 使用 `moot-delegate`、`moot-review` 或 `moot-roundtable`。普通任务自动按能力选择；明确指定模型时不可静默替换。执行前检测到登录不可用时可选配置中的备用；已执行过的普通写任务不自动重跑。

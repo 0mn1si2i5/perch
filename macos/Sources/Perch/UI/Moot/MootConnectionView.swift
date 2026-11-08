@@ -7,7 +7,7 @@ struct MootConnectionView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 HStack { Text("模型接入").font(.title2); Spacer(); Menu("添加接入") {
-                    ForEach(MootAccountBinding.candidates(accounts: perch.accounts)) { candidate in Button(candidate.connection.name) { model.config.connections.append(candidate.connection) } }
+                    ForEach(MootAccountBinding.candidates(accounts: perch.accounts, existing: model.config.connections)) { candidate in Button(candidate.connection.name) { model.config.connections.append(candidate.connection) } }
                     Divider()
                     Button("独立 Claude Code 绑定") { model.addIndependent("claude") }
                     Button("独立 Codex 绑定") { model.addIndependent("codex") }
