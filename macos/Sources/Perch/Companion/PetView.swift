@@ -4,13 +4,13 @@ import PerchCore
 final class SpriteAtlas {
     let sprites: [NSImage]
     let cgSprites: [CGImage]
-    init?(url: URL) {
+    init?(url: URL, rowSplit: Double = 449.0 / 887) {
         guard let image = NSImage(contentsOf: url),
               let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
         var frames: [NSImage] = []
         var cgFrames: [CGImage] = []
-        // The generated sheet's pose boundary is 449px from its top at 887px height.
-        let split = Int((Double(cg.height) * 449 / 887).rounded())
+        // Pox has a legacy uneven boundary; newer sheets use equal rows.
+        let split = Int((Double(cg.height) * rowSplit).rounded())
         for index in 0..<8 {
             let x = Int(Double(index % 4) * Double(cg.width) / 4)
             let right = Int(Double(index % 4 + 1) * Double(cg.width) / 4)
@@ -27,7 +27,7 @@ final class SpriteAtlas {
 
 final class PetView: NSView {
     let model: PetModel
-    let atlas: SpriteAtlas
+    let atlases: [CompanionKind: SpriteAtlas]
     var onClick: (() -> Void)?
     var onDoubleClick: (() -> Void)?
     var onMenu: ((NSEvent) -> Void)?
@@ -43,8 +43,8 @@ final class PetView: NSView {
     private var lastPose: PetPose?
     private var lastQuiet: Bool?
 
-    init(model: PetModel, atlas: SpriteAtlas) {
-        self.model = model; self.atlas = atlas
+    init(model: PetModel, atlases: [CompanionKind: SpriteAtlas]) {
+        self.model = model; self.atlases = atlases
         super.init(frame: .zero)
         wantsLayer = true
         layer?.addSublayer(spriteLayer)
@@ -113,7 +113,7 @@ final class PetView: NSView {
         }
         CATransaction.begin(); CATransaction.setDisableActions(true)
         spriteLayer.frame = petRect
-        spriteLayer.contents = atlas.cgSprites[model.pose.rawValue]
+        spriteLayer.contents = atlases[model.character]?.cgSprites[model.pose.rawValue]
         CATransaction.commit()
         if lastPose != model.pose || lastQuiet != model.quiet {
             spriteLayer.removeAllAnimations()
@@ -139,14 +139,12 @@ final class PetView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        guard model.character == .pox else { return }
+        guard model.character.usesSprites, !model.quiet else { return }
         let pose = model.pose
         let rect = petRect
 
         if hovering || pose != .idle {
-            let active = model.tasks.filter { $0.status == .running }.count
-            let label = model.previewing ? "动作预览" : pose == .thinking ? "Codex · \(active) 个任务" : pose.label
-            drawPill(label, y: 4)
+            drawPill(model.statusLabel, y: 4)
         }
         if let text = model.bubble {
             let paragraph = NSMutableParagraphStyle(); paragraph.alignment = .center
@@ -197,9 +195,9 @@ final class PetView: NSView {
         if dragging {
             dragging = false
             if let window { clampToScreen(window); savePosition(window) }
-            model.react(.confused, text: "好家伙，搬家了。", seconds: 2)
+            model.react(.confused, text: model.character.movedText, seconds: 2)
         } else if event.clickCount >= 2 {
-            onDoubleClick?(); model.react(.salute, seconds: 2)
+            onDoubleClick?(); model.react(.salute, text: model.character.doubleClickText, seconds: 2)
         } else {
             let token = clickGeneration
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) { [weak self] in

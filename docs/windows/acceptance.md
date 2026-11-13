@@ -100,6 +100,27 @@
 
 ## 当前限制与复验入口
 
+### 2026-11-13：鲸鱼娘专属互动文案
+
+- 八种姿势与任务数量、未知媒体、搬家、双击、完成气泡按 `deepseek-whale` 独立选择台词，包含白饭／鱼片／呆毛／鲸尾梗；[完整对照与参考](../../shared/strings/deepseek-whale-copy.md)。Pox 原文案和浮球无台词行为保留。
+- `windows/script/build.ps1 -Action Test` 通过。WPF 实际窗口回归覆盖八种预览台词、135px 最小尺寸宽度、真实状态接口的任务计数和完成标题、切回 Pox 的台词恢复、浮球不显示、安静模式与切换清除反馈。任务数据使用隔离 fixture，不代表真实任务完成事件实测。
+- `-Action Package -OutputDirectory dist.noindex/windows/Perch-whale-copy` 发布与打包通过。默认发布目录被运行中的 Perch 占用，未关闭该进程；新成品位于 `dist.noindex/windows/Perch-whale-copy/Perch.exe`。
+- 隔离 `--demo` 截图位于 `scratch/whale-copy/{whale-lifted,whale-complete,pox-complete}/dark-pet.png`。逐张查看确认 135px 下提起文案、完成气泡、特殊符号完整显示；Pox 仍使用“搞定一个。”与“动作预览”。演示不读取个人客户端，未更改登录配置。macOS 同步代码与回归用例，构建和实机仍待 Mac 验收。
+
+### 2026-11-13：DeepSeek 鲸鱼娘
+
+- 设置 → 开启桌宠 → 角色可选“原生浮球 / Pox / DeepSeek 鲸鱼娘”。鲸鱼娘提供与 Pox 相同的大小、安静模式、媒体感知和八种动作预览；面板跟随系统明暗。
+- .NET 10.0.400 下 Test、Publish、Package 均通过。新增 WPF 窗口回归检查真实图集裁剪、两种角色切换、预览到期恢复任务姿势、隐藏后偏好持久化、关闭停止活动、三种尺寸、安静模式和主题恢复；原有 Core 回归通过。
+- 演示截图生成于 `dist.noindex/windows/whale-preview/`：浅色下全部八姿势 × 135/190/265 像素，深色下八姿势，完成气泡，以及原生浮球/Pox 回归。已检查三种尺寸全部姿势，角色主体、鳍耳和鲸尾完整，背景透明；浅色/深色设置页与 Pox 主题、完成气泡截图检查通过。
+- 桌面工具可读取实际演示窗口的无障碍树；窗口截图捕获超时，坐标输入返回 `coordinate input geometry is unavailable`，因此鼠标拖动、通过真实下拉菜单切换、隐藏恢复和实际媒体播放仍待人工复验。上述 WPF 测试及离屏截图不替代这些项目。验收过程仅运行隔离演示数据，未修改个人客户端登录配置。
+- 演示参数新增 `--pet-character native|pox|deepseek-whale`，独立于 `--theme light|dark|pox`；未指定时保留原有默认映射。`--pet-size 135|190|265` 可用于复验尺寸，`--pet-pose 0..7` 对应图集顺序，`--pet-complete` 展示完成气泡。这些参数仅用于 `--demo`。
+
+```powershell
+dist.noindex/windows/Perch/Perch.exe --demo --theme dark --pet-character deepseek-whale --pet-pose 5 --page settings --screenshot dist.noindex/windows/whale-preview/example
+```
+
+正常产品入口仍为 `dist.noindex/windows/Perch/Perch.exe`，验收截图不读取真实客户端。
+
 尚无签名、安装器、自动升级或开机自启动；传统非 MSIX 客户端、Claude CLI projects 和 IndexedDB blob 额度回退不在当前 Windows 可用能力内。API Key 账号没有官方订阅额度数据不代表网关无限额度。
 
 构建和运行见 [架构说明](architecture.md)，发布见 [发布说明](releasing.md)。`--demo --theme light|dark|pox --page accounts|settings|info|add --screenshot <目录>` 使用演示数据生成截图；`--inspect` 仅提供任务栏入口，`--keep-open` 会改变失焦行为，因此两者都不能替代正常启动验收。

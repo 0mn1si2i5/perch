@@ -21,8 +21,9 @@ public partial class Panel : Window, IDisposable
     private readonly ThemeManager theme;
     private readonly Hotkey? hotkey;
     private PetWindow? pet;
-    private bool disposed, followsPet, lastPox, settling;
+    private bool disposed, followsPet, settling;
     private readonly bool keepOpen;
+    private string? lastCharacterTheme;
     private DateTimeOffset lastHidden;
     public event Action<string>? BackgroundError;
     public event Action<string, string, NoticeAction?>? Notice;
@@ -110,10 +111,10 @@ public partial class Panel : Window, IDisposable
     private void UpdatePet()
     {
         var p = Model.Store.Preferences;
-        bool usesPox = p.PetEnabled && p.PetCharacter == "pox";
-        if (usesPox != lastPox)
+        string? characterTheme = p.PetEnabled ? p.PetCharacter : null;
+        if (characterTheme != lastCharacterTheme)
         {
-            lastPox = usesPox;
+            lastCharacterTheme = characterTheme;
             theme.Apply();
         }
 

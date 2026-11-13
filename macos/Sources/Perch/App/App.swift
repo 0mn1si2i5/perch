@@ -23,8 +23,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         guard let url = Bundle.main.url(forResource: "pox-atlas", withExtension: "png"),
-              let atlas = SpriteAtlas(url: url) else {
-            let alert = NSAlert(); alert.messageText = "Pox 的角色素材没有找到"
+              let atlas = SpriteAtlas(url: url),
+              let whaleURL = Bundle.main.url(forResource: "deepseek-whale-atlas", withExtension: "png"),
+              let whaleAtlas = SpriteAtlas(url: whaleURL, rowSplit: 0.5) else {
+            let alert = NSAlert(); alert.messageText = "桌宠的角色素材没有找到"
             alert.informativeText = "请通过项目中的 build_and_run.sh 重新构建完整应用。"
             alert.runModal(); NSApp.terminate(nil); return
         }
@@ -37,7 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         panel.isReleasedWhenClosed = false
         NotificationCenter.default.addObserver(self, selector: #selector(petWindowDidMove),
                                                name: NSWindow.didMoveNotification, object: panel)
-        petView = PetView(model: pet, atlas: atlas)
+        petView = PetView(model: pet, atlases: [.pox: atlas, .deepseekWhale: whaleAtlas])
         panel.contentView = petView
         petView.onClick = { [weak self] in self?.togglePopover(fromPet: true) }
         petView.onDoubleClick = { [weak self] in self?.popover.close(); self?.perch.openBusiestAccount() }

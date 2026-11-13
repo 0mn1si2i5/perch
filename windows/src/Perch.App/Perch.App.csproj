@@ -16,6 +16,7 @@
     <Content Include="../../../NOTICE" Link="NOTICE" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../../LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../../shared/assets/pox-atlas.png" Link="Resources/pox-atlas.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../../shared/assets/deepseek-whale-atlas.png" Link="Resources/deepseek-whale-atlas.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Resources/ClientIcons/*.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Resources/ClientIcons/dsh.svg" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

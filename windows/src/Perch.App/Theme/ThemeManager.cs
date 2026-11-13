@@ -9,15 +9,15 @@ namespace Perch.Windows;
 public sealed class ThemeManager : IDisposable
 {
     private readonly UISettings ui = new();
-    private readonly Func<bool> pox;
+    private readonly Func<string?> characterTheme;
     private readonly string? forced;
     private ResourceDictionary? current;
     public string Name { get; private set; } = "Light";
 
     public event Action? Changed;
-    public ThemeManager(Func<bool> usesPox, string? theme)
+    public ThemeManager(Func<string?> selectedCharacterTheme, string? theme)
     {
-        pox = usesPox;
+        characterTheme = selectedCharacterTheme;
         forced = theme;
         Application.Current.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/Perch;component/Theme/Controls.xaml", UriKind.Relative) });
         foreach (var pair in Strings.All)
@@ -35,13 +35,14 @@ public sealed class ThemeManager : IDisposable
             "light" => "Light",
             "dark" => "Dark",
             "pox" => "Pox",
-            _ => pox() ? "Pox" : light ? "Light" : "Dark"
+            "deepseek" => "DeepSeek",
+            _ => characterTheme() switch { "pox" => "Pox", "deepseek-whale" => "DeepSeek", _ => light ? "Light" : "Dark" }
         };
         var next = new ResourceDictionary
         {
             Source = new Uri($"/Perch;component/Theme/Tokens.{Name}.xaml", UriKind.Relative)
         };
-        if (Name != "Pox")
+        if (Name is "Light" or "Dark")
         {
             var color = ui.GetColorValue(UIColorType.Accent);
             // An achromatic system accent makes selected navigation look like

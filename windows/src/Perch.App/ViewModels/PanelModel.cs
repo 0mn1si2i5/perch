@@ -170,19 +170,24 @@ public sealed partial class PanelModel : Observable, IDisposable
 
     public int PetKind
     {
-        get => Store.Preferences.PetCharacter == "pox" ? 1 : 0;
+        get => PetCharacters.Normalize(Store.Preferences.PetCharacter) switch { "pox" => 1, "deepseek-whale" => 2, _ => 0 };
         set
         {
-            Store.Preferences.PetCharacter = value == 1 ? "pox" : "native";
+            Store.Preferences.PetCharacter = value switch { 1 => "pox", 2 => "deepseek-whale", _ => "native" };
             Configure();
             Changed();
-            Changed(nameof(IsPox));
+            Changed(nameof(IsSpritePet));
             Changed(nameof(PetHelp));
         }
     }
 
-    public bool IsPox => PetKind == 1;
-    public string PetHelp => IsPox ? "Pox 会陪伴任务进度与媒体播放。" : "轻巧的桌面入口；单击展开或收起面板。";
+    public bool IsSpritePet => PetCharacters.UsesSprites(Store.Preferences.PetCharacter);
+    public string PetHelp => PetKind switch
+    {
+        1 => "Pox 会陪伴任务进度与媒体播放。",
+        2 => "鲸鱼娘会陪伴任务进度与媒体播放；面板使用 DeepSeek 蓝暗色主题。",
+        _ => "轻巧的桌面入口；单击展开或收起面板。"
+    };
 
     public double PetSize
     {

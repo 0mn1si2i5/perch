@@ -18,9 +18,9 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.menu)
-                    Text(pet.character == .native ? "静态浮球 · 系统外观" : "角色主题 · 隐藏后保留")
+                    Text(pet.character == .pox ? "角色主题 · 隐藏后保留" : pet.character == .native ? "静态浮球 · 系统外观" : "鲸鱼娘陪伴任务与媒体 · 系统外观")
                         .foregroundStyle(.secondary)
-                    if pet.character == .pox {
+                    if pet.character.usesSprites {
                         PanelDisclosure("桌宠选项") {
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack {

@@ -63,8 +63,12 @@ public static class Program
         {
             var store = new Store(temp ?? Option("--data-root"));
             if (demo)
-                store.Preferences.PetCharacter = Option("--theme") == "pox" ? "pox" : "native";
-            using var theme = new ThemeManager(() => store.Preferences.PetEnabled && store.Preferences.PetCharacter == "pox", Option("--theme"));
+            {
+                store.Preferences.PetCharacter = PetCharacters.Normalize(Option("--pet-character") ?? (Option("--theme") switch { "pox" => "pox", "deepseek" => "deepseek-whale", _ => "native" }));
+                if (double.TryParse(Option("--pet-size"), System.Globalization.CultureInfo.InvariantCulture, out double size))
+                    store.Preferences.PetSize = Math.Clamp(size, 135, 265);
+            }
+            using var theme = new ThemeManager(() => store.Preferences.PetEnabled ? store.Preferences.PetCharacter : null, Option("--theme"));
             var panel = new Panel(store, theme, demo, args.Contains("--keep-open") || Option("--screenshot") != null, args.Contains("--inspect"));
             shown = panel;
             panel.Model.Page = Option("--page") ?? "accounts";

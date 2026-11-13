@@ -66,3 +66,9 @@
 
 
 2026-10-20 实机验收（阶段 1、2 与 Moot 运行记录合并后的版本）：第 2、3、4 项通过；第 1 项本机没有 API 供应商或自定义客户端账号，没有生成 `removed-accounts.json`，其余 7 个账号保持不变；第 5、6、7 项未测。子代理面板列出了当晚 4 个 Moot 任务，分别标出 Codex、Claude、Gemini，时间取自运行记录。
+
+## 2026-11-13：DeepSeek 鲸鱼娘（待 Mac 验收）
+
+已接入第三个角色 `deepseek-whale`、共享透明图集、八种姿势、桌宠选项、系统明暗主题及构建资源复制，补充角色持久化、切换清理、禁用停止和图集裁剪回归。现有 `com.pox.desktop` → `com.omnis.perch` 一次迁移保持完整。
+
+本次环境为 Windows，没有 Swift 或 Mac 运行环境，未执行 `swift test --package-path macos` 和 `macos/script/build_and_run.sh --build`。需在 Mac 上运行两项命令，并实际检查三角色切换、任务/媒体反馈、预览到期、大小、安静模式、隐藏恢复及窗口拖动。Windows 结果不代表 Mac 构建或实机通过。

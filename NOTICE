@@ -28,6 +28,18 @@ The MIT License in LICENSE covers the Perch source code. The following are not c
   reserved. You may redistribute it unmodified as part of Perch builds.
 - Third-party code under macos/Vendor/, which keeps its own license
   (MediaRemote Adapter: BSD-3-Clause, see macos/Vendor/MediaRemoteAdapter/LICENSE).
+- The DeepSeek whale-girl atlas (shared/assets/deepseek-whale-atlas.png),
+  AI-assisted artwork prepared for Perch, 2026-11-13, is shared under
+  Creative Commons Attribution-ShareAlike 4.0 International:
+  https://creativecommons.org/licenses/by-sa/4.0/
+  Based on the Q-version character guidance and generation prompts by the
+  TreapGoGo/deepseek-whale-girl community, also under CC BY-SA 4.0:
+  https://github.com/TreapGoGo/deepseek-whale-girl
+  Changes: newly generated eight-pose chibi atlas, desktop-size composition,
+  and transparent-background revision. No community gallery image was copied.
+  Retain this attribution, link the license, indicate further changes, and
+  share adaptations under the same license. This is an unofficial fan design;
+  no DeepSeek affiliation or endorsement is implied.
 - Codex, ChatGPT, Claude and DeepSeek names and client icons
   (windows/src/Perch.App/Resources/ClientIcons/) belong to their owners and
   are used only to identify the corresponding desktop clients.
