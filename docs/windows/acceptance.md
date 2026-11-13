@@ -1,5 +1,15 @@
 # Windows 验证与验收
 
+## 2026-11-13：PR 准备复验
+
+本轮在 `codex/windows-dsh` 的 `3776b7f` 源码基础上修正文档，未修改产品代码。运行环境为 Windows / .NET SDK 10.0.400。
+
+- `windows/script/build.ps1 -Action Test` 通过：Core 与 WPF 两套回归均成功，覆盖 dsh 安装发现、认证 RPC、DPAPI、独立宿主、API 余额隔离、共享 JSON、账号布局及桌宠图集／切换／主题／生命周期。NuGet 漏洞数据源不可达，出现 NU1900，未获得本轮漏洞审计结果；图集加载另有 libpng iCCP 配置警告，未导致用例失败。
+- `windows/script/build.ps1 -Action Package -OutputDirectory dist.noindex/windows/Perch-pr-review` 通过，包含 Release、win-x64 自包含发布及便携 ZIP／SHA256 生成。未覆盖正常产品目录、重启 Perch 或停止个人 dsh／Codex／Claude。
+- 本地成品为 `dist.noindex/windows/Perch-pr-review/Perch.exe` 与 `dist.noindex/windows/releases/Perch-Windows-0.2.0-x64.zip`。ZIP 的 486 个条目通过 CRC 检查，SHA256 与 `SHA256SUMS` 一致；程序、运行时、两种图集、dsh 徽标、LICENSE 和 NOTICE 与本次发布目录一致，鲸鱼娘图集及许可文件也与仓库原文件一致。版本仍为 0.2.0，此包包含未发布改动，不等同于 GitHub 上已发布的 0.2.0 Release。
+- 将 ZIP 解包后运行独立 `--demo`：DeepSeek 主题设置页／鲸鱼娘完成气泡，以及浅色 dsh npm 添加页，进程均成功退出。逐张检查确认角色、文案、主题、输入框和指引布局正常；不读取真实客户端。日志、包校验结果和截图在忽略目录 `scratch/pr-windows-dsh/`。
+- 本轮没有重做真实 dsh 启动 smoke、真实模型任务／完成通知、官方登录钱包、鼠标拖动或媒体播放验收；此前日期记录仅代表当时验证。Mac 无可用环境，新增桌宠与共享 JSON 的 Swift 测试、构建、脱离仓库的应用资源加载和实机交互均未验证，待在 Mac 执行并补录。
+
 ## 2026-11-13：桌宠文案共享 JSON 重构
 
 - Windows 与 macOS 的桌宠台词统一以 `shared/strings/zh-CN.json` 为源。Windows 继续嵌入程序集，macOS 构建时复制原文件到应用资源；Swift 中的姿势、角色台词和预览模板副本已移除。Pox 反馈也从通用键读取，鲸鱼娘仅使用其命名空间，浮球仍不显示台词。
@@ -116,11 +126,11 @@
 
 ### 2026-11-13：DeepSeek 鲸鱼娘
 
-- 设置 → 开启桌宠 → 角色可选“原生浮球 / Pox / DeepSeek 鲸鱼娘”。鲸鱼娘提供与 Pox 相同的大小、安静模式、媒体感知和八种动作预览；面板跟随系统明暗。
+- 设置 → 开启桌宠 → 角色可选“原生浮球 / Pox / DeepSeek 鲸鱼娘”。鲸鱼娘提供与 Pox 相同的大小、安静模式、媒体感知和八种动作预览；当前 Windows 实现启用鲸鱼娘使用 DeepSeek 暗色主题，启用 Pox 使用 Pox 主题，原生浮球或关闭桌宠跟随系统明暗。隐藏桌宠保留角色主题。macOS 鲸鱼娘跟随系统，其新增代码仍待 Mac 验证。
 - .NET 10.0.400 下 Test、Publish、Package 均通过。新增 WPF 窗口回归检查真实图集裁剪、两种角色切换、预览到期恢复任务姿势、隐藏后偏好持久化、关闭停止活动、三种尺寸、安静模式和主题恢复；原有 Core 回归通过。
 - 演示截图生成于 `dist.noindex/windows/whale-preview/`：浅色下全部八姿势 × 135/190/265 像素，深色下八姿势，完成气泡，以及原生浮球/Pox 回归。已检查三种尺寸全部姿势，角色主体、鳍耳和鲸尾完整，背景透明；浅色/深色设置页与 Pox 主题、完成气泡截图检查通过。
 - 桌面工具可读取实际演示窗口的无障碍树；窗口截图捕获超时，坐标输入返回 `coordinate input geometry is unavailable`，因此鼠标拖动、通过真实下拉菜单切换、隐藏恢复和实际媒体播放仍待人工复验。上述 WPF 测试及离屏截图不替代这些项目。验收过程仅运行隔离演示数据，未修改个人客户端登录配置。
-- 演示参数新增 `--pet-character native|pox|deepseek-whale`，独立于 `--theme light|dark|pox`；未指定时保留原有默认映射。`--pet-size 135|190|265` 可用于复验尺寸，`--pet-pose 0..7` 对应图集顺序，`--pet-complete` 展示完成气泡。这些参数仅用于 `--demo`。
+- 演示参数新增 `--pet-character native|pox|deepseek-whale`，独立于 `--theme light|dark|pox|deepseek`；未指定时保留原有默认映射。显式指定主题会覆盖角色的默认主题，因此下方 `--theme dark` 示例不代表正常产品的鲸鱼娘配色。`--pet-size 135|190|265` 可用于复验尺寸，`--pet-pose 0..7` 对应图集顺序，`--pet-complete` 展示完成气泡。这些参数仅用于 `--demo`。
 
 ```powershell
 dist.noindex/windows/Perch/Perch.exe --demo --theme dark --pet-character deepseek-whale --pet-pose 5 --page settings --screenshot dist.noindex/windows/whale-preview/example
@@ -130,4 +140,4 @@ dist.noindex/windows/Perch/Perch.exe --demo --theme dark --pet-character deepsee
 
 尚无签名、安装器、自动升级或开机自启动；传统非 MSIX 客户端、Claude CLI projects 和 IndexedDB blob 额度回退不在当前 Windows 可用能力内。API Key 账号没有官方订阅额度数据不代表网关无限额度。
 
-构建和运行见 [架构说明](architecture.md)，发布见 [发布说明](releasing.md)。`--demo --theme light|dark|pox --page accounts|settings|info|add --screenshot <目录>` 使用演示数据生成截图；`--inspect` 仅提供任务栏入口，`--keep-open` 会改变失焦行为，因此两者都不能替代正常启动验收。
+构建和运行见 [架构说明](architecture.md)，发布见 [发布说明](releasing.md)。`--demo --theme light|dark|pox|deepseek --page accounts|settings|info|add --screenshot <目录>` 使用演示数据生成截图；`--inspect` 仅提供任务栏入口，`--keep-open` 会改变失焦行为，因此两者都不能替代正常启动验收。

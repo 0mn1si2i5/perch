@@ -5,8 +5,9 @@ Windows 版本来自 `windows/VERSION`，当前为 0.2.0。系统要求 Windows 
 ## 模块
 
 - `windows/src/Perch.Core`：账号与偏好、进程查询、客户端定位、只读会话、额度、会话状态变化和屏幕定位策略。
-- `windows/src/Perch.App`：WPF 页面、增量 ViewModel、系统明暗／Pox 主题、托盘、Ctrl+Alt+P 快捷键和桌宠。WinForms 仅用于托盘宿主。`PanelModel` 分为轮询与额度（`PanelModel.cs`）、账号操作（`.Accounts.cs`）、状态通知（`.Notices.cs`）和演示数据（`.Demo.cs`）四个文件。
+- `windows/src/Perch.App`：WPF 页面、增量 ViewModel、系统明暗／Pox／DeepSeek 主题、托盘、Ctrl+Alt+P 快捷键和桌宠。WinForms 仅用于托盘宿主。`PanelModel` 分为轮询与额度（`PanelModel.cs`）、账号操作（`.Accounts.cs`）、状态通知（`.Notices.cs`）和演示数据（`.Demo.cs`）四个文件，dsh 添加与配置逻辑位于 `DshPanelModel.cs`。
 - `windows/tests/Perch.Core.Tests`：独立回归程序，消费 `shared/fixtures` 手工样本；使用 Windows 原生 SQLite API。
+- `windows/tests/Perch.App.Tests`：WPF 回归程序，验证 dsh 添加指引、账号卡片与输入布局，以及实际桌宠窗口的图集裁剪、角色切换、主题、反馈和生命周期。`-Action Test` 顺序运行 Core 与 WPF 两套回归。
 - `shared/strings`、`assets`、`design`：共用文案、品牌与精灵素材、设计约定。平台差异见 [功能对齐](../../shared/parity.md)。
 
 ## 构建
@@ -37,6 +38,6 @@ Windows 版本来自 `windows/VERSION`，当前为 0.2.0。系统要求 Windows 
 - dsh 使用独立安装／home 配置和本机认证 RPC，后台宿主模式在 WPF 单实例入口之前分派。实例按 home 匹配并持有命名 mutex，动态端口与授权写入 DPAPI 加密记录；退出面板不停止服务。详见 [dsh 使用与复验](deepseek-harness.md)。
 - 文档接力和拆出需求已删除。旧版留在 `%LOCALAPPDATA%\Perch\handoffs` 的交接文档和记录保留，不再读取。
 - 用户操作（对话框、启动客户端）期间面板不因失焦收起；启动、轮询和自动额度刷新在后台运行，不影响点外部收起。逃出处理函数的文件和剪贴板错误（IOException、UnauthorizedAccessException、COMException）只在面板提示，不退出程序；截图模式不装这个处理器，出错照常退出。启动期间的提示（文件恢复、快捷键占用）先保留，等托盘接上或面板第一次打开时再显示。
-- 原生浮球保持系统主题；Pox 主题在隐藏桌宠后保留。媒体感知只读取播放状态及类型，不读取歌曲、视频或窗口标题。
+- 启用鲸鱼娘使用 DeepSeek 暗色主题，启用 Pox 使用 Pox 主题；隐藏桌宠保留角色主题，原生浮球或关闭桌宠则跟随系统明暗与强调色。媒体感知只读取播放状态及类型，不读取歌曲、视频或窗口标题。
 
 历史探针和逐项开发计划已归档到整理前的备份；当前可用范围与未验收项集中见 [验收说明](acceptance.md)。

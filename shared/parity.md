@@ -14,7 +14,7 @@
 | G10 恢复桌宠位置 | ✅ | 🟡 | 托盘和桌宠菜单接入 |
 | G11 桌宠反馈 | ✅ | 🟡 | 渲染预览；真实任务完成事件待验收 |
 | G12 原生浮球 | ✅ | ✅ | 明暗离屏截图 |
-| 可切换 DeepSeek 鲸鱼娘 | 🟡 | 🟡 | 两端接入第三角色、8 姿势、任务/媒体反馈、大小/安静/预览及偏好持久化；鲸鱼娘使用系统主题，Pox 保留原主题。Windows Core 与 WPF 生命周期回归通过；截图和鼠标交互验收见 Windows 验收记录。Mac 构建及实机待验证 |
+| 可切换 DeepSeek 鲸鱼娘 | 🟡 | 🟡 | 两端接入第三角色、8 姿势、任务/媒体反馈、大小/安静/预览及偏好持久化。Windows 启用鲸鱼娘使用 DeepSeek 暗色主题，启用 Pox 使用 Pox 主题，原生浮球或关闭桌宠跟随系统；macOS 鲸鱼娘使用系统主题，Pox 保留原主题。Windows Core 与 WPF 生命周期回归通过；截图和鼠标交互验收见 Windows 验收记录。Mac 新增代码的测试、构建及实机均待验证 |
 | 鲸鱼娘专属互动文案 | 🟡 | ✅ | 两端按角色分流 8 姿势、任务计数、媒体、搬家、双击和完成反馈；加入白饭、鱼片、呆毛与鲸尾梗，Pox／浮球保留原文案；[对照与来源](strings/deepseek-whale-copy.md)。Windows Core／WPF 回归及 135px 演示截图通过；Mac 构建及实机待验证 |
 | 共享 JSON 桌宠文案 | 🟡 | ✅ | 两端读取 `shared/strings/zh-CN.json`；Windows 嵌入程序集，Mac 构建时复制到应用资源，SwiftPM 开发／测试直接读取源文件；移除 Swift 重复台词及 C# 通用反馈字面量。按角色命名空间隔离，测试预期读取资源，改台词只改 JSON；Windows Core／WPF 通过，Mac 已补应用资源加载与隔离测试，待 Mac 构建验收 |
 | G13 后台通知 | ✅ | 🟡 | Windows 气球提示保留 |
@@ -25,9 +25,9 @@
 | Codex 任务 30 分钟无更新视为停止 | ✅ | 🟡 | 两端阈值一致；Windows Core 测试 2026-10-20 在 CI 通过 |
 | 按账号读取 Claude 会话 | 🟡 | ✅ | Mac 已接入各 profile 桌面会话，信息页说明本机 Code 历史来源及账号限制；独立目录、audit 缓存与共享 fixture 测试通过，双真实账号待验收 |
 | 会话拖动排序 | 🟡 | 🟡 | Mac 拖动整行，同账号同分区排序并持久化；隐藏会话焦点蓝框，保留键盘操作；模型投放与重启恢复测试通过，鼠标拖动待验收 |
-| 共享 strings/fixtures 消费 | 🟡 | ✅ | Mac Claude 会话测试消费共享 fixture；共享 strings 和其余 fixture 待接入。`info.8` 已改成与 macOS 信息页同一句，只是共享文案更正：Windows 信息页不显示这一条，Mac 在阶段 5 接入共享文案后才会用到 |
+| 共享 strings/fixtures 消费 | 🟡 | ✅ | Windows 消费共享 strings 与 fixture；Mac Claude 会话测试消费共享 fixture，新增桌宠文案读取共享 JSON，其测试与构建待 Mac 验证；其余 Mac 文案与 fixture 尚未全部接入。`info.8` 仍只是共享文案，Windows 信息页不显示，Mac 信息页也尚未消费该键 |
 | 双个人账号同时登录 | 🟡 | 🟡 | 未具备两套个人账号验收条件 |
-| 原生 UI 明暗/Pox | ✅ | ✅ | Windows 三主题四页面渲染 |
+| 原生 UI 明暗/Pox/DeepSeek | ✅ | ✅ | Windows 系统明暗、Pox 与 DeepSeek 角色主题；Mac 无 DeepSeek 专属面板主题，鲸鱼娘跟随系统。Windows 历史主题截图及本地 WPF 主题回归通过；新增 Mac 桌宠切换仍待实机验证 |
 | 平台发布配置 | N/A | ✅ | `windows-v0.2.0` tag 已在远端完成测试、打包并发布预览 Release |
 | dsh 源码构建／npm 安装版 Web | 🟡 | 🟡 | Windows 基线 0.1.7-rc.2；两种真实安装的隔离启动、认证、双 home、手动连接与恢复通过；Electron Desktop 不在范围内；macOS 采用下述本机供应商路径 |
 | dsh 安装发现与手动添加指引 | ❌ | ✅ | Windows 检查 PATH 命令包装器、npm 前缀／用户 npmrc、官方 npx 缓存；验证包名和 CLI，去重并列出来源／版本；失败显示持久指引、文件／目录选择、配置检查、官方命令复制与已有实例入口。本机 0.2.1-rc.5 在独立 home 的发现、启动、会话认证、手动连接与恢复通过；Desktop 原生授权不接管；Mac 本次未修改 |

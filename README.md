@@ -13,7 +13,7 @@
   <img src="docs/images/perch-overview.png" alt="Perch macOS 面板示意：账号、会话、额度与可选桌宠" width="100%">
 </p>
 
-上图为 macOS 界面示意，数据均为演示数据。Windows 版使用原生面板，跟随系统浅色／深色，也可选 Pox 主题。
+上图为 macOS 界面示意，数据均为演示数据。Windows 版使用原生面板，支持系统浅色／深色及 Pox 主题；当前源码开发版另有鲸鱼娘配套的 DeepSeek 暗色主题。
 
 ## 能做什么
 
@@ -21,15 +21,15 @@
 | --- | --- | --- |
 | 按 Codex / Claude 分组，一键启动或调出对应账号的客户端，每个账号的登录和数据互不干扰。 | 查看正在运行的任务和最近的会话；分组、账号和会话都能拖动排序。 | 显示 5 小时和每周额度的已用比例与重置时间，可手动刷新或定期同步；查不到时显示上次的数据并注明时间。 |
 
-**macOS 开发版新增供应商管理**：可引用本机 Gemini CLI、Antigravity CLI、DeepSeek Harness 和 Gemini 应用。Antigravity 额度来自 Gemini 应用内的 Antigravity；Antigravity CLI 卡片只在手动刷新时运行一次 agy。DeepSeek 显示账户余额。通过新建页主动扫描、逐项添加本机入口。之前开发版里的自定义客户端和 API 供应商已删除，旧账号会移到备份文件。使用方式见[供应商说明](docs/macos/providers.md)。此功能尚未发布到上表的 Release，Windows 暂未跟进。
+**macOS 开发版新增供应商管理**：可引用本机 Gemini CLI、Antigravity CLI、DeepSeek Harness 和 Gemini 应用。Antigravity 额度来自 Gemini 应用内的 Antigravity；Antigravity CLI 卡片只在手动刷新时运行一次 agy。DeepSeek 显示账户余额。通过新建页主动扫描、逐项添加本机入口。之前开发版里的自定义客户端和 API 供应商已删除，旧账号会移到备份文件。使用方式见[供应商说明](docs/macos/providers.md)。此功能尚未发布到上表的 Release；Windows 尚未接入 Gemini CLI、Antigravity CLI 和 Gemini 应用，dsh 支持见下一段。
 
-**桌宠（可选）**：默认关闭。在设置里开启后，可以选一个静态的原生浮球，或者内置角色 Pox（带配套面板主题）。单击桌宠打开面板，拖动可换位置。
+**Windows 开发版新增 dsh Web**：支持源码构建版、npm 安装版、官方 npx 缓存和已有本机 Web 实例，提供安装发现、手动添加、后台服务、根会话任务状态、官方账户钱包与独立 API 余额查询。Electron Desktop 原生宿主不在范围内；新版真实模型任务与官方登录钱包仍待验收。此能力尚未发布到上表的 0.2.0 安装包；配置与限制见 [Windows dsh 指南](docs/windows/deepseek-harness.md)。
+
+**桌宠（可选）**：默认关闭。已发布版本可选静态的原生浮球或 Pox（带配套面板主题）；单击打开面板，拖动可换位置。当前源码开发版新增 DeepSeek 鲸鱼娘、八种姿势和专属互动文案，两端桌宠文案共用 JSON。Windows 启用鲸鱼娘后使用 DeepSeek 暗色主题，启用 Pox 使用 Pox 主题，原生浮球或关闭桌宠时跟随系统明暗；macOS 鲸鱼娘跟随系统主题，其新增桌宠与共享文案代码尚未在 Mac 上构建或实机验收。
 
 ## 下载与安装
 
 两个平台的安装包目前都没有经过系统签名认证，第一次打开时系统会拦一下，按下面的步骤放行即可。只在确认是从本仓库 Releases 页面下载时才这样做。
-
-Windows 源码当前还支持 DeepSeek Harness（dsh）Web：源码构建版、npm 安装版和已有本机实例，包含任务、官方账户钱包与独立 API 余额查询。此能力尚未发布到上面的 0.2.0 安装包；配置与限制见 [Windows dsh 指南](docs/windows/deepseek-harness.md)。
 
 ### macOS
 
@@ -80,7 +80,7 @@ Windows 源码当前还支持 DeepSeek Harness（dsh）Web：源码构建版、n
 | 在 Perch 里新建的客户端数据 | 上述目录下的 `Profiles/` | `%USERPROFILE%\.perch\profiles\` |
 
 - 已有的客户端数据原地使用，Perch 不会移动或删除；从旧版 agent-desk 导入账号也不会删除它的数据。
-- 平时只读取会话的标题、状态和工作目录，不读取聊天内容。
+- 会话监控以标题、状态和工作目录等元数据为主。Windows dsh 为判断最近回合的结束状态，会读取最近一个消息事件窗口；正文可能随响应进入内存，但不搜索、不展示、不记录、不落盘，仅缓存事件游标与解析状态。详情见 [dsh 数据边界](docs/windows/deepseek-harness.md#会话和余额)。
 - Codex／Claude 查询额度时，Perch 会读取对应账号在客户端里的登录授权，只在内存中用于向官方服务查询额度，不保存到文件或日志，也不会改变客户端的登录状态。Windows dsh 通过本机服务查询会话和钱包，其本地连接授权使用当前用户 DPAPI 加密保存以支持恢复连接，不读取浏览器登录信息；独立 API 余额查询只读指定 dsh 数据目录的标准文件凭据，仅在内存中向官方 HTTPS 接口使用 Key，不保存密钥副本。
 - Perch 不会自动发送任何聊天消息，不上传你的数据，没有跨设备同步。
 - Perch 的数据目录只有当前用户可以访问。
@@ -124,4 +124,4 @@ docs/     架构、验收与发布说明
 
 ## 许可证
 
-代码以 [MIT 许可证](LICENSE) 发布。Pox 角色及其美术素材保留版权，可随 Perch 原样分发；`macos/Vendor/` 下的第三方代码遵循各自的许可证；Codex、ChatGPT、Claude 的名称和图标归各自所有者。详见 [LICENSE](LICENSE) 和 [NOTICE](NOTICE)。
+代码以 [MIT 许可证](LICENSE) 发布。Pox 角色及其美术素材保留版权，可随 Perch 原样分发；DeepSeek 鲸鱼娘图集以 CC BY-SA 4.0 分发，来源、署名与修改说明见 [NOTICE](NOTICE)；`macos/Vendor/` 下的第三方代码遵循各自的许可证；Codex、ChatGPT、Claude、DeepSeek 的名称和图标归各自所有者。详见 [LICENSE](LICENSE) 和 [NOTICE](NOTICE)。
