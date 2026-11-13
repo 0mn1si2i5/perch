@@ -9,7 +9,9 @@
 
 以下为本项目新写台词，借用社区常见梗，不逐句复制来源。语气软萌、略馋、亲近；使用 ♡、♪、✧ 与波浪号点缀。任务运行中保留实际数量，完成反馈保留原有任务标题，不暗示执行了额外工作或实际消耗了 Token。
 
-## 对照
+## 初次修改对照（2026-11-13）
+
+此表保留当次修改记录；日后的实际台词以 `zh-CN.json` 为准，修改文案时无需同步改写历史对照表。
 
 | 场景 | 修改前（鲸鱼娘与 Pox 共用） | 鲸鱼娘修改后 |
 |---|---|---|
@@ -30,4 +32,22 @@
 
 设置中的动作名称保留简明的功能命名，实际预览与桌宠反馈使用上述台词。待机标签仍仅悬停时显示；真实任务数量覆盖思考姿势台词；拖动落下的临时反馈覆盖困惑姿势台词。
 
-Windows 台词位于 `zh-CN.json` 的 `pet.whale.*`，原有 `pet.pose.*` 保持不变；macOS 在 `CompanionKind` 中维护同文案，并由 `PetModel`／`PetView` 按角色选择。
+## 以后如何修改
+
+**唯一文案源：[zh-CN.json](zh-CN.json)。** 两端均从这份 JSON 读取桌宠台词，不再在 Swift／C# 中维护台词副本。
+
+| 键 | 用途 |
+|---|---|
+| `pet.whale.pose.0`～`7` | 鲸鱼娘八种姿势，依次为待机、招呼、思考、听歌、看视频、庆祝、困惑、提起 |
+| `pet.whale.running`、`pet.whale.media`、`pet.whale.moved`、`pet.whale.doubleClick`、`pet.whale.completion` | 鲸鱼娘任务、未知媒体、搬家、双击、完成反馈 |
+| `pet.pose.*`、`pet.running`、`pet.media`、`pet.moved`、`pet.doubleClick`、`pet.completion` | 原有通用／Pox 文案，不被鲸鱼娘使用 |
+| `pet.running.codex` | macOS 原有 Codex 任务计数文案 |
+| `pet.preview`、`pet.preview.detail` | 通用预览提示及包裹角色台词的预览气泡模板 |
+
+只改对应键的值，保留键名、UTF-8 编码和合法 JSON。`{0}` 是两端共用的唯一占位符：`running` 中代表任务数量，`preview.detail` 中代表角色姿势台词；可以调整位置，需要显示该信息时保留它。换行使用 JSON 的 `\n`，双引号使用 `\"`。♡、♪、✧ 等字符可以直接输入。较长台词需要检查最小桌宠尺寸是否完整显示。
+
+Windows 通过现有 `Strings` 加载嵌入程序集的 JSON；macOS 的 `build_and_run.sh` 将原文件复制到应用的 `Contents/Resources/zh-CN.json`，`PerchCore.Strings` 优先加载应用资源。`swift test`／`swift run` 没有 `.app` 包时直接读取仓库中的同一文件；已打包应用缺失资源时不会偷偷回退到开发机源码。
+
+修改后重新构建两端并重启对应应用即可，不支持运行时热更新。Windows：`windows/script/build.ps1 -Action Test`，随后 `-Action Publish` 或 `-Action Package`；macOS：`swift test --package-path macos`、`macos/script/build_and_run.sh --build`。测试读取资源中的预期文案，无需随每次措辞调整改写 Swift／C# 测试。
+
+角色分流仍只允许 `deepseek-whale` 访问 `pet.whale.*`；Pox 访问通用键；浮球沿用不显示台词的行为。macOS 的 Pox 双击仍不新增气泡，未知媒体仍显示原有看视频姿势标签。

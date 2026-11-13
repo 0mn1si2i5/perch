@@ -1,5 +1,12 @@
 # Windows 验证与验收
 
+## 2026-11-13：桌宠文案共享 JSON 重构
+
+- Windows 与 macOS 的桌宠台词统一以 `shared/strings/zh-CN.json` 为源。Windows 继续嵌入程序集，macOS 构建时复制原文件到应用资源；Swift 中的姿势、角色台词和预览模板副本已移除。Pox 反馈也从通用键读取，鲸鱼娘仅使用其命名空间，浮球仍不显示台词。
+- `windows/script/build.ps1 -Action Test` 通过：新增嵌入资源与源 JSON 一致性、全部姿势／反馈的角色分流和 Unicode／`{0}` 格式化检查；实际 WPF 窗口的预览、任务计数、完成标题、切换清理、浮球和安静模式回归通过。文案预期值从 JSON 读取，后续改台词无需同步测试字面量。
+- `-Action Package -OutputDirectory dist.noindex/windows/Perch-shared-strings` 发布与打包通过，成品为该目录下的 `Perch.exe`；未替换运行中的 Perch。新成品的 135px 鲸鱼娘／Pox 完成气泡截图位于 `scratch/shared-strings-qa/{deepseek-whale,pox}/dark-pet.png`，逐张检查台词与角色对应、标题和特殊符号显示完整。
+- Mac 构建脚本 `bash -n` 语法检查通过，但当前无 Swift／Mac 环境，Mac 编译、测试及脱离仓库的应用包运行仍待验收，不能以此语法检查代替。维护方式见 [文案说明](../../shared/strings/deepseek-whale-copy.md)。
+
 ## 2026-11-13：dsh 安装发现与手动添加
 
 - 参照 dsh 官方 README 的 npm／npx 和源码启动说明，以及官方 Desktop 的私有 IPC 授权边界；未把本机安装目录写入产品规则。新增 PATH 包装器、npm 前缀／用户 npmrc 路径和 npx 缓存发现，验证 manifest 包名与 CLI 入口，列出来源／版本并去重；支持命令文件、manifest、包、前缀和项目目录的手动选择。

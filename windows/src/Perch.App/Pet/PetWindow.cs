@@ -149,7 +149,7 @@ public sealed class PetWindow : Window
             {
                 single.Stop();
                 Preview(5, 2);
-                feedback = PetCharacters.Feedback(character, "doubleClick", "向你敬礼");
+                feedback = PetCharacters.Feedback(character, "doubleClick");
                 doubleClick();
                 return;
             }
@@ -261,15 +261,13 @@ public sealed class PetWindow : Window
             sprite.Source = frames[pose];
             sprite.RenderTransform = new TranslateTransform(0, store.Preferences.Quiet ? 0 : Math.Sin(ticks * 0.14) * 2);
             label.Text = previewUntil > DateTimeOffset.UtcNow && character != "deepseek-whale"
-                ? "动作预览" : PetCharacters.PoseLabel(character, pose);
+                ? Strings.Get("pet.preview") : PetCharacters.PoseLabel(character, pose);
             if (previewUntil > DateTimeOffset.UtcNow && feedback != null)
                 label.Text = feedback;
             if (pose == 2 && previewUntil < DateTimeOffset.UtcNow)
-                label.Text = character == "deepseek-whale"
-                    ? string.Format(Strings.Get("pet.whale.running"), sessions.Count(s => s.Status == "运行中"))
-                    : sessions.Count(s => s.Status == "运行中") + " 个任务";
+                label.Text = Strings.Format(PetCharacters.DialogueKey(character, "running"), sessions.Count(s => s.Status == "运行中").ToString());
             if (pose == 4 && mediaKind == "unknown" && previewUntil < DateTimeOffset.UtcNow)
-                label.Text = PetCharacters.Feedback(character, "media", "媒体播放中");
+                label.Text = PetCharacters.Feedback(character, "media");
             capsule.Visibility = !store.Preferences.Quiet && (IsMouseOver || pose != 0) ? Visibility.Visible : Visibility.Collapsed;
         };
         Configure();
@@ -287,7 +285,7 @@ public sealed class PetWindow : Window
         store.Preferences.PetTop = Top;
         store.Save();
         Preview(6, 2);
-        feedback = PetCharacters.Feedback(character, "moved", "好家伙，搬家了。");
+        feedback = PetCharacters.Feedback(character, "moved");
     }
 
     public void Configure()
@@ -367,7 +365,7 @@ public sealed class PetWindow : Window
     {
         if (!store.Preferences.PetEnabled || !IsVisible || !PetCharacters.UsesSprites(character) || store.Preferences.Quiet)
             return;
-        completion.Text = PetCharacters.Feedback(character, "completion", "搞定一个。") + "\n" + (title.Length > 28 ? title[..28] : title);
+        completion.Text = PetCharacters.Feedback(character, "completion") + "\n" + (title.Length > 28 ? title[..28] : title);
         celebrationUntil = DateTimeOffset.UtcNow.AddSeconds(7);
     }
 

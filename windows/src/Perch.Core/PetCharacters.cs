@@ -13,8 +13,10 @@ public static class PetCharacters
 
     // Only the whale opts into character dialogue; shared Pox/orb strings stay intact.
     public static string PoseLabel(string? character, int pose) =>
-        Strings.Get((character == "deepseek-whale" ? "pet.whale.pose." : "pet.pose.") + pose);
+        Strings.Get(DialogueKey(character, "pose." + pose));
 
-    public static string Feedback(string? character, string key, string fallback) =>
-        character == "deepseek-whale" ? Strings.Get("pet.whale." + key) : fallback;
+    public static string DialogueKey(string? character, string key) =>
+        "pet." + (character == "deepseek-whale" ? "whale." : "") + key;
+
+    public static string Feedback(string? character, string key) => Strings.Get(DialogueKey(character, key));
 }

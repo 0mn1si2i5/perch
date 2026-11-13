@@ -72,3 +72,9 @@
 已接入第三个角色 `deepseek-whale`、共享透明图集、八种姿势、桌宠选项、系统明暗主题及构建资源复制，补充角色持久化、切换清理、禁用停止和图集裁剪回归。现有 `com.pox.desktop` → `com.omnis.perch` 一次迁移保持完整。
 
 本次环境为 Windows，没有 Swift 或 Mac 运行环境，未执行 `swift test --package-path macos` 和 `macos/script/build_and_run.sh --build`。需在 Mac 上运行两项命令，并实际检查三角色切换、任务/媒体反馈、预览到期、大小、安静模式、隐藏恢复及窗口拖动。Windows 结果不代表 Mac 构建或实机通过。
+
+## 2026-11-13：桌宠共享 JSON 文案（待 Mac 验收）
+
+`PerchCore.Strings` 读取共享 `zh-CN.json`，应用构建脚本复制原文件到 `Contents/Resources`；SwiftPM 测试／开发运行直接读取仓库原文件。已打包 `.app` 缺少资源时报告失败，不回退到源码。通用姿势名、预览模板、Pox 与鲸鱼娘反馈均改为资源键，保留现有角色隔离、浮球无台词、Pox 双击无气泡及平台原有标签差异。
+
+补充规范源文件一致性、打包资源优先／缺失失败、特殊字符和占位符、全部姿势与角色命名空间测试；现有生命周期测试从 JSON 获取预期值，便于只修改一处文案。当前仍无 Swift／Mac 运行环境，以上用例未执行；需在 Mac 跑 `swift test --package-path macos` 与 `macos/script/build_and_run.sh --build`，并检查脱离仓库运行的 `.app` 仍能显示台词。编辑入口见 [文案维护说明](../../shared/strings/deepseek-whale-copy.md)。

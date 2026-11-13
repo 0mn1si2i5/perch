@@ -56,6 +56,7 @@ static class Program
         try
         {
             var store = new Store(root);
+            PetDialogueTests.Run();
             DshDiscoveryTests.Run(root);
             var a = new Account
             {

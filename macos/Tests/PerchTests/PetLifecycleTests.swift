@@ -12,28 +12,47 @@ final class PetLifecycleTests: XCTestCase {
         pet.setEnabled(true)
         pet.select(.deepseekWhale)
         pet.preview(.idle)
-        XCTAssertEqual(pet.statusLabel, "摸会儿鱼，等口白饭～")
-        XCTAssertEqual(pet.bubble, "动作预览 · 摸会儿鱼，等口白饭～")
+        XCTAssertEqual(pet.statusLabel, Strings.get("pet.whale.pose.0"))
+        XCTAssertEqual(pet.bubble, Strings.format("pet.preview.detail", Strings.get("pet.whale.pose.0")))
         let task = CodexTask(id: "fixture", title: "Fixture title", status: .running,
                              turnID: "turn", updatedAt: Date(), source: "fixture")
         // Switching clears the preview, then the live task label includes its count.
         pet.select(.pox)
         XCTAssertNil(pet.bubble)
         pet.update(tasks: [task], completed: nil)
-        XCTAssertEqual(pet.statusLabel, "Codex · 1 个任务")
+        XCTAssertEqual(pet.statusLabel, Strings.format("pet.running.codex", "1"))
         pet.select(.deepseekWhale)
-        XCTAssertEqual(pet.statusLabel, "1 个任务，努力游！")
+        XCTAssertEqual(pet.statusLabel, Strings.format("pet.whale.running", "1"))
         pet.update(tasks: [], completed: task)
-        XCTAssertEqual(pet.bubble, "做完啦！开饭～ ♡\nFixture title")
+        XCTAssertEqual(pet.bubble, Strings.get("pet.whale.completion") + "\nFixture title")
         pet.select(.pox)
         pet.update(tasks: [], completed: task)
-        XCTAssertEqual(pet.bubble, "搞定一个。\nFixture title")
+        XCTAssertEqual(pet.bubble, Strings.get("pet.completion") + "\nFixture title")
         pet.preview(.lifted)
-        XCTAssertEqual(pet.bubble, "动作预览 · 好家伙，被提起来了")
+        XCTAssertEqual(pet.bubble, Strings.format("pet.preview.detail", Strings.get("pet.pose.7")))
         pet.select(.native)
         pet.update(tasks: [], completed: task)
         XCTAssertNil(pet.bubble)
         pet.setEnabled(false)
+    }
+
+    func testDialogueNamespacesKeepAllCharacterLinesSeparate() {
+        for pose in PetPose.allCases {
+            XCTAssertEqual(CompanionKind.deepseekWhale.poseLabel(pose), Strings.get("pet.whale.pose.\(pose.rawValue)"))
+            XCTAssertEqual(CompanionKind.pox.poseLabel(pose), Strings.get("pet.pose.\(pose.rawValue)"))
+        }
+        for kind in CompanionKind.allCases {
+            let prefix = kind == .deepseekWhale ? "pet.whale." : "pet."
+            for key in ["moved", "completion", "doubleClick", "running", "media"] {
+                XCTAssertEqual(kind.dialogueKey(key), prefix + key)
+                XCTAssertNotNil(Strings.all[prefix + key])
+            }
+            XCTAssertEqual(kind.movedText, Strings.get(prefix + "moved"))
+            XCTAssertEqual(kind.completionText, Strings.get(prefix + "completion"))
+        }
+        XCTAssertNil(CompanionKind.pox.doubleClickText)
+        XCTAssertNil(CompanionKind.native.doubleClickText)
+        XCTAssertEqual(CompanionKind.deepseekWhale.doubleClickText, Strings.get("pet.whale.doubleClick"))
     }
 
     func testWhaleSelectionPersistsWithoutPoxTheme() throws {
