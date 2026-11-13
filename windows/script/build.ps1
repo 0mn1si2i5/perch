@@ -5,6 +5,8 @@ $project=Join-Path $root 'src/Perch.App/Perch.App.csproj'
 $publishDirectory = if ($OutputDirectory) { [IO.Path]::GetFullPath($OutputDirectory) } else { Join-Path $root '../dist.noindex/windows/Perch' }
 if($Action -eq 'Test'){
     & $Dotnet run --project (Join-Path $root 'tests/Perch.Core.Tests/Perch.Core.Tests.csproj')
+    if($LASTEXITCODE -ne 0){throw "Windows Core tests failed ($LASTEXITCODE)"}
+    & $Dotnet run --project (Join-Path $root 'tests/Perch.App.Tests/Perch.App.Tests.csproj')
 }elseif($Action -in @('Publish','Package')){
     & $Dotnet publish $project -c Release -r win-x64 --self-contained true -o $publishDirectory
 }elseif($Action -eq 'Run'){

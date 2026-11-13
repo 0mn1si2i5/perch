@@ -1,11 +1,11 @@
 # Windows：DeepSeek Harness
 
-Windows 的账号列表支持 dsh Web。兼容基线为 `0.1.7-rc.2`，可使用源码构建版、npm 全局／项目本地安装版，或连接已经启动的本机 Web 实例。Electron Desktop、离线历史日志、子 agent 树和第三方提供方计费查询不在本次范围内。
+Windows 的账号列表支持 dsh Web。原兼容基线为 `0.1.7-rc.2`；`0.2.1-rc.5` 已验证自动发现、隔离 Web 启动、认证、会话查询和手动连接恢复。可使用源码构建版、npm 全局／项目本地安装版、官方 npx 缓存，或连接已经启动的本机 Web 实例。Electron Desktop 原生宿主、离线历史日志、子 agent 树和第三方提供方计费查询不在本次范围内；新版钱包与真实模型任务未随本次重验。
 
 ## 添加与启动
 
 1. 点“新建账号”→“dsh”，填写名称。
-2. 选择启动方式：源码构建版选择 deepseek-harness 仓库根目录；npm 版可自动发现，也可选择 `@deepseek-ai/dsh` 包目录或包含本地安装的项目目录。
+2. 选择启动方式：源码构建版选择 deepseek-harness 仓库根目录；npm 版点击“重新识别”，从带来源和版本的列表选择安装。也可填写或选择 `dsh.cmd`／`dsh.ps1`、`package.json`、`@deepseek-ai/dsh` 包目录、npm 前缀或包含本地安装的项目目录，点“检查配置”。检查只验证启动文件与配置，不启动服务、不替代 Node 版本要求。
 3. 数据目录留空会创建独立 `DSH_HOME`；要使用已有模型与登录环境，选择已有 home（默认通常是 `%USERPROFILE%\.dsh`）。安装目录和账号数据目录是两件事，引用已有 home 不会复制凭据。
 4. 高级设置可选择 `node.exe` 和 Web profile，默认自动发现 Node、使用 `web`。自定义 profile 须已创建并包含 Web 能力，`desktop` 不可用。
 5. 创建并启动后，在浏览器的 dsh 中登录或配置模型。Perch 不代填凭据，也不发送提示词。
@@ -13,6 +13,19 @@ Windows 的账号列表支持 dsh Web。兼容基线为 `0.1.7-rc.2`，可使用
 源码版本须先完成 `pnpm install` 和 `pnpm run build`，包含构建后的 CLI 与 Web 资源。Perch 不自动构建、安装依赖或升级 dsh。npm 版本从 package manifest 解析 CLI，再由 Node 直接启动，不依赖 `.ps1` 执行策略。Node 须满足所安装 dsh 版本的要求。
 
 每个受管 home 使用 `--host 127.0.0.1 --port 0 --no-open`，由系统分配空闲端口。Perch 从本次启动输出取得真实授权 URL，认证成功后打开浏览器；不同 home 可同时运行。同一个 home 不由 Perch 重复启动。
+
+### 自动识别范围与失败后的添加方式
+
+以 [dsh 官方 README](https://github.com/deepseek-ai/deepseek-harness#run) 的 npm／npx 与源码方式为依据。识别检查当前进程和系统保存的 PATH、其中的 dsh 命令包装器、`npm_config_prefix`、用户 `.npmrc` 的 `prefix`／`cache`、默认 npm 全局目录，以及 npm 缓存 `_npx/<实例>/node_modules/@deepseek-ai/dsh`。只接受包名正确且 manifest 声明的 CLI 入口存在的安装；损坏安装跳过，重复位置去重。PATH 来源优先，npx 缓存按最近修改排序；有多份时由用户确认版本，不自动安装或升级。
+
+识别过程只读安装元数据和包装器，不执行 npm、npx 或包装脚本；`.npmrc` 只使用 prefix／cache 路径字段。相对 PATH 项不搜索，不递归扫描整个磁盘，不读取 dsh 登录凭据。仅支持可静态解析的常见 npm／PowerShell 和路径变量包装器，任意自定义脚本可改用包目录或已有实例。
+
+- 已安装但未识别：在账号页点“没有发现 dsh？手动添加…”，或新建页展开“未识别到？手动添加指引”。终端运行 `where.exe dsh` 后选择输出的命令文件；或运行 `npm.cmd root -g`，选择输出目录下的 `@deepseek-ai/dsh`。
+- 尚未安装：按官方说明安装满足要求的 Node.js，运行 `npx.cmd @deepseek-ai/dsh web`（Windows 使用 `.cmd` 避免 PowerShell 脚本执行策略问题）。页面可复制命令并打开官方说明。启动后重新识别 npx 缓存，或切换“连接已有实例”，粘贴终端输出的完整 token URL。
+- npx 缓存会被 npm 清理；缓存不存在后需重新识别或选择稳定的安装目录。Perch 不在后台重新下载。
+- 官方 Desktop 的原生宿主采用私有 IPC 授权，不能从窗口地址建立 Web 连接。不要将 Electron EXE 当成 node.exe 或选择 `desktop` profile；可按官方 Web 命令另开 Web 服务并连接。参见 [官方 Desktop 运行与授权说明](https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/desktop/README.md)。
+
+识别到安装只会提示添加，需确认账号名称与实际 `DSH_HOME` 后创建。不会把安装目录当作数据目录，也不会自动引用其他实例的登录环境。配置检查与授权错误会留在添加页，并展开指引；修正输入后可重试。
 
 ## 连接、后台运行和移除
 
@@ -50,6 +63,12 @@ windows/script/build.ps1 -Action Package -OutputDirectory dist.noindex/windows/P
 dotnet run --project windows/tests/Perch.Core.Tests -- --dsh-api-balance-check <Perch数据目录> <dsh账号ID>
 
 # 可选：真实 dsh 包的隔离 smoke，不发提示词、不调用模型
+dotnet run --project windows/tests/Perch.Core.Tests -- --dsh-discovery-smoke
+
+# 使用最终发布程序作为独立宿主
+dotnet run --project windows/tests/Perch.Core.Tests -- --dsh-discovery-smoke <Perch.exe绝对路径>
+
+# 旧版源码／npm 双安装 smoke
 dotnet run --project windows/tests/Perch.Core.Tests -- --dsh-smoke <源码仓库> <npm包目录>
 
 # 以自包含 Perch.exe 为宿主；可加 --browser 请求打开测试页面并保留 45 秒

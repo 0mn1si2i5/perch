@@ -240,6 +240,9 @@ public sealed partial class PanelModel : Observable, IDisposable
 
     public bool NoAccounts => Store.Accounts.Count == 0;
     public Account? BusyAccount => Store.Accounts.FirstOrDefault(a => snapshots.TryGetValue(a.Id, out var s) && s.Sessions.Any(t => t.Status is "运行中" or "等待输入"));
+    public Command Home { get; }
+    public ImageSource ProductIcon => Brand.Image();
+
     public Command Info
     {
         get;
@@ -293,6 +296,7 @@ public sealed partial class PanelModel : Observable, IDisposable
         InitializeDshEditor();
         Dsh = new DshService(store);
         Quotas = new QuotaService(Clients, Dsh);
+        Home = new(() => Page = "accounts");
         Info = new(() => Navigate("info"));
         Settings = new(() => Navigate("settings"));
         Add = new(() => { ResetDshEditor(); Navigate("add"); });
@@ -310,7 +314,11 @@ public sealed partial class PanelModel : Observable, IDisposable
         DiscoverAgain = new(() => Run(async () =>
         {
             await Clients.Discover();
+            await ScanDshInstallations();
             icons.Clear();
+        Changed(nameof(CodexIcon));
+        Changed(nameof(ClaudeIcon));
+        Changed(nameof(DshIcon));
             MergeAccounts();
         }));
         TaskbarSettings = new(() => Run(() => Process.Start(new ProcessStartInfo("ms-settings:taskbar") { UseShellExecute = true })?.Dispose()));
@@ -335,7 +343,11 @@ public sealed partial class PanelModel : Observable, IDisposable
         await Background(async () =>
         {
             await Clients.Discover();
+            await ScanDshInstallations();
             icons.Clear();
+        Changed(nameof(CodexIcon));
+        Changed(nameof(ClaudeIcon));
+        Changed(nameof(DshIcon));
             await Poll();
             if (AutoQuota)
                 await RefreshAll();
@@ -531,10 +543,18 @@ public sealed partial class PanelModel : Observable, IDisposable
             }))));
         }
 
+        if (!Demo && HasDshInstalls && NoDshAccounts && !Store.Preferences.DismissedDefaults.Contains("dsh"))
+            discoveries.Add(new("dsh", "发现 DeepSeek Harness · " + DshInstalls[0].Version, false, AddDshManually, new(() => Run(() =>
+            {
+                Store.Preferences.DismissedDefaults.Add("dsh");
+                Store.Save();
+                MergeAccounts();
+            }))));
         if (Demo && discoveries.Count == 0)
             discoveries.Add(new("codex", "发现直接打开的 Codex", true, new(() => Notify("演示模式")), new(() => Discovered.Clear())));
         Merge(Discovered, discoveries);
         Changed(nameof(NoAccounts));
+        Changed(nameof(NoDshAccounts));
     }
 
     private bool darkIcons;
@@ -545,9 +565,16 @@ public sealed partial class PanelModel : Observable, IDisposable
             return;
         darkIcons = dark;
         icons.Clear();
+        Changed(nameof(CodexIcon));
+        Changed(nameof(ClaudeIcon));
+        Changed(nameof(DshIcon));
         foreach (var group in Groups)
             group.Notify();
     }
+
+    public ImageSource? CodexIcon => ClientIcon("codex");
+    public ImageSource? ClaudeIcon => ClientIcon("claude");
+    public ImageSource? DshIcon => ClientIcon("dsh");
 
     public ImageSource? ClientIcon(string app)
     {

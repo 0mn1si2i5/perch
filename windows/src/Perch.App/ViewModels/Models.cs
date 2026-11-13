@@ -159,6 +159,16 @@ public sealed class AccountModel : Observable
     public ObservableCollection<WalletRowModel> ApiWallets { get; } = [];
     public bool HasWallets => Wallets.Count > 0;
     public bool HasApiBalance => quota?.ApiBalance != null;
+    private bool apiBalanceExpanded;
+    public bool ApiBalanceExpanded { get => apiBalanceExpanded; set => Set(ref apiBalanceExpanded, value); }
+    public bool HasDshDetailsWithoutApi => IsDsh && !HasApiBalance;
+    public bool IsDsh => Value.App == "dsh";
+    public bool IsNative => !IsDsh;
+    public string ApiBalanceSummary => quota?.ApiBalance is { } api && api.Balances.Any(w => w.Kind == "总额")
+        ? string.Join(" / ", api.Balances.Where(w => w.Kind == "总额").Select(w =>
+            (w.Currency == "CNY" ? "￥" : w.Currency == "USD" ? "$" : w.Currency + " ")
+            + w.Amount.ToString("0.00##########################", CultureInfo.InvariantCulture))) + (api.Cached ? " · 缓存" : "")
+        : busy ? "查询中…" : "暂不可用";
     public string ApiBalanceDetail => quota?.ApiBalance is { } api
         ? api.Detail + (api.Observed is { } at ? " · " + (api.Cached ? "缓存 · " : "更新 · ") + at.ToLocalTime().ToString("MM-dd HH:mm:ss", CultureInfo.InvariantCulture) : "") : "";
 
@@ -189,6 +199,7 @@ public sealed class AccountModel : Observable
             {
                 Changed(nameof(QuotaDetail));
                 Changed(nameof(HasQuotaDetail));
+                Changed(nameof(ApiBalanceSummary));
                 CommandManager.InvalidateRequerySuggested();
             }
         }
@@ -262,7 +273,9 @@ public sealed class AccountModel : Observable
         Merge(ApiWallets, (q?.ApiBalance?.Balances ?? []).Select(w => ApiWallets.FirstOrDefault(r => r.Value == w) ?? new WalletRowModel(w)));
         Changed(nameof(HasWallets));
         Changed(nameof(HasApiBalance));
+        Changed(nameof(HasDshDetailsWithoutApi));
         Changed(nameof(ApiBalanceDetail));
+        Changed(nameof(ApiBalanceSummary));
         var ordered = Ordering.Apply(next.Sessions, Owner.Store.Preferences.SessionOrder.GetValueOrDefault(Value.Id));
         var live = new List<SessionModel>();
         var stopped = new List<SessionModel>();

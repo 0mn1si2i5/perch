@@ -8,6 +8,36 @@ using Perch.Windows;
 /// Opt-in smoke against installed dsh packages. No prompts, sign-in changes, or model calls.
 internal static class DshSmoke
 {
+    public static async Task Discovered(string? hostExecutable = null)
+    {
+        var found = DshDiscovery.Discover();
+        if (found.Count == 0) throw new IOException("No real dsh installation discovered");
+        Console.WriteLine($"Discovered {found.Count} real installations; first={found[0].Source}, version={found[0].Version}");
+        var root = Path.GetFullPath(Path.Combine("scratch", "dsh-discovery-smoke-" + Guid.NewGuid().ToString("N")));
+        var store = new Store(root);
+        var account = new Account { App = "dsh", Name = "Discovery smoke", ProfilePath = Path.Combine(root, "isolated home"), Dsh = new() };
+        account.SessionRoot = account.ProfilePath;
+        Store.PrivateDirectory(account.ProfilePath);
+        store.Add(account);
+        using var service = new DshService(store, hostExecutable);
+        var external = new Account { App = "dsh", Name = "Manual fallback smoke", ProfilePath = Path.Combine(root, "external"), Dsh = new() { Mode = "external" } };
+        try
+        {
+            var url = await service.Ensure(account);
+            var snapshot = await service.Read(account);
+            if (!snapshot.Running || snapshot.Cached || snapshot.Sessions.Count != 0) throw new IOException("Discovered installation failed isolated Web/RPC check");
+            var child = service.State(account).Read()!.ChildPid;
+            await service.Connect(external, url);
+            if (!(await service.Read(external)).Running) throw new IOException("Manual fallback could not authenticate");
+            await service.Stop(external);
+            using var restored = new DshService(new Store(root), hostExecutable);
+            await restored.Ensure(account);
+            if (restored.State(account).Read()!.ChildPid != child) throw new IOException("Reconnect launched a duplicate runtime");
+            Console.WriteLine("PASS real discovered dsh: isolated startup, authenticated sessions, manual URL fallback, disconnect and recovery; no model calls or personal home changes");
+        }
+        finally { await service.Stop(account); }
+    }
+
     public static void PrepareApiBalanceUi(string root, string accountId, string isolatedRoot)
     {
         var store = new Store(root);

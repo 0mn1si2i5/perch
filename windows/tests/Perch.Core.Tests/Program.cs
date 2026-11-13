@@ -15,6 +15,11 @@ static class Program
 
     static void Main(string[] args)
     {
+        if (args.Length is 1 or 2 && args[0] == "--dsh-discovery-smoke")
+        {
+            DshSmoke.Discovered(args.Length == 2 ? args[1] : null).GetAwaiter().GetResult();
+            return;
+        }
         if (args.Length == 3 && args[0] == "--dsh-host")
         {
             Environment.ExitCode = DshHost.Run(args[1], args[2]);
@@ -51,6 +56,7 @@ static class Program
         try
         {
             var store = new Store(root);
+            DshDiscoveryTests.Run(root);
             var a = new Account
             {
                 Name = "A",

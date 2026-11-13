@@ -9,8 +9,9 @@
  <Button Grid.Column="3" Content="{Binding OpenLabel}" Style="{StaticResource StandardButton}" Command="{Binding Open}"/>
  </Grid>
  <local:QuotaRows/>
- <TextBlock Text="{Binding SessionDetail}" Style="{StaticResource Meta}" Margin="0,0,0,6" Visibility="{Binding HasSessionDetail, Converter={StaticResource BoolVisibility}}"/>
+ <StackPanel Visibility="{Binding IsNative, Converter={StaticResource BoolVisibility}}"> <TextBlock Text="{Binding SessionDetail}" Style="{StaticResource Meta}" Margin="0,0,0,6" Visibility="{Binding HasSessionDetail, Converter={StaticResource BoolVisibility}}"/>
  <TextBlock Text="{Binding QuotaDetail}" ToolTip="{Binding QuotaTip}" Style="{StaticResource Meta}" Margin="0,0,0,6" Visibility="{Binding HasQuotaDetail, Converter={StaticResource BoolVisibility}}"/>
+ </StackPanel>
  <ItemsControl ItemsSource="{Binding Active}"><ItemsControl.ItemTemplate><DataTemplate><local:SessionRow/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
  <Separator Visibility="{Binding HasDivider, Converter={StaticResource BoolVisibility}}"/>
  <ItemsControl ItemsSource="{Binding Recent}"><ItemsControl.ItemTemplate><DataTemplate><local:SessionRow/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>

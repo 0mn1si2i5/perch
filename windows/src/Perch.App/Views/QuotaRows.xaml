@@ -11,11 +11,26 @@
  <ItemsControl ItemsSource="{Binding Wallets}"><ItemsControl.ItemTemplate><DataTemplate>
   <DockPanel Margin="0,0,0,6"><TextBlock Text="{Binding Label}" Foreground="{DynamicResource TextSecondary}"/><TextBlock Text="{Binding Amount}" HorizontalAlignment="Right" Typography.NumeralAlignment="Tabular"/></DockPanel>
  </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
- <StackPanel Visibility="{Binding HasApiBalance, Converter={StaticResource BoolVisibility}}">
-  <TextBlock Text="DeepSeek API 余额" FontWeight="SemiBold" Margin="0,4,0,6"/>
+ <Expander Visibility="{Binding HasApiBalance, Converter={StaticResource BoolVisibility}}" HorizontalContentAlignment="Stretch" Margin="0,0,0,6" IsExpanded="{Binding ApiBalanceExpanded, Mode=TwoWay}">
+  <Expander.Style><Style TargetType="Expander" BasedOn="{StaticResource Disclosure}"><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Expander"><StackPanel>
+   <ToggleButton IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" Foreground="{DynamicResource TextPrimary}" Cursor="Hand" FocusVisualStyle="{StaticResource KeyboardFocus}" AutomationProperties.Name="DeepSeek API 余额">
+    <ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Grid Background="Transparent" Margin="0,4,0,6"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+     <TextBlock Text="DeepSeek API 余额" TextWrapping="NoWrap"/><TextBlock Grid.Column="1" Text="{Binding ApiBalanceSummary}" Typography.NumeralAlignment="Tabular" TextWrapping="NoWrap"/>
+     <Path x:Name="Arrow" Grid.Column="2" Data="M0,0 L4,4 0,8" Stroke="{DynamicResource TextTertiary}" StrokeThickness="1.2" Margin="8,0,2,0" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"/>
+    </Grid><ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="Arrow" Property="RenderTransform"><Setter.Value><RotateTransform Angle="90"/></Setter.Value></Setter></Trigger></ControlTemplate.Triggers></ControlTemplate></ToggleButton.Template>
+   </ToggleButton>
+   <ContentPresenter x:Name="Details" ContentSource="Content" Visibility="Collapsed"/>
+  </StackPanel><ControlTemplate.Triggers><Trigger Property="IsExpanded" Value="True"><Setter TargetName="Details" Property="Visibility" Value="Visible"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style></Expander.Style>
+  <StackPanel>
   <ItemsControl ItemsSource="{Binding ApiWallets}"><ItemsControl.ItemTemplate><DataTemplate>
    <DockPanel Margin="0,0,0,6"><TextBlock Text="{Binding Label}" Foreground="{DynamicResource TextSecondary}"/><TextBlock Text="{Binding Amount}" HorizontalAlignment="Right" Typography.NumeralAlignment="Tabular"/></DockPanel>
   </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
   <TextBlock Text="{Binding ApiBalanceDetail}" Style="{StaticResource Meta}" Margin="0,0,0,6"/>
+  <TextBlock Text="{Binding SessionDetail}" Style="{StaticResource Meta}" Margin="0,0,0,6" Visibility="{Binding HasSessionDetail, Converter={StaticResource BoolVisibility}}"/>
+  <TextBlock Text="{Binding QuotaDetail}" ToolTip="{Binding QuotaTip}" Style="{StaticResource Meta}" Margin="0,0,0,6" Visibility="{Binding HasQuotaDetail, Converter={StaticResource BoolVisibility}}"/>
+ </StackPanel></Expander>
+ <StackPanel Visibility="{Binding HasDshDetailsWithoutApi, Converter={StaticResource BoolVisibility}}">
+  <TextBlock Text="{Binding SessionDetail}" Style="{StaticResource Meta}" Margin="0,0,0,6"/>
+  <TextBlock Text="{Binding QuotaDetail}" Style="{StaticResource Meta}" Margin="0,0,0,6"/>
  </StackPanel></StackPanel>
 </UserControl>

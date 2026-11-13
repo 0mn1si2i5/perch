@@ -37,15 +37,13 @@ public sealed record DshLaunch(string Node, string Entry, string WorkingDirector
 
 public static class DshInstallation
 {
-    public static string? FindNode() => FindOnPath("node.exe");
-    private static string? FindOnPath(string name) => (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator)
-        .Select(p => Path.Combine(p.Trim().Trim('"'), name)).FirstOrDefault(File.Exists);
+    public static string? FindNode() => DshSearchEnvironment.Current().SearchPath.Split(';', StringSplitOptions.RemoveEmptyEntries)
+        .Select(p => p.Trim().Trim('"')).Where(Path.IsPathFullyQualified)
+        .Select(p => Path.Combine(p, "node.exe")).FirstOrDefault(File.Exists);
 
     public static string? FindNpm()
     {
-        var directories = (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator).Select(p => p.Trim().Trim('"'))
-            .Append(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "npm"));
-        return directories.Select(p => Path.Combine(p, "node_modules", "@deepseek-ai", "dsh")).FirstOrDefault(p => File.Exists(Path.Combine(p, "package.json")));
+        return DshDiscovery.Discover().FirstOrDefault()?.Path;
     }
 
     public static DshLaunch Resolve(Account account)
@@ -53,12 +51,20 @@ public static class DshInstallation
         var config = account.Dsh ?? throw new IOException("请重新配置 dsh 启动方式。");
         if (config.Mode is not ("source" or "npm"))
             throw new IOException("这个 dsh 账号只连接已有实例，请提供新的授权 URL。");
-        var node = string.IsNullOrWhiteSpace(config.NodePath) ? FindNode() : Path.GetFullPath(config.NodePath);
+        string? install = null;
+        DshInstallCandidate? detected;
+        try
+        {
+            detected = string.IsNullOrWhiteSpace(config.InstallationPath) ? DshDiscovery.Discover().FirstOrDefault() : DshDiscovery.Inspect(config.InstallationPath);
+            install = detected?.Path ?? (string.IsNullOrWhiteSpace(config.InstallationPath) ? null : DshDiscovery.Normalize(config.InstallationPath));
+        }
+        catch (Exception e) when (DshDiscovery.IsPathError(e)) { throw new IOException("无法读取 dsh 安装。请检查路径与权限，或展开“未识别到？手动添加指引”。", e); }
+        var node = string.IsNullOrWhiteSpace(config.NodePath) ? detected?.Node is { Length: > 0 } bundled ? bundled : FindNode() : DshDiscovery.Normalize(config.NodePath);
         if (node == null || !File.Exists(node))
             throw new IOException("找不到 Node.js，请安装符合 dsh 要求的 Node 或选择 node.exe。");
-        var install = string.IsNullOrWhiteSpace(config.InstallationPath) ? FindNpm() : Path.GetFullPath(config.InstallationPath);
         if (install == null)
-            throw new IOException("未发现 npm 安装的 dsh，请选择 @deepseek-ai/dsh 安装目录。");
+            throw new IOException("未发现可用的 dsh。请展开“未识别到？手动添加指引”，选择安装位置或连接已有实例。");
+        if (detected != null) install = detected.Path;
         string package;
         if (config.Mode == "source")
         {
@@ -71,7 +77,8 @@ public static class DshInstallation
         }
         else
         {
-            package = install;
+            if (detected?.Mode == "source") throw new IOException("这是源码仓库，请将启动方式切换为“源码构建版”。");
+            package = detected?.Path ?? install;
             // Accept either the package itself or a project containing a local npm install.
             if (File.Exists(Path.Combine(package, "node_modules", "@deepseek-ai", "dsh", "package.json")))
                 package = Path.Combine(package, "node_modules", "@deepseek-ai", "dsh");

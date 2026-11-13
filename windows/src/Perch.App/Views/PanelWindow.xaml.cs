@@ -93,16 +93,17 @@ public partial class Panel : Window, IDisposable
         Dispatcher.InvokeAsync(Model.Start);
     }
 
+    private void SurfaceSized(object sender, SizeChangedEventArgs e)
+    {
+        Surface.Clip = new RectangleGeometry(new Rect(e.NewSize), 20, 20);
+    }
+
     private void ApplyTheme()
     {
-        bool pox = theme.Name == "Pox";
-        bool acrylic = OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000) && !pox;
-        Background = acrylic ? Brushes.Transparent : (Brush)FindResource("PanelFill");
-        // Dark acrylic alone reads as flat grey; a denser tint keeps it close to Windows 11 dark flyouts.
-        Backdrop.Opacity = !acrylic ? 1 : theme.Name == "Dark" ? .82 : .35;
+        // A transparent WPF surface gives every theme the same exact 20-DIP corners.
+        Background = Brushes.Transparent;
+        Backdrop.Opacity = 1;
         Model.UseDarkIcons(theme.Name != "Light");
-        if (new System.Windows.Interop.WindowInteropHelper(this).Handle != 0)
-            NativeWindow.Apply(this, theme.Name != "Light", pox);
         pet?.Configure();
     }
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -14,11 +15,65 @@ public sealed partial class PanelModel
     private Account? editingDsh;
     private int dshMode = 1;
     private string dshPath = "", dshNode = "", dshHome = "", dshProfile = "web", dshUrl = "", dshBalanceHome = "";
+    private string dshDetectionDetail = "可扫描 npm 全局安装、PATH 命令和官方 npx 缓存。", dshValidation = "";
+    private bool dshHelpExpanded;
+    private DshInstallCandidate? selectedDshInstall;
+    public ObservableCollection<DshInstallCandidate> DshInstalls { get; } = [];
+    public DshInstallCandidate? SelectedDshInstall
+    {
+        get => selectedDshInstall;
+        set { if (Set(ref selectedDshInstall, value) && value != null) ApplyDshInstall(value); }
+    }
+    public bool HasDshInstalls => DshInstalls.Count > 0;
+    public bool NoDshAccounts => !Store.Accounts.Any(a => a.App == "dsh");
+    public string DshDetectionDetail { get => dshDetectionDetail; private set => Set(ref dshDetectionDetail, value); }
+    public string DshValidation { get => dshValidation; private set { Set(ref dshValidation, value); Changed(nameof(HasDshValidation)); } }
+    public bool HasDshValidation => DshValidation.Length > 0;
+    public bool DshHelpExpanded { get => dshHelpExpanded; set => Set(ref dshHelpExpanded, value); }
+    public string DshManualHelp => DshDiscovery.ManualHelp;
     private void InitializeDshEditor()
     {
-        dshPath = Demo ? @"C:\Tools\deepseek-harness" : DshInstallation.FindNpm() ?? "";
+        dshPath = Demo ? @"C:\Tools\deepseek-harness" : "";
         dshNode = Demo ? @"C:\Program Files\nodejs\node.exe" : DshInstallation.FindNode() ?? "";
     }
+    private async Task ScanDshInstallations(bool select = false)
+    {
+        IReadOnlyList<DshInstallCandidate> found = Demo ? new[] { new DshInstallCandidate(@"C:\Tools\dsh\node_modules\@deepseek-ai\dsh", "npm", "0.2.x", "npm 全局安装", NodeRequirement: ">=24.9.0") }
+            : await Task.Run(() => DshDiscovery.Discover());
+        SelectedDshInstall = null;
+        DshInstalls.Clear();
+        foreach (var item in found) DshInstalls.Add(item);
+        Changed(nameof(HasDshInstalls));
+        DshDetectionDetail = found.Count == 0 ? "未发现可用安装。已检查 PATH、npm 前缀和 npx 缓存；可按下方指引手动添加。"
+            : $"发现 {found.Count} 个可用安装，请确认版本与位置。npx 缓存被清理后需重新识别。";
+        if (found.Count == 0) DshHelpExpanded = true;
+        else if (select || editingDsh == null && DshPath.Length == 0) SelectedDshInstall = found[0];
+        MergeAccounts();
+    }
+    private void ApplyDshInstall(DshInstallCandidate candidate)
+    {
+        DshMode = candidate.Mode == "source" ? 0 : 1;
+        DshPath = candidate.Path;
+        if (candidate.Node.Length > 0) DshNode = candidate.Node;
+        else if (DshNode.Length == 0) DshNode = Demo ? @"C:\Program Files\nodejs\node.exe" : DshInstallation.FindNode() ?? "";
+        DshValidation = $"已识别 {candidate.Version}" + (candidate.NodeRequirement.Length > 0 ? $"；需要 Node.js {candidate.NodeRequirement}" : "") + "。可点“检查配置”验证启动文件。";
+    }
+    public Command AddDshManually => new(() => { ResetDshEditor(); NewDsh = true; Page = "add"; DshHelpExpanded = !HasDshInstalls; });
+    public Command CheckDshInstallation => new(() => Run(() =>
+    {
+        try
+        {
+            var candidate = DshDiscovery.Inspect(DshPath) ?? throw new IOException("未找到完整的 @deepseek-ai/dsh 包。请选择 dsh.cmd、包目录、项目目录或已构建的源码根目录；桌面 EXE 不能作为 Node CLI 使用。");
+            ApplyDshInstall(candidate);
+            DshInstallation.Resolve(new Account { ProfilePath = string.IsNullOrWhiteSpace(DshHome) ? Path.Combine(Store.Root, "dsh-check") : DshDiscovery.Normalize(DshHome),
+                Dsh = new() { Mode = candidate.Mode, InstallationPath = DshPath, NodePath = DshNode, Profile = DshProfile } });
+            DshValidation = $"启动文件检查通过 · {candidate.Version}" + (candidate.NodeRequirement.Length > 0 ? $" · 请确认 Node.js {candidate.NodeRequirement}" : "") + "。尚未启动服务。";
+        }
+        catch (Exception e) when (DshDiscovery.IsPathError(e)) { DshValidation = e is IOException ? e.Message : "安装路径无效或不可读，请检查路径与权限。"; DshHelpExpanded = true; }
+    }));
+    public Command OpenDshGuide => new(() => Run(() => Process.Start(new ProcessStartInfo(DshDiscovery.OfficialGuide) { UseShellExecute = true })?.Dispose()));
+    public Command CopyDshQuickStart => new(() => Run(() => { System.Windows.Clipboard.SetText(DshDiscovery.QuickStart); Notify("已复制官方 Web 启动命令，请在终端运行。"); }));
+    public Command ConnectDshInstead => new(() => { DshMode = 2; DshHelpExpanded = true; });
     public bool NewDsh { get => NewKind == 2; set { if (value) NewKind = 2; } }
     public bool NewNative => !NewDsh;
     public string CreateLabel => NewDsh ? editingDsh != null ? "保存配置" : DshExternal ? "连接并添加" : "创建并启动" : Strings.Get("account.create");
@@ -28,7 +83,7 @@ public sealed partial class PanelModel
         set
         {
             if (!Set(ref dshMode, value)) return;
-            DshPath = Demo ? @"C:\Tools\deepseek-harness" : value == 1 ? DshInstallation.FindNpm() ?? "" : "";
+            DshPath = Demo ? @"C:\Tools\deepseek-harness" : value == 1 ? DshInstalls.FirstOrDefault()?.Path ?? "" : "";
             Changed(nameof(DshExternal));
             Changed(nameof(DshManaged));
             Changed(nameof(DshInstallHint));
@@ -37,18 +92,19 @@ public sealed partial class PanelModel
     }
     public bool DshExternal => DshMode == 2;
     public bool DshManaged => !DshExternal;
-    public string DshInstallHint => DshMode == 0 ? "源码仓库根目录（先完成 pnpm run build）" : "npm 包目录或含本地安装的项目目录";
-    public string DshPath { get => dshPath; set => Set(ref dshPath, value); }
-    public string DshNode { get => dshNode; set => Set(ref dshNode, value); }
-    public string DshHome { get => dshHome; set => Set(ref dshHome, value); }
-    public string DshProfile { get => dshProfile; set => Set(ref dshProfile, value); }
-    public string DshUrl { get => dshUrl; set => Set(ref dshUrl, value); }
+    public string DshInstallHint => DshMode == 0 ? "源码仓库根目录（先完成 pnpm run build）" : "dsh.cmd、npm 包目录或含本地安装的项目目录";
+    public string DshPath { get => dshPath; set { if (Set(ref dshPath, value)) DshValidation = ""; } }
+    public string DshNode { get => dshNode; set { if (Set(ref dshNode, value)) DshValidation = ""; } }
+    public string DshHome { get => dshHome; set { if (Set(ref dshHome, value)) DshValidation = ""; } }
+    public string DshProfile { get => dshProfile; set { if (Set(ref dshProfile, value)) DshValidation = ""; } }
+    public string DshUrl { get => dshUrl; set { if (Set(ref dshUrl, value)) DshValidation = ""; } }
     public string DshBalanceHome { get => dshBalanceHome; set => Set(ref dshBalanceHome, value); }
     public Command ChooseDshBalanceHome => new(() => { var picker = new OpenFolderDialog { Title = "选择已有实例的 DSH_HOME（只读 API Key 查询余额）" }; if (picker.ShowDialog() == true) DshBalanceHome = picker.FolderName; });
     public Command ChooseDshInstallation => new(() => { var picker = new OpenFolderDialog { Title = DshInstallHint }; if (picker.ShowDialog() == true) DshPath = picker.FolderName; });
+    public Command ChooseDshCommand => new(() => { var picker = new OpenFileDialog { Title = "选择 dsh 命令或 package.json", Filter = "dsh 命令 / 包清单|dsh.cmd;dsh.ps1;package.json|所有文件|*.*" }; if (picker.ShowDialog() == true) DshPath = picker.FileName; });
     public Command ChooseDshHome => new(() => { var picker = new OpenFolderDialog { Title = "选择已有 DSH_HOME（不复制登录信息）" }; if (picker.ShowDialog() == true) DshHome = picker.FolderName; });
     public Command ChooseDshNode => new(() => { var picker = new OpenFileDialog { Title = "选择 Node.js", Filter = "Node.js|node.exe" }; if (picker.ShowDialog() == true) DshNode = picker.FileName; });
-    public Command DetectDsh => new(() => { DshMode = 1; InitializeDshEditor(); Changed(nameof(DshPath)); Changed(nameof(DshNode)); if (DshPath.Length == 0) Notify("未发现 npm 安装的 dsh，请手动选择安装目录。"); });
+    public Command DetectDsh => new(() => Run(() => ScanDshInstallations(true)));
 
     public async Task OpenClient(Account account)
     {
@@ -82,10 +138,22 @@ public sealed partial class PanelModel
         if (DshExternal)
         {
             // Editing only the balance directory must not require another token or interrupt dsh.
-            if (editingDsh?.Dsh?.Mode != "external" || !string.IsNullOrWhiteSpace(DshUrl)) await Dsh.Connect(candidate, DshUrl);
+            try
+            {
+                if (editingDsh?.Dsh?.Mode != "external" || !string.IsNullOrWhiteSpace(DshUrl)) await Dsh.Connect(candidate, DshUrl);
+            }
+            catch (IOException e) { DshValidation = e.Message; DshHelpExpanded = true; throw; }
         }
         else
-            DshInstallation.Resolve(candidate);
+        {
+            try
+            {
+                var resolved = DshDiscovery.Inspect(config.InstallationPath);
+                if (resolved != null) { config.InstallationPath = resolved.Path; config.Mode = resolved.Mode; if (config.NodePath.Length == 0) config.NodePath = resolved.Node; }
+                DshInstallation.Resolve(candidate);
+            }
+            catch (Exception e) when (DshDiscovery.IsPathError(e)) { DshValidation = e is IOException ? e.Message : "安装路径无效或不可读，请检查路径与权限。"; DshHelpExpanded = true; throw new IOException(DshValidation); }
+        }
         Store.PrivateDirectory(home);
         account.Name = candidate.Name;
         account.ProfilePath = home;
@@ -126,6 +194,10 @@ public sealed partial class PanelModel
         DshUrl = "";
         DshHome = "";
         DshBalanceHome = "";
+        DshValidation = "";
+        DshMode = 1;
+        if (DshInstalls.FirstOrDefault() is { } install) { selectedDshInstall = null; SelectedDshInstall = install; }
+        DshHelpExpanded = !HasDshInstalls;
         Changed(nameof(CreateLabel));
     }
 

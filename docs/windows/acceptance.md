@@ -1,5 +1,13 @@
 # Windows 验证与验收
 
+## 2026-11-13：dsh 安装发现与手动添加
+
+- 参照 dsh 官方 README 的 npm／npx 和源码启动说明，以及官方 Desktop 的私有 IPC 授权边界；未把本机安装目录写入产品规则。新增 PATH 包装器、npm 前缀／用户 npmrc 路径和 npx 缓存发现，验证 manifest 包名与 CLI 入口，列出来源／版本并去重；支持命令文件、manifest、包、前缀和项目目录的手动选择。
+- 新建页与账号页提供手动添加入口，包含持久检查结果、Node 要求、官方命令复制／说明链接、已有实例连接和安装／DSH_HOME 区分。外部授权失败也保留在页面上。Desktop 原生宿主不接管。
+- `windows/script/build.ps1 -Action Test` 通过（Core 与 WPF）；覆盖损坏包、缺失入口、npx 缓存清理、npm／PowerShell／自定义路径变量包装器、重复安装和手动连接引导。WPF 展开的完整指引已渲染检查；最终自包含程序的浅／深／Pox 添加页截图均通过，保存在忽略目录 `scratch/dsh-discovery-qa/`。
+- 本机实际 `0.2.1-rc.5` 由 PATH 命令静态解析发现；用仓库 scratch 下新建的独立 home，经最终发布程序的后台宿主验证真实启动、动态端口、认证、空会话查询、手动 token URL 连接／断开及恢复不重复启动。未调用模型、读取或更改个人 home 的登录配置；只停止隔离测试服务。新版钱包、真实模型任务和 Desktop 原生窗口未随本次验证。
+- 自包含 Package 成功，验证输出为 `dist.noindex/windows/Perch-discovery/Perch.exe`，便携包为 `dist.noindex/windows/releases/Perch-Windows-0.2.0-x64.zip`。只重启了 Perch 面板，将同一构建复制到正常入口 `dist.noindex/windows/Perch/Perch.exe` 并核对文件哈希；未停止个人 dsh／Codex／Claude，未发布远端版本。macOS 本次未修改、未构建。
+
 ## 2026-10-24：同步 upstream/main
 
 在 Windows / .NET 10.0.400 上完成上游与 dsh 集成：Core 全套回归通过，Release 自包含发布和便携打包通过，三主题四页面及 dsh 补充页面共 15 次 demo 截图运行成功。采用上游删除接力的行为，保留旧数据；dsh 账号、监控、余额与后台服务保留。冲突文件、处理方式、输出路径与验收边界见 [上游同步记录](../upstream-sync.md)。以下旧日期记录是历史验证，接力功能不再属于当前验收范围。
