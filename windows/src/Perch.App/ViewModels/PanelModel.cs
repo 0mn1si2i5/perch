@@ -40,6 +40,7 @@ public sealed partial class PanelModel : Observable, IDisposable
     public Action? RequestHide;
     public Action<int>? PreviewPet;
     public Func<string, string, string?>? Prompt;
+    public Func<string, string, string?>? PromptConnection;
     public Func<Account, (bool Confirm, bool Recycle)>? ConfirmDelete;
     public Func<string, bool>? Confirm;
     public event Action<string>? BackgroundError;
@@ -121,6 +122,9 @@ public sealed partial class PanelModel : Observable, IDisposable
             Set(ref newKind, value);
             Changed(nameof(NewCodex));
             Changed(nameof(NewClaude));
+            Changed(nameof(NewDsh));
+            Changed(nameof(NewNative));
+            Changed(nameof(CreateLabel));
         }
     }
 
@@ -166,19 +170,24 @@ public sealed partial class PanelModel : Observable, IDisposable
 
     public int PetKind
     {
-        get => Store.Preferences.PetCharacter == "pox" ? 1 : 0;
+        get => PetCharacters.Normalize(Store.Preferences.PetCharacter) switch { "pox" => 1, "deepseek-whale" => 2, _ => 0 };
         set
         {
-            Store.Preferences.PetCharacter = value == 1 ? "pox" : "native";
+            Store.Preferences.PetCharacter = value switch { 1 => "pox", 2 => "deepseek-whale", _ => "native" };
             Configure();
             Changed();
-            Changed(nameof(IsPox));
+            Changed(nameof(IsSpritePet));
             Changed(nameof(PetHelp));
         }
     }
 
-    public bool IsPox => PetKind == 1;
-    public string PetHelp => IsPox ? "Pox 会陪伴任务进度与媒体播放。" : "轻巧的桌面入口；单击展开或收起面板。";
+    public bool IsSpritePet => PetCharacters.UsesSprites(Store.Preferences.PetCharacter);
+    public string PetHelp => PetKind switch
+    {
+        1 => "Pox 会陪伴任务进度与媒体播放。",
+        2 => "鲸鱼娘会陪伴任务进度与媒体播放；面板使用 DeepSeek 蓝暗色主题。",
+        _ => "轻巧的桌面入口；单击展开或收起面板。"
+    };
 
     public double PetSize
     {
@@ -236,6 +245,9 @@ public sealed partial class PanelModel : Observable, IDisposable
 
     public bool NoAccounts => Store.Accounts.Count == 0;
     public Account? BusyAccount => Store.Accounts.FirstOrDefault(a => snapshots.TryGetValue(a.Id, out var s) && s.Sessions.Any(t => t.Status is "运行中" or "等待输入"));
+    public Command Home { get; }
+    public ImageSource ProductIcon => Brand.Image();
+
     public Command Info
     {
         get;
@@ -286,11 +298,14 @@ public sealed partial class PanelModel : Observable, IDisposable
     {
         Store = store;
         Demo = demo;
-        Quotas = new QuotaService(Clients);
+        InitializeDshEditor();
+        Dsh = new DshService(store);
+        Quotas = new QuotaService(Clients, Dsh);
+        Home = new(() => Page = "accounts");
         Info = new(() => Navigate("info"));
         Settings = new(() => Navigate("settings"));
-        Add = new(() => Navigate("add"));
-        CancelAdd = new(() => Page = "accounts");
+        Add = new(() => { ResetDshEditor(); Navigate("add"); });
+        CancelAdd = new(() => { ResetDshEditor(); Page = "accounts"; });
         Create = new(() => Run(CreateAccount), () => !Interacting && !string.IsNullOrWhiteSpace(NewName));
         Import = new(() => Run(ImportAccount));
         TogglePet = new(() =>
@@ -300,11 +315,15 @@ public sealed partial class PanelModel : Observable, IDisposable
             Changed(nameof(PetVisible));
         });
         ClearMessage = new(() => Message = "");
-        RefreshAllCommand = new(() => Run(RefreshAll));
+        RefreshAllCommand = new(() => Run(() => RefreshAll(true)));
         DiscoverAgain = new(() => Run(async () =>
         {
             await Clients.Discover();
+            await ScanDshInstallations();
             icons.Clear();
+        Changed(nameof(CodexIcon));
+        Changed(nameof(ClaudeIcon));
+        Changed(nameof(DshIcon));
             MergeAccounts();
         }));
         TaskbarSettings = new(() => Run(() => Process.Start(new ProcessStartInfo("ms-settings:taskbar") { UseShellExecute = true })?.Dispose()));
@@ -329,10 +348,14 @@ public sealed partial class PanelModel : Observable, IDisposable
         await Background(async () =>
         {
             await Clients.Discover();
+            await ScanDshInstallations();
             icons.Clear();
+        Changed(nameof(CodexIcon));
+        Changed(nameof(ClaudeIcon));
+        Changed(nameof(DshIcon));
             await Poll();
             if (AutoQuota)
-                await RefreshAll();
+                await RefreshAll(false);
         });
         clock.Start();
         if (pollTimer.Interval <= TimeSpan.Zero)
@@ -439,14 +462,19 @@ public sealed partial class PanelModel : Observable, IDisposable
         {
             await Task.Run(() => Clients.Scan());
             var list = Store.Accounts.ToArray();
-            var reads = await Task.Run(() => list.Select(a => (a.Id, Snapshot: Sessions.Read(a, Clients))).ToArray());
+            var reads = await Task.WhenAll(list.Select(async a => (a.Id, Snapshot: a.App == "dsh" ? await Dsh.Read(a) : await Task.Run(() => Sessions.Read(a, Clients)))));
             foreach (var (id, snapshot) in reads)
                 snapshots[id] = snapshot;
             CheckChanges(list);
             MergeAccounts();
             ConfigurationChanged?.Invoke();
-            if (AutoQuota && DateTimeOffset.UtcNow - lastQuota > TimeSpan.FromMinutes(5))
-                _ = Background(RefreshAll);
+            if (AutoQuota)
+            {
+                if (DateTimeOffset.UtcNow - lastQuota > TimeSpan.FromMinutes(5))
+                    _ = Background(RefreshAll);
+                else
+                    _ = Background(RefreshDshQuotas);
+            }
         }
         catch
         {
@@ -466,6 +494,8 @@ public sealed partial class PanelModel : Observable, IDisposable
             vm.Busy = true;
         try
         {
+            if (account.App == "dsh")
+                snapshots[account.Id] = await Dsh.Read(account);
             await Quotas.Refresh(account, manual);
         }
         finally
@@ -476,11 +506,25 @@ public sealed partial class PanelModel : Observable, IDisposable
         }
     }
 
-    private async Task RefreshAll()
+    private Task RefreshAll() => RefreshAll(false);
+
+    private async Task RefreshAll(bool manual)
     {
         lastQuota = DateTimeOffset.UtcNow;
         foreach (var account in Store.Accounts.ToArray())
-            await Refresh(account);
+            await Refresh(account, manual);
+        // Start the next five-minute batch after these results were observed,
+        // so native clients do not miss a whole cycle on their freshness check.
+        lastQuota = DateTimeOffset.UtcNow;
+    }
+
+    private async Task RefreshDshQuotas()
+    {
+        // Poll already refreshed sessions. Let QuotaService's 30-second cache
+        // gate dsh billing, while DshApiBalance keeps its separate five-minute TTL.
+        foreach (var account in Store.Accounts.Where(a => a.App == "dsh").ToArray())
+            await Quotas.Refresh(account, false);
+        MergeAccounts();
     }
 
     public List<Session> AllSessions => snapshots.Values.SelectMany(s => s.Sessions).ToList();
@@ -523,10 +567,18 @@ public sealed partial class PanelModel : Observable, IDisposable
             }))));
         }
 
+        if (!Demo && HasDshInstalls && NoDshAccounts && !Store.Preferences.DismissedDefaults.Contains("dsh"))
+            discoveries.Add(new("dsh", "发现 DeepSeek Harness · " + DshInstalls[0].Version, false, AddDshManually, new(() => Run(() =>
+            {
+                Store.Preferences.DismissedDefaults.Add("dsh");
+                Store.Save();
+                MergeAccounts();
+            }))));
         if (Demo && discoveries.Count == 0)
             discoveries.Add(new("codex", "发现直接打开的 Codex", true, new(() => Notify("演示模式")), new(() => Discovered.Clear())));
         Merge(Discovered, discoveries);
         Changed(nameof(NoAccounts));
+        Changed(nameof(NoDshAccounts));
     }
 
     private bool darkIcons;
@@ -537,14 +589,38 @@ public sealed partial class PanelModel : Observable, IDisposable
             return;
         darkIcons = dark;
         icons.Clear();
+        Changed(nameof(CodexIcon));
+        Changed(nameof(ClaudeIcon));
+        Changed(nameof(DshIcon));
         foreach (var group in Groups)
             group.Notify();
     }
+
+    public ImageSource? CodexIcon => ClientIcon("codex");
+    public ImageSource? ClaudeIcon => ClientIcon("claude");
+    public ImageSource? DshIcon => ClientIcon("dsh");
 
     public ImageSource? ClientIcon(string app)
     {
         if (icons.TryGetValue(app, out var icon))
             return icon;
+        if (app == "dsh")
+        {
+            // Official DeepSeek whale from dsh-web-frontend's white favicon.
+            var svg = System.Xml.Linq.XDocument.Load(Path.Combine(AppContext.BaseDirectory, "Resources", "ClientIcons", "dsh.svg"));
+            var pathData = svg.Root!.Elements().Single().Attribute("d")!.Value;
+            var whale = new DrawingGroup();
+            using (var drawing = whale.Open())
+            {
+                // Keep the requested white mark visible on the light theme too.
+                drawing.DrawRoundedRectangle(darkIcons ? Brushes.Transparent : new SolidColorBrush(Color.FromRgb(48, 51, 55)), null, new Rect(0, 0, 50, 50), 8, 8);
+                drawing.DrawGeometry(Brushes.White, null, Geometry.Parse(pathData));
+            }
+            icon = new DrawingImage(whale);
+            icon.Freeze();
+            icons[app] = icon;
+            return icon;
+        }
         try
         {
             var path = Clients.Installed.FirstOrDefault(c => c.App == app)?.Executable;
@@ -591,7 +667,7 @@ public sealed partial class PanelModel : Observable, IDisposable
         return bitmap;
     }
 
-    public static string Label(string app) => app == "codex" ? "Codex" : "Claude";
+    public static string Label(string app) => ClientKinds.Label(app);
     public static void Reveal(string path)
     {
         var info = new ProcessStartInfo("explorer.exe")
@@ -608,5 +684,6 @@ public sealed partial class PanelModel : Observable, IDisposable
         pollTimer.Stop();
         clock.Stop();
         messageTimer.Stop();
+        Dsh.Dispose();
     }
 }

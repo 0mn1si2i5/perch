@@ -82,7 +82,7 @@ public sealed partial class PanelModel
                 if (account == null)
                     return false;
                 var session = snapshots.GetValueOrDefault(account.Id)?.Sessions.FirstOrDefault(s => s.Id == open.SessionId);
-                Run(() => session != null ? OpenSession(account, session) : Clients.Open(account));
+                Run(() => session != null ? OpenSession(account, session) : OpenClient(account));
                 return true;
             default:
                 return false;

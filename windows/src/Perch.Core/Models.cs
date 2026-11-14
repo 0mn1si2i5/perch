@@ -15,6 +15,7 @@ public sealed class Account
     public string App { get; set; } = "codex";
     public string ProfilePath { get; set; } = "";
     public string SessionRoot { get; set; } = "";
+    public DshConfiguration? Dsh { get; set; }
     public bool Default
     {
         get; set;
@@ -28,10 +29,12 @@ public sealed class Account
 // Exec: started by `codex exec` (for example a delegate run) rather than in the desktop app.
 public sealed record Session(string Id, string Title, string Status, DateTimeOffset Updated, string Cwd = "", string Path = "", bool Exec = false);
 public sealed record QuotaWindow(string Name, double Used, DateTimeOffset? Resets);
-public sealed record Quota(List<QuotaWindow> Windows, DateTimeOffset Observed, string Detail, bool Cached = false);
+public sealed record WalletBalance(string Kind, string Currency, decimal Amount);
+public sealed record ApiBalanceResult(List<WalletBalance> Balances, DateTimeOffset? Observed, string Detail, bool Cached = false);
+public sealed record Quota(List<QuotaWindow> Windows, DateTimeOffset Observed, string Detail, bool Cached = false, List<WalletBalance>? Balances = null, ApiBalanceResult? ApiBalance = null);
 public sealed record Client(string App, string Executable, string DefaultProfile, string DefaultSessions);
 public sealed record Running(int Pid, string Executable, string CommandLine, long Handle);
-public sealed record Snapshot(bool Running, List<Session> Sessions, string Detail, long Handle);
+public sealed record Snapshot(bool Running, List<Session> Sessions, string Detail, long Handle, DateTimeOffset? Observed = null, bool Cached = false);
 public sealed class Preferences
 {
     public bool AutoQuota { get; set; } = true;
@@ -56,7 +59,7 @@ public sealed class Preferences
     {
         get; set;
     }
-    public List<string> GroupOrder { get; set; } = ["codex", "claude"];
+    public List<string> GroupOrder { get; set; } = ["codex", "claude", "dsh"];
     public Dictionary<string, List<string>> SessionOrder { get; set; } = [];
     public List<string> DismissedDefaults { get; set; } = [];
     public List<string> ExpandedAccounts { get; set; } = [];
@@ -115,6 +118,10 @@ public sealed class Store
             saved["accounts.json"] = JsonSerializer.Serialize(Accounts, Json);
         if (File.Exists(Path.Combine(Root, "preferences.json")))
             saved["preferences.json"] = JsonSerializer.Serialize(Preferences, Json);
+        // Append newly supported clients without disturbing the user's saved order.
+        foreach (var app in ClientKinds.All)
+            if (!Preferences.GroupOrder.Contains(app))
+                Preferences.GroupOrder.Add(app);
     }
 
     /// Returns the recovery notice once, then forgets it.

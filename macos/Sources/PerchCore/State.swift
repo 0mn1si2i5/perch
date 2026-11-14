@@ -3,7 +3,7 @@ import Foundation
 public enum PetPose: Int, CaseIterable {
     case idle, salute, thinking, listening, watching, celebrating, confused, lifted
     public var label: String {
-        ["待着也挺好", "收到", "正在琢磨", "听歌中", "陪你看片", "搞定了", "挠头", "好家伙，被提起来了"][rawValue]
+        Strings.get("pet.pose.\(rawValue)")
     }
 }
 

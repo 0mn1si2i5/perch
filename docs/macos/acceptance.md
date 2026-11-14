@@ -2,6 +2,16 @@
 
 自动检查与真实界面验收分别记录，不以编译成功代替交互验证。
 
+## 2026-11-14：dsh Web 与既有 provider 融合
+
+新增可选 Web 配置沿用 `.deepseek` 账号，同 home 关联保留 ID、名称、顺序和原客户端入口。受管启动、Keychain 恢复、外部连接、根会话、双余额、通知和桌宠进入现有面板；Gemini／Antigravity 的入口不变。独立应用包补齐 NOTICE/LICENSE，并增加不读取个人配置的 `--verify-bundle-resources` 检查。
+
+本地验证环境为 Linux：全部 Swift 文件通过 Swift 6.0.3 语法解析；portable 测试使用真实源码副本、FoundationNetworking 和真实 swift-crypto，协议／余额及既有 DeepSeekUsage 22 项、安装／文件锁／状态机及注入凭据存储 13 项通过。这些结果不代表 AppKit、真实 Keychain、后台宿主或 Mac 鼠标验收通过。原生测试、发布构建和独立应用包资源检查由 macOS CI 执行，结果见 [PR #7 Checks](https://github.com/0mn1si2i5/perch/pull/7/checks)。
+
+另用官方 npm `@deepseek-ai/dsh@0.2.2-rc.1` 和 Node 24.22.1 启动隔离 Web 服务，通过实际 Swift `DshConnection` 验证 token 换 Cookie、空会话列表、计费路由与未登录钱包响应。只使用临时 HOME／DSH_HOME，没有模型请求、个人凭据或原始授权日志；结束后停止自建服务并清理临时目录。此项为 Linux 上的真实协议联通验证，不能替代 Mac 原生宿主和真实登录钱包验收。
+
+真实验收仍需：已有 DSH Desktop 账号关联 Web 后不重复账号；两个独立 home 启动、退出面板后继续、重开恢复；同源重连与错误实例拒绝；官方钱包／API 两路成功及失败；真实模型完成通知；应用升级后的显式钥匙串授权。未访问个人账号、发送模型任务或停止个人客户端。
+
 ## 删除接力和拆出需求 — 2026-10-21
 
 会话右键菜单的“接力到…”“拆出需求到…”、待接力卡片、设置页的交接文件夹和接力记录、交接文档写好的通知，以及 `PerchCore/Handoff` 和对应测试都已删除。对话完成、等你回应和遇到问题的通知保留，桌宠气泡照旧使用。`swift test --package-path macos` 通过（PerchCore 131 项，Perch 30 项中 1 项可选预览跳过），`macos/script/build_and_run.sh --build` 成功。没有安装新版，也没有在真实菜单栏面板上检查。安装后要看：右键菜单只剩打开、复制会话文件路径、在 Finder 中显示；设置页和信息页没有“文档接力”；对话完成照常通知；`~/Library/Application Support/Perch/handoffs/` 还在且没有被改动。
@@ -66,3 +76,15 @@
 
 
 2026-10-20 实机验收（阶段 1、2 与 Moot 运行记录合并后的版本）：第 2、3、4 项通过；第 1 项本机没有 API 供应商或自定义客户端账号，没有生成 `removed-accounts.json`，其余 7 个账号保持不变；第 5、6、7 项未测。子代理面板列出了当晚 4 个 Moot 任务，分别标出 Codex、Claude、Gemini，时间取自运行记录。
+
+## 2026-11-13：DeepSeek 鲸鱼娘（待 Mac 验收）
+
+已接入第三个角色 `deepseek-whale`、共享透明图集、八种姿势、桌宠选项、系统明暗主题及构建资源复制，补充角色持久化、切换清理、禁用停止和图集裁剪回归。现有 `com.pox.desktop` → `com.omnis.perch` 一次迁移保持完整。
+
+本次环境为 Windows，没有 Swift 或 Mac 运行环境，未执行 `swift test --package-path macos` 和 `macos/script/build_and_run.sh --build`。需在 Mac 上运行两项命令，并实际检查三角色切换、任务/媒体反馈、预览到期、大小、安静模式、隐藏恢复及窗口拖动。Windows 结果不代表 Mac 构建或实机通过。
+
+## 2026-11-13：桌宠共享 JSON 文案（待 Mac 验收）
+
+`PerchCore.Strings` 读取共享 `zh-CN.json`，应用构建脚本复制原文件到 `Contents/Resources`；SwiftPM 测试／开发运行直接读取仓库原文件。已打包 `.app` 缺少资源时报告失败，不回退到源码。通用姿势名、预览模板、Pox 与鲸鱼娘反馈均改为资源键，保留现有角色隔离、浮球无台词、Pox 双击无气泡及平台原有标签差异。
+
+补充规范源文件一致性、打包资源优先／缺失失败、特殊字符和占位符、全部姿势与角色命名空间测试；现有生命周期测试从 JSON 获取预期值，便于只修改一处文案。当前仍无 Swift／Mac 运行环境，以上用例未执行；需在 Mac 跑 `swift test --package-path macos` 与 `macos/script/build_and_run.sh --build`，并检查脱离仓库运行的 `.app` 仍能显示台词。编辑入口见 [文案维护说明](../../shared/strings/deepseek-whale-copy.md)。

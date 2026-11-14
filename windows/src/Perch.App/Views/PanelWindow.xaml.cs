@@ -21,8 +21,9 @@ public partial class Panel : Window, IDisposable
     private readonly ThemeManager theme;
     private readonly Hotkey? hotkey;
     private PetWindow? pet;
-    private bool disposed, followsPet, lastPox, settling;
+    private bool disposed, followsPet, settling;
     private readonly bool keepOpen;
+    private string? lastCharacterTheme;
     private DateTimeOffset lastHidden;
     public event Action<string>? BackgroundError;
     public event Action<string, string, NoticeAction?>? Notice;
@@ -39,6 +40,7 @@ public partial class Panel : Window, IDisposable
         Model.RequestHide = Hide;
         Model.PreviewPet = i => pet?.Preview(i);
         Model.Prompt = (title, value) => InlineDialog.Ask(this, title, value);
+        Model.PromptConnection = (title, value) => InlineDialog.Ask(this, title, value, 8192);
         Model.Confirm = text => InlineDialog.Confirm(this, text);
         Model.ConfirmDelete = account => InlineDialog.Delete(this, account);
         Model.Notice += (title, body, action) => Notice?.Invoke(title, body, action);
@@ -92,26 +94,27 @@ public partial class Panel : Window, IDisposable
         Dispatcher.InvokeAsync(Model.Start);
     }
 
+    private void SurfaceSized(object sender, SizeChangedEventArgs e)
+    {
+        Surface.Clip = new RectangleGeometry(new Rect(e.NewSize), 20, 20);
+    }
+
     private void ApplyTheme()
     {
-        bool pox = theme.Name == "Pox";
-        bool acrylic = OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000) && !pox;
-        Background = acrylic ? Brushes.Transparent : (Brush)FindResource("PanelFill");
-        // Dark acrylic alone reads as flat grey; a denser tint keeps it close to Windows 11 dark flyouts.
-        Backdrop.Opacity = !acrylic ? 1 : theme.Name == "Dark" ? .82 : .35;
+        // A transparent WPF surface gives every theme the same exact 20-DIP corners.
+        Background = Brushes.Transparent;
+        Backdrop.Opacity = 1;
         Model.UseDarkIcons(theme.Name != "Light");
-        if (new System.Windows.Interop.WindowInteropHelper(this).Handle != 0)
-            NativeWindow.Apply(this, theme.Name != "Light", pox);
         pet?.Configure();
     }
 
     private void UpdatePet()
     {
         var p = Model.Store.Preferences;
-        bool usesPox = p.PetEnabled && p.PetCharacter == "pox";
-        if (usesPox != lastPox)
+        string? characterTheme = p.PetEnabled ? p.PetCharacter : null;
+        if (characterTheme != lastCharacterTheme)
         {
-            lastPox = usesPox;
+            lastCharacterTheme = characterTheme;
             theme.Apply();
         }
 
@@ -124,7 +127,7 @@ public partial class Panel : Window, IDisposable
                 {
                     var busy = Model.BusyAccount;
                     if (busy != null && !Model.Demo)
-                        await Model.Clients.Open(busy);
+                        await Model.OpenClient(busy);
                 }), ShowInTaskbar);
                 pet.LocationChanged += (_, _) =>
                 {

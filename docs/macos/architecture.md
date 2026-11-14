@@ -13,6 +13,8 @@ Perch 是独立的 macOS 菜单栏应用。Pox 是可选角色，不依赖 Pox �
 | `macos/Sources/PerchCore/Launcher` | 客户端定位、进程归属、启动、运行目录和会话路由 |
 | `macos/Sources/PerchCore/CodexTasks` / `ClaudeSessions` | 本地会话元数据与状态 |
 | `macos/Sources/PerchCore/Quota` | 额度解析、缓存、实时查询与刷新状态 |
+| `macos/Sources/PerchCore/Providers` | 本机 Gemini／Antigravity／DSH Desktop 与终端、既有会话和余额 |
+| `macos/Sources/PerchCore/Dsh` | dsh Web 安装、RPC、后台宿主、钥匙串授权、分源钱包与 API 余额 |
 | `macos/Tests` | 核心行为与应用状态回归测试 |
 | `shared/assets` / `macos/Vendor` | 应用图标、角色素材、固定版本的媒体适配器及其许可证 |
 | `macos/script` | 开发构建、安装、通用架构发行包 |
@@ -41,6 +43,6 @@ Codex 使用所属账号的 app-server 查询额度，本地 rollout 尾部记�
 
 ## 产品边界
 
-只支持本机 Codex / Claude。多实例深链无法保证定向，因此会话点击优先调出正确账号，具体对话可能仍需手动选择。没有跨账号原会话复制、跨设备同步、外部角色包或通用插件系统。agent-desk 上游同步与退役继续暂缓；Perch 的发布不删除其数据或修改其仓库。
+支持本机 Codex / Claude 及上述原生供应商入口。DeepSeek Web 在既有 `.deepseek` 账号上添加可选配置，同 home 保留原账号与原客户端入口；不会自动接管 Desktop 私有授权。Web 任务使用同一面板、排序、通知与桌宠，多实例深链无法保证定向时仍需在客户端选择会话。没有跨账号原会话复制、跨设备同步、外部角色包或通用插件系统。详见 [dsh 双端接入](../deepseek-harness.md)。agent-desk 上游同步与退役继续暂缓；Perch 的发布不删除其数据或修改其仓库。
 
 面板内容使用固定列宽，折叠区域整行可点击；长内容通过滚轮或触控板滚动，不因滚动条出现而重新换行。

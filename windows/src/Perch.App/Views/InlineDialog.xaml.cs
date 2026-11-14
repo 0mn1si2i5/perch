@@ -34,16 +34,17 @@ public partial class InlineDialog : Window
 
     private void Accept(object sender, RoutedEventArgs e) => DialogResult = true;
     public void Cancel() => DialogResult = false;
-    public static string? Ask(Window owner, string heading, string value)
+    public static string? Ask(Window owner, string heading, string value, int maxLength = 80)
     {
         var dialog = new InlineDialog(owner, heading, "", value);
+        dialog.Input.MaxLength = maxLength;
         return dialog.ShowDialog() == true ? dialog.Input.Text : null;
     }
 
     public static bool Confirm(Window owner, string text) => new InlineDialog(owner, "确认操作", text).ShowDialog() == true;
     public static (bool Confirm, bool Recycle) Delete(Window owner, Account account)
     {
-        var dialog = new InlineDialog(owner, "移除账号“" + account.Name + "”？", "默认只移除 Perch 记录，客户端数据将保留。\n" + account.ProfilePath, recycle: !account.Default);
+        var dialog = new InlineDialog(owner, "移除账号“" + account.Name + "”？", (account.App == "dsh" ? "只移除 Perch 记录；dsh 服务和数据将保留。\n" : "默认只移除 Perch 记录，客户端数据将保留。\n") + account.ProfilePath, recycle: account.App != "dsh" && !account.Default);
         return (dialog.ShowDialog() == true, dialog.Recycle.IsChecked == true);
     }
 }

@@ -6,6 +6,7 @@ struct AccountCard: View {
     let account: Account
     @State private var expanded = false
     @State private var targeted = false
+    @State private var configuringDsh = false
 
     var body: some View {
         let rows = perch.rows(for: account)
@@ -23,7 +24,7 @@ struct AccountCard: View {
                 Spacer(minLength: 4)
                 if !missing, let quota = perch.quotas[account.id] {
                     QuotaFreshnessView(quota: quota)
-                } else if !missing, perch.supportsProviderUsage(account) {
+                } else if !missing, account.dshWeb == nil, perch.supportsProviderUsage(account) {
                     QuotaFreshnessView(quota: ProviderUsagePresentation.display(
                         usage: perch.providerUsage[account.id], error: perch.providerUsageErrors[account.id]))
                 }
@@ -41,10 +42,19 @@ struct AccountCard: View {
                 if missing {
                     // Desktop accounts can be pointed at other data. A local provider's data directory cannot be
                     // changed here: the owner deletes it and adds the new directory from a scan.
-                    if account.localProvider == nil { Button("配置") { perch.relocate(account) }.controlSize(.small) }
+                    if account.dshWeb != nil {
+                        Button("打开网页") { perch.launch(account) }.controlSize(.small)
+                            .disabled(perch.dshBusy.contains(account.id))
+                    }
+                    else if account.localProvider == nil { Button("配置") { perch.relocate(account) }.controlSize(.small) }
                 } else {
                     Button(launchLabel(running: running)) { perch.launch(account) }.controlSize(.small)
+                        .disabled(perch.dshBusy.contains(account.id))
                 }
+            }
+            if account.dshWeb != nil { dshDetails }
+            else if account.app == .deepseek {
+                Button("关联 Web 任务与余额…") { configuringDsh = true }.controlSize(.small)
             }
             if perch.localWebURL(account) != nil {
                 Button("打开本机网页") { perch.openLocalWeb(account) }.controlSize(.small)
@@ -53,12 +63,12 @@ struct AccountCard: View {
             if !missing, let quota = perch.quotas[account.id] {
                 QuotaRowView(quota: quota)
             }
-            if !missing, perch.supportsProviderUsage(account), account.app != .antigravity || queried {
+            if !missing, account.dshWeb == nil, perch.supportsProviderUsage(account), account.app != .antigravity || queried {
                 ProviderUsageView(usage: perch.providerUsage[account.id], error: perch.providerUsageErrors[account.id],
                                   refreshing: perch.refreshingQuotas.contains(account.id))
             }
             if missing {
-                Text(account.localProvider == nil ? "数据目录不存在" : "数据目录不存在，删除后重新扫描添加")
+                Text(account.dshWeb != nil ? "数据目录不存在；请检查配置，打开网页时会创建受管目录。" : account.localProvider == nil ? "数据目录不存在" : "数据目录不存在，删除后重新扫描添加")
                     .font(.system(size: 11)).foregroundStyle(.orange)
             } else if rows.isEmpty, account.app != .geminiApp {
                 Text(perch.emptyText(for: account)).font(.system(size: 11)).foregroundStyle(.secondary)
@@ -92,13 +102,63 @@ struct AccountCard: View {
         } isTargeted: { targeted = $0 }
         .contextMenu {
             Button("改名…") { perch.rename(account) }
+            if account.app == .deepseek { Button(account.dshWeb == nil ? "关联 Web…" : "配置与重新连接…") { configuringDsh = true } }
+            if account.dshWeb != nil {
+                if account.localProvider != nil { Button("打开原客户端") { perch.openDshOriginalClient(account) } }
+                Button(account.dshWeb?.mode == .external ? "断开连接" : "停止受管服务") { perch.stopDsh(account) }
+                    .disabled(perch.dshBusy.contains(account.id))
+            }
             if account.app.hasQuota, !perch.isDefaultData(account) {
                 Button("改用直接打开的 \(account.app.displayName)…") { perch.useDefaultData(account) }
             }
             Button("删除…") { perch.delete(account) }
         }
+        .sheet(isPresented: $configuringDsh) {
+            ScrollView {
+                DshAccountEditor(perch: perch, account: account) { configuringDsh = false }
+                    .padding(20)
+            }.frame(width: 420, height: 600)
+        }
     }
+
+    private var dshDetails: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            let snapshot = perch.dshSnapshots[account.id]
+            Text(snapshot?.detail ?? "打开网页启动或恢复连接。")
+                .font(.system(size: 10)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let error = perch.dshErrors[account.id] {
+                Text(error).font(.system(size: 11)).foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack {
+                Button("配置与重连…") { configuringDsh = true }
+                if account.localProvider != nil { Button("原客户端") { perch.openDshOriginalClient(account) } }
+            }.controlSize(.small)
+            if let balances = perch.dshBalances[account.id] {
+                DisclosureGroup("官方钱包") {
+                    balance(usage: balances.official, error: balances.officialError)
+                }
+                DisclosureGroup("DeepSeek API 余额") {
+                    balance(usage: balances.api, error: balances.apiError)
+                }
+            } else if perch.refreshingQuotas.contains(account.id) {
+                Text("正在查询钱包与 API 余额…").font(.system(size: 10)).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func balance(usage: ProviderUsage?, error: String?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let usage { Text(usage.summary).foregroundStyle(.secondary) }
+            ProviderUsageView(usage: usage, error: error, refreshing: perch.refreshingQuotas.contains(account.id))
+            QuotaFreshnessView(quota: ProviderUsagePresentation.display(usage: usage, error: error))
+            if let error { Text(error).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
+        }.font(.system(size: 10)).padding(.top, 4)
+    }
+
     private func launchLabel(running: Bool) -> String {
+        if account.dshWeb != nil { return perch.dshBusy.contains(account.id) ? "连接中…" : "打开网页" }
         if account.app == .deepseek, account.localProvider?.kind == .terminal { return running ? "终端" : "启动服务" }
         if account.localProvider?.kind == .terminal { return running ? "终端" : "启动" }
         return running ? "前台" : "启动"

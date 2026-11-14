@@ -51,6 +51,15 @@ final class PerchModel: ObservableObject {
     @Published var refreshingQuotas: Set<String> = []
     @Published var providerUsage: [String: ProviderUsage] = [:]
     @Published var providerUsageErrors: [String: String] = [:]
+    @Published var dshSnapshots: [String: DshSnapshot] = [:]
+    @Published var dshBalances: [String: DshBalances] = [:]
+    @Published var dshErrors: [String: String] = [:]
+    @Published var dshBusy: Set<String> = []
+    @Published var dshInstallations: [DshInstallCandidate] = []
+    @Published var dshScanning = false
+    let dshService: DshService
+    var dshReading: Set<String> = []
+    var dshEpochs: [String: Int] = [:]
     @Published var automaticallySyncQuota = UserDefaults.standard.object(forKey: "automaticallySyncQuota") as? Bool ?? true {
         didSet { UserDefaults.standard.set(automaticallySyncQuota, forKey: "automaticallySyncQuota") }
     }
@@ -61,6 +70,7 @@ final class PerchModel: ObservableObject {
     private var quotaThrottle = QuotaThrottle()
     private var quotaRetryAfter: [String: Date] = [:]
     private var quotaTimer: Timer?
+    private var dshBalanceTimer: Timer?
     private let quotaQueue = DispatchQueue(label: "com.omnis.perch.quota", qos: .utility, attributes: .concurrent)
     /// All Codex tasks across accounts, plus at most one task whose completion was observed this poll.
     var onTasks: (([CodexTask], CodexTask?) -> Void)?
@@ -86,6 +96,7 @@ final class PerchModel: ObservableObject {
              PerchNotifications.shared.send($0, completion: $1)
          }) {
         self.store = store
+        self.dshService = DshService(root: store.root)
         self.pasteboard = pasteboard
         self.accounts = store.accounts
         self.launcher = launcher
@@ -151,6 +162,10 @@ final class PerchModel: ObservableObject {
         quotaTimer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
             guard let self, self.automaticallySyncQuota else { return }
             self.refreshQuotas()
+        }
+        dshBalanceTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            guard let self, self.automaticallySyncQuota else { return }
+            for account in self.accounts where account.dshWeb != nil { self.refreshDshBalances(account, manual: false) }
         }
         if automaticallySyncQuota { refreshQuotas() }
     }
@@ -235,6 +250,13 @@ final class PerchModel: ObservableObject {
     }
 
     func refreshQuota(_ account: Account, manual: Bool = true) {
+        if account.dshWeb != nil {
+            guard !refreshingQuotas.contains(account.id) else { return }
+            if manual { quotaThrottle.reset(account.id) }
+            guard quotaThrottle.allow(account.id, now: Date()) else { return }
+            refreshDshBalances(account, manual: manual)
+            return
+        }
         if supportsProviderUsage(account) {
             // The Gemini app reports the same Antigravity quota; agy only runs when the owner asks for it.
             if account.app == .antigravity && !manual { return }
@@ -309,16 +331,18 @@ final class PerchModel: ObservableObject {
     // MARK: Polling
 
     func poll() {
+        pollDsh()
         guard !reading else { return }
         reading = true
         let accounts = self.accounts
         let codex = accounts.filter { $0.app == .codex }.map { ($0.id, reader(for: $0)) }
         let claude = accounts.filter { $0.app == .claude }.map { ($0.id, claudeReader(for: $0), claudeCodeReader(for: $0)) }
-        let providers = accounts.filter { $0.localProvider != nil }.map { ($0.id, localReader(for: $0)) }
+        let providers = accounts.filter { $0.localProvider != nil && $0.dshWeb == nil }.map { ($0.id, localReader(for: $0)) }
         worker.async { [weak self] in
             let processes = ProcessMatcher.snapshot() ?? []
             let running = Set(accounts.filter {
-                $0.localProvider != nil ? LocalProviderLauncher.isRunning($0, processes: processes)
+                guard $0.dshWeb == nil else { return false }
+                return $0.localProvider != nil ? LocalProviderLauncher.isRunning($0, processes: processes)
                     : ($0.app.hasQuota && ProcessMatcher.owner(of: $0.profilePath, in: processes) != nil)
             }.map(\.id))
             var snapshots: [String: CodexSnapshot] = [:]
@@ -349,7 +373,9 @@ final class PerchModel: ObservableObject {
         }.map(\.id))
         let snapshots = snapshots.filter { live.contains($0.key) }
         if self.snapshots != snapshots { self.snapshots = snapshots }
-        let running = running.intersection(live)
+        let running = running.intersection(live).union(accounts.filter {
+            $0.dshWeb != nil && dshSnapshots[$0.id]?.running == true
+        }.map(\.id))
         if runningIDs != running { runningIDs = running }
         let sessions = sessions.filter { live.contains($0.key) }
         if claudeSessions != sessions { claudeSessions = sessions }
@@ -376,12 +402,59 @@ final class PerchModel: ObservableObject {
             guard case .codex(let task) = change.row.kind, task.status == .completed else { return nil }
             return task
         }.first
-        onTasks?(snapshots.values.flatMap(\.tasks), completed)
+        publishPetTasks(completed: completed)
         if notifySessionChanges {
             // Claude Code history and `codex exec` runs are left out: Claude notifies for its Code sessions itself,
             // and delegate runs are what the subagent panel shows.
             notifySessions(changes.filter { !$0.row.isClaudeCode && !$0.row.isExec })
         }
+    }
+
+    /// Web reads complete independently of file polling. A configuration change invalidates in-flight results.
+    func applyDsh(_ snapshot: DshSnapshot, for account: Account) {
+        guard isCurrentDsh(account) else { return }
+        dshSnapshots[account.id] = snapshot
+        if snapshot.running { runningIDs.insert(account.id) } else { runningIDs.remove(account.id) }
+        var completed: CodexTask?
+        if snapshot.running && !snapshot.cached {
+            let found = trackers[account.id, default: SessionChangeTracker()].update(snapshot.sessions.map { ($0.id, $0.status) })
+            let changes = found.compactMap { change -> (account: Account, row: SessionRow)? in
+                snapshot.sessions.first { $0.id == change.id }.map { (account, SessionRow(kind: .dshWeb($0))) }
+            }
+            completed = changes.lazy.compactMap { change -> CodexTask? in
+                guard case .dshWeb(let session) = change.row.kind, session.status == .completed else { return nil }
+                return Self.petTask(session, account: account)
+            }.first
+            if notifySessionChanges { notifySessions(changes) }
+        }
+        publishPetTasks(completed: completed)
+    }
+
+    private static func petTask(_ session: DshSession, account: Account) -> CodexTask {
+        CodexTask(id: "dsh:\(account.id):\(session.id)", title: session.title, status: session.status,
+                  turnID: "", updatedAt: session.updatedAt, source: "DeepSeek Harness")
+    }
+
+    private func publishPetTasks(completed: CodexTask? = nil) {
+        let web = accounts.filter { $0.dshWeb != nil }.flatMap { account -> [CodexTask] in
+            guard let snapshot = dshSnapshots[account.id], snapshot.running, !snapshot.cached else { return [] }
+            return snapshot.sessions.map { Self.petTask($0, account: account) }
+        }
+        onTasks?(snapshots.values.flatMap(\.tasks) + web, completed)
+    }
+
+    func resetDshState(_ accountID: String) {
+        dshEpochs[accountID, default: 0] += 1
+        dshSnapshots[accountID] = nil
+        dshBalances[accountID] = nil
+        dshErrors[accountID] = nil
+        trackers[accountID] = nil
+        providerUsage[accountID] = nil
+        providerUsageErrors[accountID] = nil
+        localSessions[accountID] = nil
+        runningIDs.remove(accountID)
+        quotaThrottle.reset(accountID)
+        publishPetTasks()
     }
 
     /// One notification per poll: a single change opens its conversation when clicked, several open the panel.
@@ -471,6 +544,7 @@ final class PerchModel: ObservableObject {
     // MARK: Actions
 
     func launch(_ account: Account, then: ((LaunchOutcome) -> Void)? = nil) {
+        if account.dshWeb != nil { launchDsh(account, then: then); return }
         if launchCallbacks[account.id] != nil {
             if let then { launchCallbacks[account.id]?.append(then) }
             return
@@ -499,6 +573,7 @@ final class PerchModel: ObservableObject {
     /// Brings the account's client forward; opens the conversation link only when it cannot reach the wrong instance.
     /// Codex instances are counted from a fresh process list, so a Codex started outside Perch also counts.
     func open(_ row: SessionRow, in account: Account) {
+        if case .dshWeb = row.kind { launchDsh(account); return }
         launch(account) { outcome in
             if case .local = row.kind {
                 if case .failed = outcome {} else { self.message = "已打开客户端，请在客户端选择会话。" }
@@ -523,6 +598,8 @@ final class PerchModel: ObservableObject {
                 self.message = row.isClaudeCode
                     ? "已调出 Claude；这是本机 Code 历史，目前不支持可靠直达桌面会话。"
                     : "已调出所属 Claude；请在客户端选择会话。"
+            case .dshWeb:
+                break
             }
         }
     }
@@ -541,7 +618,8 @@ final class PerchModel: ObservableObject {
         let busy = codex.first { account in
             snapshots[account.id]?.tasks.contains { $0.status == .running || $0.status == .waiting } == true
         }
-        if let account = busy ?? codex.first ?? accounts.first { launch(account) }
+        let busyProvider = accounts.first { account in rows(for: account).contains { $0.isActive } }
+        if let account = busy ?? busyProvider ?? codex.first ?? accounts.first { launch(account) }
     }
 
     func copy(_ path: String) {
@@ -595,7 +673,9 @@ final class PerchModel: ObservableObject {
         let alert = NSAlert()
         alert.messageText = "删除账号“\(account.name)”？"
         let box = NSButton(checkboxWithTitle: "同时把数据目录移到废纸篓", target: nil, action: nil)
-        if store.isDefaultData(account) || account.localProvider != nil {
+        if account.dshWeb != nil {
+            alert.informativeText = "只移除 Perch 中的记录。dsh 服务继续运行，数据目录与原客户端配置不受影响。需要停止服务时，请先使用账号菜单里的停止操作。"
+        } else if store.isDefaultData(account) || account.localProvider != nil {
             // The Dock instance's data is never offered for the Trash.
             alert.informativeText = "只删除 Perch 里的账号。直接打开 \(account.app.displayName) 时使用的数据不受影响。"
         } else {
@@ -613,6 +693,7 @@ final class PerchModel: ObservableObject {
         }
         accounts = store.accounts
         snapshots[account.id] = nil
+        if account.dshWeb != nil { resetDshState(account.id) }
         refreshDiscovered()
     }
 
@@ -709,11 +790,16 @@ final class PerchModel: ObservableObject {
     }
 
     func dataMissing(_ account: Account) -> Bool {
-        !FileManager.default.fileExists(atPath: account.profilePath)
+        if account.dshWeb?.mode == .external { return false }
+        return !FileManager.default.fileExists(atPath: account.profilePath)
     }
 
     func rows(for account: Account) -> [SessionRow] {
         let rows: [SessionRow]
+        if account.dshWeb != nil {
+            return sessionOrder.ordered((dshSnapshots[account.id]?.sessions ?? []).map { SessionRow(kind: .dshWeb($0)) },
+                                        accountID: account.id, id: { $0.id })
+        }
         switch account.app {
         case .codex: rows = (snapshots[account.id]?.tasks ?? []).map { SessionRow(kind: .codex($0)) }
         case .claude: rows = (claudeSessions[account.id] ?? []).map { SessionRow(kind: .claude($0)) }
@@ -723,6 +809,7 @@ final class PerchModel: ObservableObject {
     }
 
     func emptyText(for account: Account) -> String {
+        if account.dshWeb != nil { return dshSnapshots[account.id]?.detail ?? "打开网页启动或恢复连接；也可在配置中连接已有实例。" }
         switch account.app {
         case .codex:
             guard let snapshot = snapshots[account.id] else { return "正在读取…" }

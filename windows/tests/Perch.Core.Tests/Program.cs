@@ -13,12 +13,56 @@ static class Program
             throw new Exception(message);
     }
 
-    static void Main()
+    static void Main(string[] args)
     {
+        if (args.Length == 1 && args[0] == "--dsh-contract-check")
+        {
+            DshSharedContractTests.Run();
+            return;
+        }
+        if (args.Length is 1 or 2 && args[0] == "--dsh-discovery-smoke")
+        {
+            DshSmoke.Discovered(args.Length == 2 ? args[1] : null).GetAwaiter().GetResult();
+            return;
+        }
+        if (args.Length == 3 && args[0] == "--dsh-host")
+        {
+            Environment.ExitCode = DshHost.Run(args[1], args[2]);
+            return;
+        }
+        if (args.Length == 3 && args[0] == "--dsh-parent-exit")
+        {
+            var isolated = new Store(args[1]);
+            using var service = new DshService(isolated);
+            service.Ensure(isolated.Accounts.Single(a => a.Id == args[2])).GetAwaiter().GetResult();
+            return;
+        }
+        if (args.Length == 3 && args[0] == "--dsh-smoke")
+        {
+            DshSmoke.Run(args[1], args[2]).GetAwaiter().GetResult();
+            return;
+        }
+        if (args.Length == 3 && args[0] == "--dsh-api-balance-check")
+        {
+            DshSmoke.CheckApiBalance(args[1], args[2]).GetAwaiter().GetResult();
+            return;
+        }
+        if (args.Length == 4 && args[0] == "--dsh-api-balance-prepare-ui")
+        {
+            DshSmoke.PrepareApiBalanceUi(args[1], args[2], args[3]);
+            return;
+        }
+        if (args.Length is 4 or 5 && args[0] == "--dsh-smoke-published")
+        {
+            DshSmoke.Run(args[1], args[2], args[3], args.Length == 5 && args[4] == "--browser").GetAwaiter().GetResult();
+            return;
+        }
         var root = Path.Combine(Path.GetTempPath(), "perch-tests-" + Guid.NewGuid().ToString("N"));
         try
         {
             var store = new Store(root);
+            PetDialogueTests.Run();
+            DshDiscoveryTests.Run(root);
             var a = new Account
             {
                 Name = "A",
@@ -114,9 +158,13 @@ static class Program
             Check(scaled.X == 2303 && scaled.Y == 585 && scaled.Width == 510, "Physical origins and scaled dimensions stay separate");
             Check(Sessions.Status("error", true, DateTimeOffset.UtcNow) == "遇到问题", "Failed tasks must remain distinct from stopped tasks");
             FixtureTests.Run(root);
+            DshSharedContractTests.Run();
+            DshTests.Run(root).GetAwaiter().GetResult();
+            DshServiceCacheTests.Run(root).GetAwaiter().GetResult();
+            DshApiBalanceTests.Run(root).GetAwaiter().GetResult();
             RegressionTests.Run(root);
             NoticeTests.Run();
-            Console.WriteLine("PASS: persistence, ACLs, process isolation, quota windows, task lifecycle, launch failures and session notices");
+            Console.WriteLine("PASS: persistence, ACLs, process isolation, quota windows, task lifecycle, launch failures, session notices and dsh integration");
         }
         finally
         {

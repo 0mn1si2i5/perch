@@ -55,7 +55,10 @@ public sealed class PetWindow : Window
         Visibility = Visibility.Collapsed
     };
     private string? feedback;
-    private readonly BitmapSource[] frames;
+    private readonly Dictionary<string, BitmapSource[]> atlases = [];
+    private BitmapSource[] frames = [];
+    private string? character;
+    private int activityGeneration;
     private readonly DispatcherTimer animation = new()
     {
         Interval = TimeSpan.FromMilliseconds(100)
@@ -85,17 +88,6 @@ public sealed class PetWindow : Window
         ShowInTaskbar = inspection;
         ShowActivated = false;
         Topmost = true;
-        var bitmap = new BitmapImage(new Uri(Path.Combine(AppContext.BaseDirectory, "Resources", "pox-atlas.png")));
-        bitmap.Freeze();
-        frames = new BitmapSource[8];
-        var split = (int)Math.Round(bitmap.PixelHeight * 449.0 / 887);
-        for (var i = 0; i < 8; i++)
-        {
-            int x = i % 4 * bitmap.PixelWidth / 4, right = (i % 4 + 1) * bitmap.PixelWidth / 4, y = i < 4 ? 0 : split;
-            frames[i] = new CroppedBitmap(bitmap, new Int32Rect(x, y, right - x, i < 4 ? split : bitmap.PixelHeight - split));
-            frames[i].Freeze();
-        }
-
         // One solid brand-colored ball: the icon's own fill is the circle, so no ring or gap shows.
         orb = new Border
         {
@@ -157,7 +149,7 @@ public sealed class PetWindow : Window
             {
                 single.Stop();
                 Preview(5, 2);
-                feedback = "向你敬礼";
+                feedback = PetCharacters.Feedback(character, "doubleClick");
                 doubleClick();
                 return;
             }
@@ -189,7 +181,8 @@ public sealed class PetWindow : Window
             {
                 single.Stop();
                 NativeWindow.Move(this, left + delta.X, top + delta.Y);
-                sprite.Source = frames[7];
+                if (PetCharacters.UsesSprites(character))
+                    sprite.Source = frames[7];
             }
         };
         MouseLeftButtonUp += (_, _) =>
@@ -213,12 +206,12 @@ public sealed class PetWindow : Window
         };
         IsVisibleChanged += (_, _) =>
         {
-            if (IsVisible && store.Preferences.PetCharacter == "pox")
+            if (IsVisible && store.Preferences.PetEnabled && PetCharacters.UsesSprites(character))
                 animation.Start();
             else
             {
                 animation.Stop();
-                playing = false;
+                ClearActivity();
             }
         };
         SystemEvents.DisplaySettingsChanged += DisplayChanged;
@@ -234,9 +227,12 @@ public sealed class PetWindow : Window
             if (ticks % 50 == 0 && store.Preferences.MediaEnabled && !mediaBusy)
             {
                 mediaBusy = true;
+                var generation = activityGeneration;
                 try
                 {
                     var manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+                    if (generation != activityGeneration || !IsVisible || !store.Preferences.MediaEnabled)
+                        return;
                     var states = manager.GetSessions().Where(s => s.GetPlaybackInfo().PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing).ToList();
                     playing = states.Count > 0;
                     var kinds = states.Select(s => MediaPolicy.Classify(s.SourceAppUserModelId, s.GetPlaybackInfo().PlaybackType?.ToString())).ToList();
@@ -255,22 +251,23 @@ public sealed class PetWindow : Window
             bubble.Visibility = !store.Preferences.Quiet && celebrationUntil > DateTimeOffset.UtcNow ? Visibility.Visible : Visibility.Collapsed;
             if (dragging)
             {
-                label.Text = "好家伙，被提起来了";
+                label.Text = PetCharacters.PoseLabel(character, 7);
                 capsule.Visibility = store.Preferences.Quiet ? Visibility.Collapsed : Visibility.Visible;
                 return;
             }
 
             if (previewUntil < DateTimeOffset.UtcNow)
-                pose = celebrationUntil > DateTimeOffset.UtcNow && !store.Preferences.Quiet ? 5 : sessions.Any(s => s.Status == "等待输入") ? 1 : sessions.Any(s => s.Status == "运行中") ? 2 : playing && store.Preferences.MediaEnabled ? mediaKind == "music" ? 3 : 4 : 0;
+                pose = CurrentPose();
             sprite.Source = frames[pose];
             sprite.RenderTransform = new TranslateTransform(0, store.Preferences.Quiet ? 0 : Math.Sin(ticks * 0.14) * 2);
-            label.Text = previewUntil > DateTimeOffset.UtcNow ? "动作预览" : Strings.Get("pet.pose." + pose);
+            label.Text = previewUntil > DateTimeOffset.UtcNow && character != "deepseek-whale"
+                ? Strings.Get("pet.preview") : PetCharacters.PoseLabel(character, pose);
             if (previewUntil > DateTimeOffset.UtcNow && feedback != null)
                 label.Text = feedback;
             if (pose == 2 && previewUntil < DateTimeOffset.UtcNow)
-                label.Text = "Codex · " + sessions.Count(s => s.Status == "运行中") + " 个任务";
+                label.Text = Strings.Format(PetCharacters.DialogueKey(character, "running"), sessions.Count(s => s.Status == "运行中").ToString());
             if (pose == 4 && mediaKind == "unknown" && previewUntil < DateTimeOffset.UtcNow)
-                label.Text = "媒体播放中";
+                label.Text = PetCharacters.Feedback(character, "media");
             capsule.Visibility = !store.Preferences.Quiet && (IsMouseOver || pose != 0) ? Visibility.Visible : Visibility.Collapsed;
         };
         Configure();
@@ -288,18 +285,43 @@ public sealed class PetWindow : Window
         store.Preferences.PetTop = Top;
         store.Save();
         Preview(6, 2);
-        feedback = "好家伙，搬家了。";
+        feedback = PetCharacters.Feedback(character, "moved");
     }
 
     public void Configure()
     {
-        var native = store.Preferences.PetCharacter != "pox";
+        var selected = PetCharacters.Normalize(store.Preferences.PetCharacter);
+        var native = !PetCharacters.UsesSprites(selected);
+        if (character != selected)
+        {
+            var wasPlaying = playing;
+            ClearActivity();
+            playing = !native && wasPlaying;
+            character = selected;
+            frames = native ? [] : LoadFrames(selected);
+            Title = PetCharacters.Title(selected);
+        }
+        if (!store.Preferences.PetEnabled)
+            ClearActivity();
+        if (!store.Preferences.MediaEnabled)
+            playing = false;
+        if (store.Preferences.Quiet)
+        {
+            bubble.Visibility = Visibility.Collapsed;
+            capsule.Visibility = Visibility.Collapsed;
+            sprite.RenderTransform = Transform.Identity;
+        }
         Width = native ? 60 : store.Preferences.PetSize;
         Height = native ? 60 : store.Preferences.PetSize + 125;
         orb.Visibility = native ? Visibility.Visible : Visibility.Collapsed;
         sprite.Visibility = native ? Visibility.Collapsed : Visibility.Visible;
-        sprite.Source = frames[pose];
-        if (native)
+        if (!native)
+        {
+            if (previewUntil <= DateTimeOffset.UtcNow)
+                pose = CurrentPose();
+            sprite.Source = frames[pose];
+        }
+        if (native || !store.Preferences.PetEnabled)
             animation.Stop();
         else if (IsVisible)
             animation.Start();
@@ -331,6 +353,8 @@ public sealed class PetWindow : Window
 
     public void Preview(int index, int seconds = 8)
     {
+        if (!store.Preferences.PetEnabled || !IsVisible || !PetCharacters.UsesSprites(character))
+            return;
         feedback = null;
         pose = Math.Clamp(index, 0, 7);
         previewUntil = DateTimeOffset.UtcNow.AddSeconds(seconds);
@@ -339,8 +363,44 @@ public sealed class PetWindow : Window
 
     public void ShowCompletion(string title)
     {
-        completion.Text = "搞定一个。\n" + (title.Length > 28 ? title[..28] : title);
+        if (!store.Preferences.PetEnabled || !IsVisible || !PetCharacters.UsesSprites(character) || store.Preferences.Quiet)
+            return;
+        completion.Text = PetCharacters.Feedback(character, "completion") + "\n" + (title.Length > 28 ? title[..28] : title);
         celebrationUntil = DateTimeOffset.UtcNow.AddSeconds(7);
+    }
+
+    private int CurrentPose() => celebrationUntil > DateTimeOffset.UtcNow && !store.Preferences.Quiet ? 5
+        : sessions.Any(s => s.Status == "等待输入") ? 1
+        : sessions.Any(s => s.Status == "运行中") ? 2
+        : playing && store.Preferences.MediaEnabled ? mediaKind == "music" ? 3 : 4 : 0;
+
+    private void ClearActivity()
+    {
+        activityGeneration++;
+        previewUntil = celebrationUntil = DateTimeOffset.MinValue;
+        feedback = null;
+        playing = false;
+        pose = 0;
+        bubble.Visibility = capsule.Visibility = Visibility.Collapsed;
+        sprite.RenderTransform = Transform.Identity;
+    }
+
+    private BitmapSource[] LoadFrames(string selected)
+    {
+        if (atlases.TryGetValue(selected, out var cached))
+            return cached;
+        var bitmap = new BitmapImage(new Uri(Path.Combine(AppContext.BaseDirectory, "Resources", selected == "pox" ? "pox-atlas.png" : "deepseek-whale-atlas.png")));
+        bitmap.Freeze();
+        var result = new BitmapSource[8];
+        int split = selected == "pox" ? (int)Math.Round(bitmap.PixelHeight * 449.0 / 887) : (bitmap.PixelHeight + 1) / 2;
+        for (int i = 0; i < result.Length; i++)
+        {
+            int x = i % 4 * bitmap.PixelWidth / 4, right = (i % 4 + 1) * bitmap.PixelWidth / 4, y = i < 4 ? 0 : split;
+            result[i] = new CroppedBitmap(bitmap, new Int32Rect(x, y, right - x, i < 4 ? split : bitmap.PixelHeight - split));
+            result[i].Freeze();
+        }
+        atlases[selected] = result;
+        return result;
     }
 
     /// Moves to a physical-pixel origin, keeps it on screen and remembers it like a drag would.

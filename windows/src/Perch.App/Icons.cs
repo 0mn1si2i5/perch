@@ -70,6 +70,8 @@ internal static class Icons
     {
         var data = name switch
         {
+            // Lucide house (ISC), adapted from icons/house.svg; see NOTICE.
+            "house" => "M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8 M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
             "info" => "M12,2 A10,10 0 1 1 11.99,2 M12,10 L12,17 M12,6 L12,7",
             "refresh" => "M20,9 A8,8 0 1 0 20,16 M20,3 L20,9 14,9",
             "trash" => "M4,6 L20,6 M9,3 L15,3 M6,6 L7,21 17,21 18,6 M10,10 L10,17 M14,10 L14,17",

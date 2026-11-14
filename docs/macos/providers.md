@@ -5,7 +5,7 @@
 - Codex、Claude：保留原有独立账号、登录和额度流程。
 - Gemini CLI、Antigravity CLI、DeepSeek Harness、Gemini 应用：扫描并引用本机已有配置。添加不会复制凭据，也不会改变原客户端登录。启动后在客户端完成认证。
 
-新建页的手动添加只提供 Codex 和 Claude；其他客户端只能通过扫描添加。
+新建页的手动添加提供 Codex、Claude 和 DeepSeek Harness Web。其他客户端通过扫描添加；已有 DeepSeek 账号可以关联 Web 配置并保留原客户端入口，详见 [dsh 双端接入](../deepseek-harness.md)。
 
 已添加的本机客户端换了位置（例如 agy 装到了别的目录，DSH Desktop.app 移动过）后，再扫描一次：数据目录相同、启动位置不同的账号会显示“更新启动位置”，点了只改启动位置，名称、顺序和数据目录不变。数据目录本身不在了，就删除账号后重新扫描添加。
 

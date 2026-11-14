@@ -115,6 +115,9 @@ public final class AccountStore {
     }
 
     public func relocate(id: String, profilePath: String) throws {
+        if accounts.first(where: { $0.id == id })?.dshWeb != nil {
+            throw ProviderError.invalid("dsh 数据目录保持不变；请单独添加另一份目录")
+        }
         try update(id) {
             $0.profilePath = profilePath
             $0.sessionRoot = $0.app.sessionRoot(forProfile: profilePath, home: home)
@@ -180,6 +183,81 @@ public final class AccountStore {
         do { try save() } catch { accounts[index] = previous; throw error }
     }
 
+    /// Adds Web capability to the same DeepSeek data account, preserving its native launcher and identity.
+    /// Existing homes are referenced in place; neither configuring nor removing this capability deletes data.
+    @discardableResult
+    public func configureDsh(name: String, home requestedHome: String, configuration: DshConfiguration,
+                             accountID: String? = nil) throws -> Account {
+        guard loaded else { throw AccountError.notLoaded }
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { throw AccountError.emptyName }
+        guard !([requestedHome, configuration.installationPath, configuration.nodePath,
+                 configuration.profile, configuration.balanceHome].contains { $0.contains("\0") }) else {
+            throw ProviderError.invalid("dsh 配置包含无效字符")
+        }
+        guard !configuration.profile.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ProviderError.invalid("请填写 Web profile")
+        }
+        let explicit = try accountID.map { id -> Account in
+            guard let account = accounts.first(where: { $0.id == id }), account.app == .deepseek else { throw AccountError.notFound }
+            return account
+        }
+        let requested = requestedHome.trimmingCharacters(in: .whitespacesAndNewlines)
+        let id = explicit?.id ?? UUID().uuidString.lowercased()
+        let home: String
+        if let explicit {
+            home = Self.canonicalProviderHome(explicit.profilePath)
+            let normalizedRequest = requested.isEmpty ? home : try DshInstallation.normalize(requested, home: self.home)
+            guard normalizedRequest == home else {
+                throw ProviderError.invalid("已有账号的数据目录保持不变；请单独添加另一份目录")
+            }
+        } else if !requested.isEmpty {
+            home = try DshInstallation.normalize(requested, home: self.home)
+        } else if configuration.mode == .external, !configuration.balanceHome.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            home = try DshInstallation.normalize(configuration.balanceHome, home: self.home)
+        } else {
+            home = root.appendingPathComponent(configuration.mode == .external
+                ? "DshConnections/\(id)" : "Profiles/DeepSeek/\(Self.folderName(name))-\(id.prefix(8))").path
+        }
+        guard home.hasPrefix("/") else { throw ProviderError.invalid("数据目录必须是绝对路径") }
+        let existing = explicit ?? accounts.first {
+            $0.app == .deepseek && Self.canonicalProviderHome($0.profilePath) == home
+        }
+        if accounts.contains(where: {
+            $0.app == .deepseek && Self.canonicalProviderHome($0.profilePath) == home && $0.id != existing?.id
+        }) { throw AccountError.alreadyAdded }
+        var isDirectory: ObjCBool = false
+        let fm = FileManager.default
+        if fm.fileExists(atPath: home, isDirectory: &isDirectory) {
+            guard isDirectory.boolValue else { throw ProviderError.invalid("数据目录指向了文件") }
+        } else {
+            try fm.createDirectory(atPath: home, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            try fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: home)
+        }
+        var config = configuration
+        config.installationPath = config.installationPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        config.nodePath = config.nodePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !config.installationPath.isEmpty { config.installationPath = try DshInstallation.normalize(config.installationPath, home: self.home) }
+        if !config.nodePath.isEmpty { config.nodePath = try DshInstallation.normalize(config.nodePath, home: self.home) }
+        config.profile = config.profile.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !config.balanceHome.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            config.balanceHome = try DshInstallation.normalize(config.balanceHome, home: self.home)
+        }
+        var account = existing ?? Account(id: id, name: name, app: .deepseek, profilePath: home,
+                                         sessionRoot: home, createdAt: Date(), lastLaunchedAt: nil)
+        account.dshWeb = config
+        let previous = accounts
+        if let index = accounts.firstIndex(where: { $0.id == account.id }) { accounts[index] = account }
+        else { accounts.append(account) }
+        do { try save() } catch { accounts = previous; throw error }
+        return account
+    }
+
+    private static func canonicalProviderHome(_ path: String) -> String {
+        URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+            .standardizedFileURL.resolvingSymlinksInPath().path
+    }
+
     public func markLaunched(id: String, at date: Date) throws {
         try update(id) { $0.lastLaunchedAt = date }
     }
@@ -190,7 +268,7 @@ public final class AccountStore {
         let account = accounts.remove(at: index)
         do { try save() } catch { accounts.insert(account, at: index); throw error }
         // The client's own default data is what the Dock instance uses; deleting the account only forgets it.
-        if moveDataToTrash, account.localProvider == nil, !isDefaultData(account), FileManager.default.fileExists(atPath: account.profilePath) {
+        if moveDataToTrash, account.localProvider == nil, account.dshWeb == nil, !isDefaultData(account), FileManager.default.fileExists(atPath: account.profilePath) {
             try FileManager.default.trashItem(at: URL(fileURLWithPath: account.profilePath), resultingItemURL: nil)
         }
     }

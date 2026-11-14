@@ -36,6 +36,7 @@ extension PerchModel {
     }
 
     func localWebURL(_ account: Account) -> URL? {
+        guard account.dshWeb == nil else { return nil }
         guard account.app == .deepseek, let args = account.localProvider?.arguments,
               let hostIndex = args.firstIndex(of: "--host"), args.indices.contains(hostIndex + 1),
               args[hostIndex + 1] == "127.0.0.1" else { return nil }
@@ -55,7 +56,7 @@ extension PerchModel {
 
 extension PerchModel {
     func supportsProviderUsage(_ account: Account) -> Bool {
-        [.geminiApp, .antigravity, .deepseek].contains(account.app) && account.localProvider != nil
+        account.dshWeb != nil || ([.geminiApp, .antigravity, .deepseek].contains(account.app) && account.localProvider != nil)
     }
 
     func refreshProviderUsage(_ account: Account) {

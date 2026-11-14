@@ -6,6 +6,7 @@
   <SolidColorBrush x:Key="Divider" Color="#14000000"/>
   <SolidColorBrush x:Key="ControlFill" Color="#B3FFFFFF"/>
   <SolidColorBrush x:Key="ControlStroke" Color="#0F000000"/>
+  <SolidColorBrush x:Key="PanelStroke" Color="#DADDE3"/>
   <SolidColorBrush x:Key="PanelFill" Color="#F3F3F3"/>
   <SolidColorBrush x:Key="MenuFill" Color="#FAFAFA"/>
   <SolidColorBrush x:Key="Accent" Color="#0067C0"/>

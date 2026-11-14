@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 /// Reads the same wallet endpoint as DSH Desktop's account provider. No login refresh,
 /// credential mutation, inference request, or invented subscription percentage.
@@ -19,6 +20,11 @@ public enum DeepSeekUsage {
     static func query(credentialData: Data, configuration: URLSessionConfiguration = .ephemeral,
                       now: Date = Date()) async throws -> ProviderUsage {
         let credential = try parseCredential(credentialData)
+        return try await query(credential: credential, configuration: configuration, now: now)
+    }
+
+    static func query(credential: Credential, configuration: URLSessionConfiguration = .ephemeral,
+                      now: Date = Date(), includeAPIBreakdown: Bool = false) async throws -> ProviderUsage {
         let request = makeRequest(credential)
         let session = PrivateHTTP.session(timeout: 20, resourceTimeout: 30, configuration: configuration)
         defer { session.invalidateAndCancel() }
@@ -34,7 +40,7 @@ public enum DeepSeekUsage {
         guard (200..<300).contains(http.statusCode) else {
             throw ProviderUsageError.requestFailed("DeepSeek 余额请求失败（HTTP \(http.statusCode)）")
         }
-        return try parseResponse(data, credential: credential, now: now)
+        return try parseResponse(data, credential: credential, now: now, includeAPIBreakdown: includeAPIBreakdown)
     }
 
     static func makeRequest(_ credential: Credential) -> URLRequest {
@@ -69,9 +75,28 @@ public enum DeepSeekUsage {
         throw ProviderUsageError.signedOut
     }
 
+    /// Web connections use the reference reported by dsh's active model route. They must not fall back
+    /// to a platform grant or another key just because it is present in the same credentials file.
+    static func apiKey(credentialData data: Data, reference: String) throws -> String {
+        guard reference.range(of: #"^[A-Za-z_][A-Za-z0-9_]*$"#, options: .regularExpression) != nil,
+              data.count <= 262_144, let text = String(data: data, encoding: .utf8) else { throw unsupportedCredentials }
+        // JSON is valid YAML, but JSON booleans/numbers must not silently become API keys.
+        if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            guard let version = root["version"] as? NSNumber, CFGetTypeID(version) != CFBooleanGetTypeID(),
+                  version == 1, let refs = root["refs"] as? [String: Any],
+                  let key = refs[reference] as? String, key.count <= 8192, validSecret(key) else { throw unsupportedCredentials }
+            return key
+        }
+        let fields = try credentialFields(text, references: [reference], includePlatform: false, strictReferences: true)
+        guard fields[["version"]] == "1" else { throw unsupportedCredentials }
+        guard let key = fields[["refs", reference]], key.count <= 8192, validSecret(key) else { throw ProviderUsageError.signedOut }
+        return key
+    }
+
     /// DSH's version-1 YAML writer uses block mappings and scalar values. Support those forms
     /// (including quoted scalars), reject aliases/multiline secrets instead of guessing.
-    private static func credentialFields(_ text: String) throws -> [[String]: String] {
+    private static func credentialFields(_ text: String, references: Set<String> = ["DEEPSEEK_API_KEY"],
+                                         includePlatform: Bool = true, strictReferences: Bool = false) throws -> [[String]: String] {
         if let data = text.data(using: .utf8), let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             var fields: [[String]: String] = [:]
             func visit(_ map: [String: Any], path: [String]) {
@@ -99,7 +124,12 @@ public enum DeepSeekUsage {
             let value = String(line[line.index(after: colon)...]).trimmingCharacters(in: .whitespaces)
             if value.isEmpty || value.hasPrefix("#") { parents.append((indent, key)); continue }
             // Ignore unrelated device/browser grants rather than interpreting their payloads.
-            if path == ["version"] || path == ["refs", "DEEPSEEK_API_KEY"] || path.starts(with: ["records", "deepseek-account-platform/default"]) {
+            if path == ["version"] || (path.count == 2 && path[0] == "refs" && references.contains(path[1]))
+                || (includePlatform && path.starts(with: ["records", "deepseek-account-platform/default"])) {
+                if strictReferences, path.count == 2, path[0] == "refs", !value.hasPrefix("\""), !value.hasPrefix("'"),
+                   value.range(of: #"^(?i:null|~|true|false|[-+]?(?:[0-9].*|\.inf|\.nan))(?: #.*)?$"#, options: .regularExpression) != nil {
+                    throw unsupportedCredentials
+                }
                 fields[path] = try scalar(value)
             }
         }
@@ -124,7 +154,8 @@ public enum DeepSeekUsage {
         !secret.isEmpty && secret.unicodeScalars.allSatisfy { (33...126).contains($0.value) }
     }
 
-    static func parseResponse(_ data: Data, credential: Credential, now: Date) throws -> ProviderUsage {
+    static func parseResponse(_ data: Data, credential: Credential, now: Date,
+                              includeAPIBreakdown: Bool = false) throws -> ProviderUsage {
         guard data.count <= 65_536, let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw invalidResponse }
         var metrics: [ProviderUsageMetric] = []
         let summary: String
@@ -138,12 +169,21 @@ public enum DeepSeekUsage {
             metrics = try wallets(normal, label: "充值余额") + wallets(bonus, label: "赠送余额")
             summary = "DeepSeek 账户余额"
         case .apiKey:
-            guard let available = root["is_available"] as? Bool,
+            guard let flag = root["is_available"] as? NSNumber, CFGetTypeID(flag) == CFBooleanGetTypeID(),
                   let balances = root["balance_infos"] as? [[String: Any]] else { throw invalidResponse }
-            metrics = try balances.map { row in
+            let available = flag.boolValue
+            var currencies = Set<String>()
+            metrics = try balances.flatMap { row -> [ProviderUsageMetric] in
                 guard let currency = row["currency"] as? String, ["CNY", "USD"].contains(currency),
-                      let total = row["total_balance"] as? String else { throw invalidResponse }
-                return .init(label: "API 余额", remainingPercent: nil, value: currency + " " + (try amount(total)), resetsAt: nil)
+                      currencies.insert(currency).inserted, let total = row["total_balance"] as? String else { throw invalidResponse }
+                var rows: [ProviderUsageMetric] = [.init(label: "API 余额", value: currency + " " + (try amount(total)))]
+                if includeAPIBreakdown {
+                    for (key, label) in [("topped_up_balance", "充值余额"), ("granted_balance", "赠送余额")] {
+                        guard let value = row[key] as? String else { throw invalidResponse }
+                        rows.append(.init(label: label, value: currency + " " + (try amount(value))))
+                    }
+                }
+                return rows
             }
             summary = available ? "DeepSeek API 按量计费" : "DeepSeek API 余额不足"
         }
@@ -151,7 +191,7 @@ public enum DeepSeekUsage {
         return ProviderUsage(metrics: metrics, summary: summary, observedAt: now, authenticationVerified: true)
     }
 
-    private static func wallets(_ rows: [[String: Any]], label: String) throws -> [ProviderUsageMetric] {
+    static func wallets(_ rows: [[String: Any]], label: String) throws -> [ProviderUsageMetric] {
         try rows.map { row in
             guard let currency = row["currency"] as? String, ["CNY", "USD"].contains(currency),
                   let balance = row["balance"] as? String else { throw invalidResponse }

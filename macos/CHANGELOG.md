@@ -1,9 +1,14 @@
 # Changelog
 
-## 未发布
+## 1.2.0 — 2026-11-14
+
+- dsh Web 融合到已有 DeepSeek 账号：支持源码构建版、npm 安装版和已有 Web 实例，同 home 保留账号 ID、名称、顺序与 DSH Desktop／终端入口。任务、通知和桌宠复用现有面板。
+- 新增安装发现、Homebrew／nvm Node 查找、动态端口、独立后台宿主、恢复连接与显式停止；授权保存到当前用户钥匙串，退出面板不停止 dsh 任务。
+- 根会话按实时 RPC 和明确结束证据显示状态；官方钱包与 API 余额分开查询、缓存和显示，重连／换凭据清除旧身份结果。
+- 新增 DeepSeek 鲸鱼娘桌宠、八种姿势和专属互动文案，鲸鱼娘跟随系统主题。应用包携带共享文案、两套图集、NOTICE 和 LICENSE，并在脱离仓库后验证资源。
 
 - 接力和拆出需求已移除：会话右键菜单不再有“接力到…”和“拆出需求到…”，待接力卡片、设置页的交接文件夹按钮和接力记录，以及交接文档写好的通知也一并去掉。对话完成、等你回应和遇到问题的通知保留。之前留在数据目录 `handoffs/` 下的交接文档和记录不删除，Perch 也不再读取。
-- 删除 API 供应商和自定义客户端（包括网页入口）。升级后第一次启动时，这些账号原样移到 Perch 数据目录的 `removed-accounts.json`；钥匙串里的 API 密钥不删，信息页写明怎么手动清理。新建页的手动添加只剩 Codex 和 Claude，其他客户端用扫描添加。
+- 删除 API 供应商和自定义客户端（包括网页入口）。升级后第一次启动时，这些账号原样移到 Perch 数据目录的 `removed-accounts.json`；钥匙串里的 API 密钥不删，信息页写明怎么手动清理。新建页保留 Codex、Claude 和专用 dsh Web 添加入口，其他客户端用扫描添加。
 - Gemini CLI 不再查询额度，也不再读取 CLI 安装目录里的 OAuth client。
 - Antigravity 额度只自动查询 Gemini 应用这一个来源。Antigravity CLI 卡片只在点刷新时运行一次 `agy -p /usage`，之前每次同步额度都会在后台启动 agy。
 - 本机会话列表只解析最新 60 个文件，文件没变就用缓存。超过 2 MB 的会话不再被丢掉，Gemini CLI 的 `.jsonl` 会话也能列出。Antigravity 记录里 0001-01-01 的时间显示为“时间未知”，之前显示成公元 1 年。
@@ -16,6 +21,14 @@
 - Antigravity 和 Gemini 卡片把 Gemini 4 Argon 的周额度单独显示为“Argon 周”。之前它和 Gemini 主额度池的周额度都显示成“周”，看起来像有两个周额度。
 
 - Codex 和 Claude 对话从进行中变成已完成、等你回应或遇到问题时，发一条系统通知，点通知调出所属客户端。同一次轮询有几个对话变化时合成一条，点了打开面板。Perch 启动前已经结束的对话不通知。本机 Claude Code 历史和 `codex exec` 启动的委派运行不通知：Claude 自己会提醒 Code 会话，委派运行由发起它的 Agent 跟进。设置页“通知”里可以关掉。桌宠的完成气泡也改用这套判断。
+
+支持 macOS 14+，通用包包含 Apple Silicon 与 Intel。发行包使用 ad-hoc 签名，未经过 Apple 公证；首次打开按“系统设置 → 隐私与安全性”的提示允许。
+
+dsh 与满足其版本要求的 Node 需另行安装，Perch 不自动安装或升级它们。
+
+升级前，如 Perch 正在托管 dsh，请先在账号菜单明确停止该服务，再退出 Perch、替换应用并重新启动服务。账号、数据和设置保留。下载后可用 `shasum -a 256 -c SHA256SUMS` 校验。
+
+双端原生自动测试和隔离 dsh 协议联通已通过；真实登录钱包、模型完成通知、Mac 钥匙串授权交互及鼠标／媒体体验仍需实机验收。安装说明见 [README](https://github.com/0mn1si2i5/perch#下载与安装)，dsh 配置见[双端指南](https://github.com/0mn1si2i5/perch/blob/main/docs/deepseek-harness.md)。
 
 ## 1.1.0 — 2026-10-10
 

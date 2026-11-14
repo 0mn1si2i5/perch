@@ -23,8 +23,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         guard let url = Bundle.main.url(forResource: "pox-atlas", withExtension: "png"),
-              let atlas = SpriteAtlas(url: url) else {
-            let alert = NSAlert(); alert.messageText = "Pox 的角色素材没有找到"
+              let atlas = SpriteAtlas(url: url),
+              let whaleURL = Bundle.main.url(forResource: "deepseek-whale-atlas", withExtension: "png"),
+              let whaleAtlas = SpriteAtlas(url: whaleURL, rowSplit: 0.5) else {
+            let alert = NSAlert(); alert.messageText = "桌宠的角色素材没有找到"
             alert.informativeText = "请通过项目中的 build_and_run.sh 重新构建完整应用。"
             alert.runModal(); NSApp.terminate(nil); return
         }
@@ -37,7 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         panel.isReleasedWhenClosed = false
         NotificationCenter.default.addObserver(self, selector: #selector(petWindowDidMove),
                                                name: NSWindow.didMoveNotification, object: panel)
-        petView = PetView(model: pet, atlas: atlas)
+        petView = PetView(model: pet, atlases: [.pox: atlas, .deepseekWhale: whaleAtlas])
         panel.contentView = petView
         petView.onClick = { [weak self] in self?.togglePopover(fromPet: true) }
         petView.onDoubleClick = { [weak self] in self?.popover.close(); self?.perch.openBusiestAccount() }
@@ -240,6 +242,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 @main
 enum PerchMain {
     static func main() {
+        if let status = DshHost.run(arguments: CommandLine.arguments) { exit(status) }
+        if CommandLine.arguments.contains("--verify-bundle-resources") {
+            do { try verifyBundleResources(); print("Perch bundle resources verified"); exit(0) }
+            catch { fputs("Perch bundle resource verification failed: \(error.localizedDescription)\n", stderr); exit(1) }
+        }
         PreferenceMigration.run(from: UserDefaults(suiteName: PreferenceMigration.legacyDomain), to: .standard)
         if CommandLine.arguments.contains("--diagnose-providers") || CommandLine.arguments.contains("--import-local-providers") {
             do { try ProviderDiagnostics.run(importLocal: CommandLine.arguments.contains("--import-local-providers")) }
@@ -251,5 +258,26 @@ enum PerchMain {
         let delegate = AppDelegate()
         app.delegate = delegate
         withExtendedLifetime(delegate) { app.run() }
+    }
+
+    private static func verifyBundleResources() throws {
+        let bundle = Bundle.main
+        guard let json = bundle.url(forResource: "zh-CN", withExtension: "json"),
+              let notice = bundle.url(forResource: "NOTICE", withExtension: nil),
+              let license = bundle.url(forResource: "LICENSE", withExtension: nil),
+              !(try Data(contentsOf: notice)).isEmpty, !(try Data(contentsOf: license)).isEmpty else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+        let strings = try JSONDecoder().decode([String: String].self, from: Data(contentsOf: json))
+        guard strings["pet.whale.pose.0"] != nil, Strings.get("pet.whale.pose.0") == strings["pet.whale.pose.0"] else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        for (name, split) in [("pox-atlas", 449.0 / 887), ("deepseek-whale-atlas", 0.5)] {
+            guard let url = bundle.url(forResource: name, withExtension: "png"),
+                  let atlas = SpriteAtlas(url: url, rowSplit: split), atlas.cgSprites.count == 8,
+                  atlas.cgSprites.allSatisfy({ $0.width > 0 && $0.height > 0 }) else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+        }
     }
 }

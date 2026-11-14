@@ -14,6 +14,9 @@
 | G10 恢复桌宠位置 | ✅ | 🟡 | 托盘和桌宠菜单接入 |
 | G11 桌宠反馈 | ✅ | 🟡 | 渲染预览；真实任务完成事件待验收 |
 | G12 原生浮球 | ✅ | ✅ | 明暗离屏截图 |
+| 可切换 DeepSeek 鲸鱼娘 | 🟡 | 🟡 | 两端接入第三角色、8 姿势、任务/媒体反馈、大小/安静/预览及偏好持久化。Windows 启用鲸鱼娘使用 DeepSeek 暗色主题，启用 Pox 使用 Pox 主题，原生浮球或关闭桌宠跟随系统；macOS 鲸鱼娘使用系统主题，Pox 保留原主题。Windows Core 与 WPF 生命周期回归通过；截图和鼠标交互验收见 Windows 验收记录。Mac 新增代码的测试、构建及资源检查见 PR #7 CI，实机交互待验收 |
+| 鲸鱼娘专属互动文案 | 🟡 | ✅ | 两端按角色分流 8 姿势、任务计数、媒体、搬家、双击和完成反馈；加入白饭、鱼片、呆毛与鲸尾梗，Pox／浮球保留原文案；[对照与来源](strings/deepseek-whale-copy.md)。Windows Core／WPF 回归及 135px 演示截图通过；Mac 构建及资源检查见 PR #7 CI，实机交互待验收 |
+| 共享 JSON 桌宠文案 | 🟡 | ✅ | 两端读取 `shared/strings/zh-CN.json`；Windows 嵌入程序集，Mac 构建时复制到应用资源，SwiftPM 开发／测试直接读取源文件；移除 Swift 重复台词及 C# 通用反馈字面量。按角色命名空间隔离，测试预期读取资源，改台词只改 JSON；Windows Core／WPF 通过，Mac 已补应用资源加载与隔离测试，待 Mac 构建验收 |
 | G13 后台通知 | ✅ | 🟡 | Windows 气球提示保留 |
 | 对话完成、等你回应通知 | 🟡 | 🟡 | Mac：Codex 和 Claude 对话从进行中变成已完成、等你回应或遇到问题时发系统通知，点通知调出所属客户端；同一次轮询几个变化合成一条；启动前已结束的不通知；Claude Code 历史和 `codex exec`（委派）运行不通知；设置可关。模型测试用模拟的轮询结果通过，真实客户端待验收。 Windows：托盘气泡逐条显示，点气泡同样处理；Windows 不读 Claude Code 历史；Mac 上编译通过，逻辑测试在 Mac 上单独跑过，Windows CI 和实机未跑 |
 | G14 键盘 | ✅ | 🟡 | Esc 菜单已实测；完整 Tab/回车待验收 |
@@ -22,10 +25,17 @@
 | Codex 任务 30 分钟无更新视为停止 | ✅ | 🟡 | 两端阈值一致；Windows Core 测试 2026-10-20 在 CI 通过 |
 | 按账号读取 Claude 会话 | 🟡 | ✅ | Mac 已接入各 profile 桌面会话，信息页说明本机 Code 历史来源及账号限制；独立目录、audit 缓存与共享 fixture 测试通过，双真实账号待验收 |
 | 会话拖动排序 | 🟡 | 🟡 | Mac 拖动整行，同账号同分区排序并持久化；隐藏会话焦点蓝框，保留键盘操作；模型投放与重启恢复测试通过，鼠标拖动待验收 |
-| 共享 strings/fixtures 消费 | 🟡 | ✅ | Mac Claude 会话测试消费共享 fixture；共享 strings 和其余 fixture 待接入。`info.8` 已改成与 macOS 信息页同一句，只是共享文案更正：Windows 信息页不显示这一条，Mac 在阶段 5 接入共享文案后才会用到 |
+| 共享 strings/fixtures 消费 | 🟡 | ✅ | Windows 消费共享 strings 与 fixture；Mac Claude 会话测试消费共享 fixture，新增桌宠文案读取共享 JSON，其测试、构建及资源检查见 PR #7 CI；其余 Mac 文案与 fixture 尚未全部接入。`info.8` 仍只是共享文案，Windows 信息页不显示，Mac 信息页也尚未消费该键 |
 | 双个人账号同时登录 | 🟡 | 🟡 | 未具备两套个人账号验收条件 |
-| 原生 UI 明暗/Pox | ✅ | ✅ | Windows 三主题四页面渲染 |
+| 原生 UI 明暗/Pox/DeepSeek | ✅ | ✅ | Windows 系统明暗、Pox 与 DeepSeek 角色主题；Mac 无 DeepSeek 专属面板主题，鲸鱼娘跟随系统。Windows 历史主题截图及本地 WPF 主题回归通过；新增 Mac 桌宠切换仍待实机验证 |
 | 平台发布配置 | N/A | ✅ | `windows-v0.2.0` tag 已在远端完成测试、打包并发布预览 Release |
+| dsh 源码构建／npm 安装版 Web | 🟡 | 🟡 | 双端支持独立安装与 home、动态端口、受管启动和已有实例连接；Mac 融合原 `.deepseek` 账号，保留 DSH Desktop／终端入口。当前验证边界见 [双端指南](../docs/deepseek-harness.md) |
+| dsh 安装发现与手动添加指引 | 🟡 | 🟡 | 双端验证 npm 包名与 CLI，提供安装来源／版本、手动路径、Node／profile／home 和已有实例入口。Mac 额外检查 Homebrew／nvm 路径；Windows 配置检查与创建统一展开环境变量。真实系统集成仍需各平台验收 |
+| dsh Web 任务监控 | 🟡 | 🟡 | 双端读取 root 会话标题和状态，过滤 blank／子 agent；断连保留元数据但标记未知。Mac 复用现有排序、通知和桌宠反馈；跨平台工作目录仅作元数据，不在另一平台解释为本地文件 |
+| dsh 官方钱包与计费通道 | 🟡 | 🟡 | 双端分别展示官方钱包与 API 余额；按当前默认路由仅读标准文件 Key，固定官方 HTTPS／拒绝重定向。不同实例或 Key 不复用旧缓存；协议样本覆盖多币种、精度和失败，真实账户验收独立记录 |
+| dsh 官方徽标 | ❌ | ✅ | 白色官方鲸鱼 SVG；浅色主题增加深色底 |
+| dsh 完成标记 | 🟡 | 🟡 | 双端仅依明确 completed 的 turn/end 标记成功；中断／错误／未知独立处理，新输入／运行优先。共同消费 shared/fixtures/dsh，真实模型任务另行验收 |
+| dsh 后台宿主与授权保护 | 🟡 | 🟡 | 双端按 home 锁定独立宿主，退出面板保留服务；Mac Keychain／Windows DPAPI 保存授权。受管重连限制原实例，外部只能断开，移除账号保留服务与 home。OS 进程／凭据集成不能由 Linux 协议测试替代 |
 | 本机 Gemini CLI / Antigravity / DeepSeek Harness | 🟡 | ❌ | macOS 引用既有配置、启动、会话索引（只解析最新 60 个文件并缓存，长会话读开头元数据）；Antigravity CLI 额度只在手动刷新时查询，DeepSeek 钱包余额；Gemini CLI 不再查询额度；客户端换了位置可在扫描结果里更新启动位置。详见 [供应商说明](../docs/macos/providers.md) |
 | Gemini 原生应用内 Antigravity | ✅ | ❌ | 独立 Gemini 分组；Antigravity 额度唯一的自动来源，从运行中的原生应用本地服务查询 Gemini 模型额度，Argon 周额度单独标注；真实面板刷新、明细及重启保留已验收；不复用 CLI 凭据 |
 | 从访达重新打开面板 | ✅ | ❌ | macOS 重新打开 Perch 时展示菜单栏面板，不依赖桌宠可见性 |
@@ -35,3 +45,25 @@
 macOS 开发更新：沿用稳定代码签名；Claude 后台额度读取禁止旧式钥匙串弹窗，手动刷新可请求授权。Windows 不适用这套 macOS 钥匙串机制。
 
 新增供应商时间额度直接复用 Claude/Codex 的额度行：5h／周、已用百分比、重置倒计时和标题缓存提示；agy 仅展示 Google 模型池。DeepSeek 金额使用同样的行排版，精确分项通过悬停查看。
+
+### 2026-11-13 Windows 账号卡片与新建账号布局
+
+- DeepSeek API 余额默认折叠为一行标题和带币种符号的总额；展开显示总额、充值、赠送、查询状态与时间。失败无缓存显示暂不可用，旧余额标记缓存；多币种分别显示，不混加。
+- dsh 常规连接、默认模型计费及官方账户登录信息随 API 余额统一展开，顺序为余额明细、查询状态和时间、连接状态、模型与登录状态；取消独立详情菜单。没有 API 余额入口的官方钱包／第三方计费模式继续直接显示状态。折叠时余额行显示缓存／暂不可用，连接与计费状态的完整内容统一随余额展开。展开状态在本次账号模型生命周期内保留。
+- 新建账号三个分段标签增加对应客户端图标；悬浮边框始终预留尺寸。统一输入框模板消除重复内边距，使名称、数据目录、Node、URL 等占位提示与实际输入对齐；安装 ComboBox 正确应用显示模板，展示来源与版本。
+- 按官方 README 的 `DeepSeek Harness (dsh)` 使用小写简称；保留实际文件／应用名称 `DSH Desktop` 及环境变量 `DSH_HOME`、`DSH_NODE`。macOS 本次无行为变更，未在 Windows 上声称 Mac 验收。
+
+### Windows 面板外观与鲸鱼娘主题（2026-11-13）
+
+- 页脚“信息”左侧新增 Lucide house 主页按钮，直接切换账号列表；当前主页高亮，补充无障碍名称。
+- 面板统一为透明窗口上的 20 DIP 圆角实色表面及细边框；同步裁剪内容，避免系统 8 DIP 圆角或亚克力背板露出角落。卡片／菜单 12 DIP、输入／按钮 8 DIP、对话框 16 DIP，面板内边距 16 DIP。
+- 主页标题使用 20 DIP Bold，并在左侧以 30 DIP 产品图标居中对齐；其他页面保留原有标题层级。
+- 启用鲸鱼娘自动应用 DeepSeek 暗色主题：蓝黑底色、官方蓝 #4D6BFE、白色按钮文字；不经过系统强调色柔化。启用 Pox 使用 Pox 暗色金色；原生桌宠或关闭桌宠跟随系统亮暗与强调色。隐藏桌宠不取消角色主题；更换角色或禁用桌宠立即切换。演示支持 --theme deepseek。
+- Windows 本地 Core／WPF 测试与主题截图验证；macOS 本次未修改、未验收。
+
+### 2026-11-14：PR #6 修复与 dsh 双端融合
+
+- 修复 Windows home 检查／创建不一致、桌宠双击 dsh 错误启动入口、重连后沿用旧实例钱包；Mac 应用资源补齐 NOTICE/LICENSE。
+- Mac 保留已有 DeepSeek provider，并在同 home 账号上增加 Web 能力，不重复分组、不改变 Gemini／Antigravity 的原流程。Web 会话、通知、桌宠及分源余额接入原面板。
+- 协议状态、金额和路径元数据使用 shared/fixtures/dsh 的同一组合成样本；平台窗口、进程与授权存储仍各自验证。
+- 当前本地验证：Windows solution 交叉编译、Windows 共享契约执行、Swift 语法及 35 项 portable 回归；另通过官方 dsh 0.2.2-rc.1 隔离实例的实际 Swift 协议联通。原生测试、构建及资源检查见 [PR #7 CI](https://github.com/0mn1si2i5/perch/pull/7/checks)，平台实机验收边界分别记录在两端 acceptance，不将 Linux 测试写成 Mac/WPF 实机通过。

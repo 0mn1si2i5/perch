@@ -1,0 +1,8 @@
+[
+  { "name": "completed", "page": { "records": [{ "type": "event", "event": { "type": "turn/end", "data": { "reason": { "kind": "completed" } } } }] }, "status": "completed" },
+  { "name": "aborted", "page": { "records": [{ "type": "event", "event": { "type": "turn/end", "data": { "reason": { "kind": "aborted" } } } }] }, "status": "interrupted" },
+  { "name": "blocked", "page": { "records": [{ "type": "event", "event": { "type": "turn/end", "data": { "reason": { "kind": "blocked" } } } }] }, "status": "failed" },
+  { "name": "unknown-reason", "page": { "records": [{ "type": "event", "event": { "type": "turn/end", "data": { "reason": { "kind": "future-reason" } } } }] }, "status": "unknown" },
+  { "name": "new-turn-wins", "page": { "records": [{ "type": "event", "event": { "type": "turn/end", "data": { "reason": { "kind": "completed" } } } }, { "type": "event", "event": { "type": "turn/start" } }] }, "status": "interrupted" },
+  { "name": "no-evidence", "page": { "records": [] }, "status": null }
+]

@@ -16,4 +16,5 @@ public static class Strings
     }
 
     public static string Get(string key) => values.TryGetValue(key, out var value) ? value : throw new KeyNotFoundException(key);
+    public static string Format(string key, string argument) => Get(key).Replace("{0}", argument);
 }

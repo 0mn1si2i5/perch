@@ -17,6 +17,8 @@ struct PanelInfoView: View {
                 Text("在“新建账号”中点“自动获取可用供应商”，添加本机 Gemini 应用、Gemini CLI、Antigravity、DeepSeek Harness。")
                 Text("本机入口沿用现有登录；成功启动不代表登录已验证。")
                     .foregroundStyle(.secondary)
+                Text("DeepSeek 账号可关联 dsh Web，查看实时任务、官方钱包与 API 余额；原 Desktop 或终端入口继续保留。")
+                    .foregroundStyle(.secondary)
             }
             item("桌面入口", symbol: "pawprint") {
                 Text("在设置开启桌宠，爪印控制显示与隐藏。单击打开面板，拖动换位置。原生浮球保留系统外观，Pox 使用角色主题。")
@@ -29,6 +31,7 @@ struct PanelInfoView: View {
                     Text("Codex 单实例可直接定位对话；多实例时只调出所属客户端。Claude 目前只调出客户端，需自行选择会话。")
                     Text("Claude 桌面会话按账号目录读取。“Code”表示本机 Claude Code 历史，仅显示在默认客户端卡片；其登录账号可能与桌面客户端不同。")
                     Text("本机供应商只引用已有目录，不复制登录凭据。Gemini CLI、Antigravity 与 DeepSeek Harness 读取本机会话索引。")
+                    Text("dsh Web 连接授权保存到钥匙串。任务事件可能携带正文进入内存，仅用于判断任务状态，不展示、记录或保存正文。API 余额只查询标准文件来源的官方 Key；退出 Perch 或移除账号不停止 dsh 服务。")
                     Text("Antigravity 额度以 Gemini 应用为准。Antigravity CLI 卡片只在点刷新时运行一次 agy 查询，后台不运行。")
                     if let backup = perch.removedAccountsBackup {
                         Text("API 供应商和自定义客户端已移除，原来的这类账号保存在：")

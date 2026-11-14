@@ -82,7 +82,7 @@ public static class Sessions
         var p = clients.Find(account);
         try
         {
-            var sessions = account.App == "codex" ? Codex(account.SessionRoot, p != null) : ReadClaude(clients.ClaudeRoot(account), p != null);
+            var sessions = account.App switch { "codex" => Codex(account.SessionRoot, p != null), "claude" => ReadClaude(clients.ClaudeRoot(account), p != null), _ => [] };
             return new(p != null, sessions.OrderBy(s => s.Status == "等待输入" ? 0 : s.Status == "运行中" ? 1 : 2).ThenByDescending(s => s.Updated).ToList(), sessions.Count == 0 ? "暂无本地会话" : "本机状态 · 每 5 秒更新", p?.Handle ?? 0);
         }
         catch (IOException e)

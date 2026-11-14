@@ -18,7 +18,7 @@ public sealed partial class PanelModel
             return;
         }
 
-        await Clients.Open(account);
+        await OpenClient(account);
         int count = Clients.Processes.Count(p => p.Executable.EndsWith("ChatGPT.exe", StringComparison.OrdinalIgnoreCase) && !Clients.Arguments(p.CommandLine).Any(a => a.StartsWith("--type", StringComparison.Ordinal) || a == "--crashpad-handler"));
         if (SessionRouting.CanDeepLink(account.App, session.Id, count))
             Process.Start(new ProcessStartInfo("codex://threads/" + session.Id) { UseShellExecute = true })?.Dispose();
@@ -33,11 +33,16 @@ public sealed partial class PanelModel
             return;
         }
 
+        if (NewDsh)
+        {
+            await CreateDsh();
+            return;
+        }
         var account = Store.Create(NewName, NewKind == 0 ? "codex" : "claude");
         NewName = "";
         Page = "accounts";
         MergeAccounts();
-        await Clients.Open(account);
+        await OpenClient(account);
     }
 
     private Task ImportAccount()
@@ -61,6 +66,11 @@ public sealed partial class PanelModel
 
     public Task Relocate(Account account)
     {
+        if (account.App == "dsh")
+        {
+            ConfigureDsh(account);
+            return Task.CompletedTask;
+        }
         var folder = new OpenFolderDialog
         {
             Title = "重新定位账号数据目录"
@@ -98,7 +108,7 @@ public sealed partial class PanelModel
         var choice = ConfirmDelete?.Invoke(account) ?? (false, false);
         if (!choice.Item1)
             return;
-        if (choice.Item2 && !account.Default && Directory.Exists(account.ProfilePath))
+        if (choice.Item2 && account.App != "dsh" && !account.Default && Directory.Exists(account.ProfilePath))
         {
             // The last poll can be 20 seconds old; check the processes now.
             await Task.Run(Clients.Scan);

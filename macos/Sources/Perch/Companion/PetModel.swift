@@ -4,8 +4,27 @@ import PerchCore
 
 enum CompanionKind: String, CaseIterable, Identifiable {
     case native, pox
+    case deepseekWhale = "deepseek-whale"
     var id: String { rawValue }
-    var title: String { self == .native ? "原生桌宠" : "Pox" }
+    var usesSprites: Bool { self != .native }
+    var title: String {
+        switch self {
+        case .native: return "原生桌宠"
+        case .pox: return "Pox"
+        case .deepseekWhale: return "DeepSeek 鲸鱼娘"
+        }
+    }
+
+    // Only this character opts into the whale namespace; other characters keep pet.*.
+    func dialogueKey(_ key: String) -> String {
+        "pet.\(self == .deepseekWhale ? "whale." : "")\(key)"
+    }
+    func poseLabel(_ pose: PetPose) -> String {
+        Strings.get(dialogueKey("pose.\(pose.rawValue)"))
+    }
+    var movedText: String { Strings.get(dialogueKey("moved")) }
+    var completionText: String { Strings.get(dialogueKey("completion")) }
+    var doubleClickText: String? { self == .deepseekWhale ? Strings.get(dialogueKey("doubleClick")) : nil }
 }
 
 /// Desktop-pet state. Codex tasks are pushed in by PerchModel; this type owns pose, bubble and media only.
@@ -24,7 +43,7 @@ final class PetModel: ObservableObject {
     @Published private(set) var character: CompanionKind
     var configurationChanged: (() -> Void)?
     var usesCharacterTheme: Bool { enabled && character == .pox }
-    private var animates: Bool { enabled && visible && character == .pox }
+    private var animates: Bool { enabled && visible && character.usesSprites }
     private let defaults: UserDefaults
     var changed: (() -> Void)?
     var resize: (() -> Void)?
@@ -32,6 +51,17 @@ final class PetModel: ObservableObject {
     private var timer: Timer?
     private var overrideUntil = Date.distantPast
     private var previewUntil = Date.distantPast
+
+    var statusLabel: String {
+        let active = tasks.filter { $0.status == .running }.count
+        if character == .deepseekWhale {
+            if !previewing && pose == .thinking { return Strings.format(character.dialogueKey("running"), String(active)) }
+            if !previewing && pose == .watching && media.kind == .unknown { return Strings.get(character.dialogueKey("media")) }
+            return character.poseLabel(pose)
+        }
+        let runningKey = tasks.contains { $0.source == "DeepSeek Harness" } ? "pet.running" : "pet.running.codex"
+        return previewing ? Strings.get("pet.preview") : pose == .thinking ? Strings.format(runningKey, String(active)) : pose.label
+    }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -63,8 +93,10 @@ final class PetModel: ObservableObject {
     func select(_ character: CompanionKind) {
         guard self.character != character else { return }
         self.character = character
-        // A preview/override from Pox must never carry into a different character.
+        // Temporary feedback belongs to the character that produced it.
+        let currentMedia = media
         clearActivity()
+        media = currentMedia
         persistConfiguration()
     }
 
@@ -72,7 +104,7 @@ final class PetModel: ObservableObject {
         defaults.set(enabled, forKey: "petEnabled")
         defaults.set(visible, forKey: "companionVisible")
         defaults.set(character.rawValue, forKey: "petCharacter")
-        if animates { start() } else {
+        if animates { start(); refreshPose() } else {
             timer?.invalidate()
             timer = nil
             clearActivity()
@@ -85,6 +117,8 @@ final class PetModel: ObservableObject {
         bubble = nil
         previewing = false
         overrideUntil = .distantPast
+        previewUntil = .distantPast
+        pose = .idle
     }
 
     func start() {
@@ -98,7 +132,7 @@ final class PetModel: ObservableObject {
         self.tasks = tasks
         guard animates else { return }
         if let completed, !quiet {
-            react(.celebrating, text: "搞定一个。\n\(String(completed.title.prefix(28)))", seconds: 7)
+            react(.celebrating, text: "\(character.completionText)\n\(String(completed.title.prefix(28)))", seconds: 7)
         } else {
             refreshPose()
         }
@@ -119,6 +153,7 @@ final class PetModel: ObservableObject {
     }
 
     func refreshPose() {
+        guard animates else { return }
         if previewing && Date() >= previewUntil { previewing = false }
         if Date() >= overrideUntil {
             pose = PetPolicy.pose(tasks: tasks, media: media)
@@ -138,7 +173,7 @@ final class PetModel: ObservableObject {
     }
 
     func preview(_ pose: PetPose) {
-        react(pose, text: "动作预览 · \(pose.label)", seconds: 8, preview: true)
+        react(pose, text: Strings.format("pet.preview.detail", character.poseLabel(pose)), seconds: 8, preview: true)
     }
 
     func saveSettings() {

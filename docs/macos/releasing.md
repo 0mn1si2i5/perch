@@ -34,11 +34,11 @@ DMG 包含 Perch.app 和 Applications 入口。ZIP 也可解压后把 Perch.app 
 1. 完成检查、核对产物与变更范围。
 2. 提交到开发分支，合并 main，并正常推送 main；不强制推送。
 3. 从 main 的已验证提交创建带注释的版本 tag 并推送。
-4. 创建普通 GitHub Release，上传 DMG、ZIP 和校验文件，正文写明系统要求、变更及未公证状态。
+4. `Release macOS` workflow 校验版本与 CHANGELOG，运行原生测试、通用架构打包、DMG／ZIP／签名／资源和校验和检查，成功后创建普通 GitHub Release，上传 DMG、ZIP 和校验文件。正文取对应 CHANGELOG 段落，须写明系统要求、变更及未公证状态。
 5. 下载并校验发布资产，确认 Release tag 与 main 对齐。
 
-仓库已公开。发布 tag 统一使用 `macos-v*`（1.0.0、1.0.1 的旧 Release 已移除，变更见 CHANGELOG）。main 可能包含尚未打包的修复，不能用历史发行包代表最新源码。CI 在 main 推送和 PR 上运行测试与 release 构建，不自动发布。
+仓库已公开。发布 tag 统一使用 `macos-v*`（1.0.0、1.0.1 的旧 Release 已移除，变更见 CHANGELOG）。main 可能包含尚未打包的修复，不能用历史发行包代表最新源码。普通 main 推送和 PR 检查不发布；只有版本 tag 触发发布。
 
-macOS 尚无自动发布 workflow。实际验证范围见 [验收说明](acceptance.md)。
+修改版本、打包脚本或发布 workflow 的 PR 会先构建并上传通用包预览，不创建 Release。升级运行中的应用前，应在账号菜单显式停止 Perch 管理的 dsh 宿主，再退出面板；打包使用 `--build`，不会替换应用或停止个人客户端。实际验证范围见 [验收说明](acceptance.md)。
 
 2026-10-18 本机开发更新验证：从 ad-hoc 切换到已有开发证书完成构建和安装；再次运行构建时成功识别并沿用已安装证书，两次应用的 designated requirement 一致。后台 Claude 读取按未授权状态返回，无系统弹窗；尚未完成用户选择“始终允许”后的跨更新实测，不能承诺所有钥匙串条目永远不再要求授权。

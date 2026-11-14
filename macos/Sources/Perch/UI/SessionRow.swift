@@ -7,6 +7,7 @@ struct SessionRow: Identifiable {
         case codex(CodexTask)
         case claude(ClaudeSession)
         case local(LocalProviderSession)
+        case dshWeb(DshSession)
     }
     let kind: Kind
 
@@ -15,6 +16,7 @@ struct SessionRow: Identifiable {
         case .codex(let task): return task.id
         case .claude(let session): return session.id
         case .local(let session): return session.id
+        case .dshWeb(let session): return session.id
         }
     }
     var title: String {
@@ -22,6 +24,7 @@ struct SessionRow: Identifiable {
         case .codex(let task): return task.title
         case .claude(let session): return session.title
         case .local(let session): return session.title
+        case .dshWeb(let session): return session.title
         }
     }
     var path: String? {
@@ -29,6 +32,7 @@ struct SessionRow: Identifiable {
         case .codex(let task): return task.rolloutPath
         case .claude(let session): return session.path
         case .local(let session): return session.path
+        case .dshWeb: return nil
         }
     }
     var status: TaskStatus {
@@ -36,6 +40,7 @@ struct SessionRow: Identifiable {
         case .codex(let task): return task.status
         case .claude(let session): return session.status
         case .local(let session): return session.status
+        case .dshWeb(let session): return session.status
         }
     }
     var updatedAt: Date? {
@@ -43,6 +48,7 @@ struct SessionRow: Identifiable {
         case .codex(let task): return task.updatedAt
         case .claude(let session): return session.updatedAt
         case .local(let session): return session.updatedAt
+        case .dshWeb(let session): return session.updatedAt
         }
     }
     var isClaudeCode: Bool {
@@ -57,6 +63,7 @@ struct SessionRow: Identifiable {
     }
     var isActive: Bool { status.isActive }
     var statusLabel: String {
+        if case .dshWeb(let session) = kind { return session.statusLabel }
         if case .local = kind, status == .unknown { return "本地记录" }
         return status.label
     }

@@ -13,10 +13,11 @@ using System.Threading.Tasks;
 
 namespace Perch.Windows;
 
-public sealed class QuotaService(Clients clients)
+public sealed class QuotaService(Clients clients, DshService? dsh = null)
 {
     private readonly Dictionary<string, Quota> cache = [];
     private readonly Dictionary<string, DateTimeOffset> nextQuery = [];
+    private readonly Dictionary<string, DateTimeOffset> nextDshAutomaticQuery = [];
     private readonly HashSet<string> busy = [];
     public Quota? Get(string id) => cache.GetValueOrDefault(id);
     public bool IsBusy(string id) => busy.Contains(id);
@@ -24,18 +25,28 @@ public sealed class QuotaService(Clients clients)
     {
         cache.Remove(id);
         nextQuery.Remove(id);
+        nextDshAutomaticQuery.Remove(id);
     }
 
     public async Task Refresh(Account account, bool manual = false)
     {
         if (busy.Contains(account.Id) || nextQuery.GetValueOrDefault(account.Id) > DateTimeOffset.UtcNow)
             return;
-        if (!manual && cache.TryGetValue(account.Id, out var recent) && !recent.Cached && DateTimeOffset.UtcNow - recent.Observed < TimeSpan.FromMinutes(5))
+        if (!manual && account.App == "dsh" && nextDshAutomaticQuery.GetValueOrDefault(account.Id) > DateTimeOffset.UtcNow)
+            return;
+        if (!manual && cache.TryGetValue(account.Id, out var recent) && !recent.Cached && DateTimeOffset.UtcNow - recent.Observed < (account.App == "dsh" ? TimeSpan.FromSeconds(30) : TimeSpan.FromMinutes(5)))
             return;
         busy.Add(account.Id);
+        if (account.App == "dsh") nextDshAutomaticQuery[account.Id] = DateTimeOffset.UtcNow.AddSeconds(30);
         try
         {
-            cache[account.Id] = account.App == "codex" ? await Codex(account) : await Claude(account);
+            cache[account.Id] = account.App switch
+            {
+                "codex" => await Codex(account),
+                "claude" => await Claude(account),
+                "dsh" when dsh != null => await dsh.Balance(account, manual),
+                _ => throw new IOException("这个客户端未提供额度查询。")
+            };
         }
         catch (Exception e)
         {
@@ -47,7 +58,7 @@ public sealed class QuotaService(Clients clients)
             {
                 // The rollout fallback walks every session folder recursively; keep it off the UI thread.
                 var root = account.App == "claude" ? clients.ClaudeRoot(account) : account.SessionRoot;
-                fallback = await Task.Run(() => account.App == "claude" ? ClaudeHistory(root) : CodexRollout(root));
+                fallback = await Task.Run(() => account.App switch { "claude" => ClaudeHistory(root), "codex" => CodexRollout(root), _ => null });
             }
             catch (Exception fallbackError) when (fallbackError is IOException or JsonException or UnauthorizedAccessException)
             {
@@ -58,7 +69,9 @@ public sealed class QuotaService(Clients clients)
             cache[account.Id] = best != null ? best with
             {
                 Cached = true,
-                Detail = detail
+                Detail = detail,
+                // A disconnected dsh cannot confirm which credential is currently active.
+                ApiBalance = account.App == "dsh" ? null : best.ApiBalance
             }
 
             : new([], DateTimeOffset.UtcNow, detail);

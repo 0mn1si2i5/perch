@@ -152,6 +152,8 @@ public sealed class Clients
 
     public async Task Open(Account a)
     {
+        if (a.App is not ("codex" or "claude"))
+            throw new IOException("这个客户端需要使用专用启动入口。");
         if (!Directory.Exists(a.ProfilePath))
             throw new IOException("数据目录不存在，请重新定位。");
         var running = Find(a);
