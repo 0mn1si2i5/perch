@@ -10,6 +10,7 @@ internal static class DshEditorTests
 {
     public static void Run(string root)
     {
+        DshPathTests.Run(root);
         var store = new Store(Path.Combine(root, "dsh editor"));
         using var model = new PanelModel(store, false);
         model.AddDshManually.Execute(null);

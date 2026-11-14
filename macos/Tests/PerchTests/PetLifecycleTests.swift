@@ -3,6 +3,20 @@ import PerchCore
 @testable import Perch
 
 final class PetLifecycleTests: XCTestCase {
+    func testPoxTaskCountIncludesDshWithoutCallingItCodex() throws {
+        let suite = "perch-pet-test-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(false, forKey: "mediaEnabled")
+        let pet = PetModel(defaults: defaults)
+        pet.setEnabled(true)
+        pet.select(.pox)
+        pet.update(tasks: [.init(id: "dsh", title: "Web task", status: .running,
+                                turnID: "", updatedAt: Date(), source: "DeepSeek Harness")], completed: nil)
+        XCTAssertEqual(pet.statusLabel, Strings.format("pet.running", "1"))
+        pet.setEnabled(false)
+    }
+
     func testWhaleDialogueStaysWithWhaleAndKeepsTaskDetails() throws {
         let suite = "perch-pet-test-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

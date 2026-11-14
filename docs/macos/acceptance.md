@@ -2,6 +2,14 @@
 
 自动检查与真实界面验收分别记录，不以编译成功代替交互验证。
 
+## 2026-11-14：dsh Web 与既有 provider 融合
+
+新增可选 Web 配置沿用 `.deepseek` 账号，同 home 关联保留 ID、名称、顺序和原客户端入口。受管启动、Keychain 恢复、外部连接、根会话、双余额、通知和桌宠进入现有面板；Gemini／Antigravity 的入口不变。独立应用包补齐 NOTICE/LICENSE，并增加不读取个人配置的 `--verify-bundle-resources` 检查。
+
+本地验证环境为 Linux：全部 Swift 文件通过 Swift 6.0.3 语法解析；协议和余额的 portable 测试使用真实源码副本、FoundationNetworking 和真实 swift-crypto，共 22 项通过，含原有 DeepSeekUsage 回归。安装、文件锁、状态机及注入凭据存储另有隔离回归；这些结果不代表 AppKit、真实 Keychain、后台宿主或 Mac 鼠标验收通过。原生测试与发布构建由 macOS CI 执行，结果另行记录。
+
+真实验收仍需：已有 DSH Desktop 账号关联 Web 后不重复账号；两个独立 home 启动、退出面板后继续、重开恢复；同源重连与错误实例拒绝；官方钱包／API 两路成功及失败；真实模型完成通知；应用升级后的显式钥匙串授权。未访问个人账号、发送模型任务或停止个人客户端。
+
 ## 删除接力和拆出需求 — 2026-10-21
 
 会话右键菜单的“接力到…”“拆出需求到…”、待接力卡片、设置页的交接文件夹和接力记录、交接文档写好的通知，以及 `PerchCore/Handoff` 和对应测试都已删除。对话完成、等你回应和遇到问题的通知保留，桌宠气泡照旧使用。`swift test --package-path macos` 通过（PerchCore 131 项，Perch 30 项中 1 项可选预览跳过），`macos/script/build_and_run.sh --build` 成功。没有安装新版，也没有在真实菜单栏面板上检查。安装后要看：右键菜单只剩打开、复制会话文件路径、在 Finder 中显示；设置页和信息页没有“文档接力”；对话完成照常通知；`~/Library/Application Support/Perch/handoffs/` 还在且没有被改动。

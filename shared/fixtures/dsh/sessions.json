@@ -1,0 +1,12 @@
+{
+  "items": [
+    { "sessionId": "running", "running": true, "agentAvailable": true, "updatedAt": 1791552300000, "cwd": "/Users/demo/Project with spaces", "projections": { "values": { "title": "Live task · 跨端" } } },
+    { "sessionId": "idle", "running": false, "agentAvailable": true, "updatedAt": 1791552200000, "cwd": "C:\\Users\\demo\\Project with spaces", "projections": { "values": { "title": "Idle is not completed" } } },
+    { "sessionId": "cold", "running": false, "agentAvailable": false, "updatedAt": 1791552100000, "projections": { "values": { "title": "Cold session" } } },
+    { "sessionId": "untitled", "running": false, "blank": false, "updatedAt": 1791552000000, "projections": { "values": { "title": null } } },
+    { "sessionId": "unknown", "updatedAt": 1791551900000 },
+    { "sessionId": "blank", "running": false, "blank": true, "updatedAt": 1791552400000 },
+    { "sessionId": "child", "running": true, "parentSessionId": "running", "updatedAt": 1791552400000 },
+    { "sessionId": "subagent", "running": true, "origin": "subagent", "updatedAt": 1791552400000 }
+  ]
+}

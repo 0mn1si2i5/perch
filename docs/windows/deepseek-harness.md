@@ -1,5 +1,7 @@
 # Windows：DeepSeek Harness
 
+跨平台能力及 Mac 原有供应商融合见 [双端 dsh 指南](../deepseek-harness.md)。本页保留 Windows 的安装、DPAPI 和验收细节。
+
 Windows 的账号列表支持 dsh Web。原兼容基线为 `0.1.7-rc.2`；`0.2.1-rc.5` 已验证自动发现、隔离 Web 启动、认证、会话查询和手动连接恢复。可使用源码构建版、npm 全局／项目本地安装版、官方 npx 缓存，或连接已经启动的本机 Web 实例。Electron Desktop 原生宿主、离线历史日志、子 agent 树和第三方提供方计费查询不在本次范围内；新版钱包与真实模型任务未随本次重验。
 
 ## 添加与启动

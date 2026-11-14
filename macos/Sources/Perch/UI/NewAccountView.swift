@@ -8,6 +8,7 @@ struct NewAccountView: View {
     @State private var app: AppKind = .codex
     @State private var hasScanned = false
     @State private var search = ""
+    @State private var dshCreationID = UUID()
 
     private var localCandidates: [LocalProviderCandidate] {
         perch.localCandidates.filter { matchesSearch($0.name) || matchesSearch($0.app.displayName) }
@@ -26,6 +27,7 @@ struct NewAccountView: View {
             Button("自动获取可用供应商") {
                 perch.scanLocalProviders()
                 perch.refreshDiscovered()
+                perch.scanDshInstallations()
                 hasScanned = true
             }
             if hasScanned { scanResults }
@@ -33,10 +35,13 @@ struct NewAccountView: View {
             Divider()
             Text("手动添加").font(.system(size: 12, weight: .semibold))
             Picker("类型", selection: $app) {
-                ForEach(AppKind.desktopClients, id: \.self) { Text($0.displayName).tag($0) }
+                ForEach(AppKind.desktopClients + [.deepseek], id: \.self) { Text($0.displayName).tag($0) }
             }
             .pickerStyle(.menu)
-            desktopAccount
+            if app == .deepseek {
+                DshAccountEditor(perch: perch) { dshCreationID = UUID(); close() }
+                    .id(dshCreationID)
+            } else { desktopAccount }
         }
     }
 

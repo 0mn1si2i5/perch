@@ -315,7 +315,7 @@ public sealed partial class PanelModel : Observable, IDisposable
             Changed(nameof(PetVisible));
         });
         ClearMessage = new(() => Message = "");
-        RefreshAllCommand = new(() => Run(RefreshAll));
+        RefreshAllCommand = new(() => Run(() => RefreshAll(true)));
         DiscoverAgain = new(() => Run(async () =>
         {
             await Clients.Discover();
@@ -355,7 +355,7 @@ public sealed partial class PanelModel : Observable, IDisposable
         Changed(nameof(DshIcon));
             await Poll();
             if (AutoQuota)
-                await RefreshAll();
+                await RefreshAll(false);
         });
         clock.Start();
         if (pollTimer.Interval <= TimeSpan.Zero)
@@ -468,8 +468,13 @@ public sealed partial class PanelModel : Observable, IDisposable
             CheckChanges(list);
             MergeAccounts();
             ConfigurationChanged?.Invoke();
-            if (AutoQuota && DateTimeOffset.UtcNow - lastQuota > TimeSpan.FromMinutes(5))
-                _ = Background(RefreshAll);
+            if (AutoQuota)
+            {
+                if (DateTimeOffset.UtcNow - lastQuota > TimeSpan.FromMinutes(5))
+                    _ = Background(RefreshAll);
+                else
+                    _ = Background(RefreshDshQuotas);
+            }
         }
         catch
         {
@@ -501,11 +506,25 @@ public sealed partial class PanelModel : Observable, IDisposable
         }
     }
 
-    private async Task RefreshAll()
+    private Task RefreshAll() => RefreshAll(false);
+
+    private async Task RefreshAll(bool manual)
     {
         lastQuota = DateTimeOffset.UtcNow;
         foreach (var account in Store.Accounts.ToArray())
-            await Refresh(account);
+            await Refresh(account, manual);
+        // Start the next five-minute batch after these results were observed,
+        // so native clients do not miss a whole cycle on their freshness check.
+        lastQuota = DateTimeOffset.UtcNow;
+    }
+
+    private async Task RefreshDshQuotas()
+    {
+        // Poll already refreshed sessions. Let QuotaService's 30-second cache
+        // gate dsh billing, while DshApiBalance keeps its separate five-minute TTL.
+        foreach (var account in Store.Accounts.Where(a => a.App == "dsh").ToArray())
+            await Quotas.Refresh(account, false);
+        MergeAccounts();
     }
 
     public List<Session> AllSessions => snapshots.Values.SelectMany(s => s.Sessions).ToList();

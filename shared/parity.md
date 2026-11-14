@@ -29,13 +29,13 @@
 | 双个人账号同时登录 | 🟡 | 🟡 | 未具备两套个人账号验收条件 |
 | 原生 UI 明暗/Pox/DeepSeek | ✅ | ✅ | Windows 系统明暗、Pox 与 DeepSeek 角色主题；Mac 无 DeepSeek 专属面板主题，鲸鱼娘跟随系统。Windows 历史主题截图及本地 WPF 主题回归通过；新增 Mac 桌宠切换仍待实机验证 |
 | 平台发布配置 | N/A | ✅ | `windows-v0.2.0` tag 已在远端完成测试、打包并发布预览 Release |
-| dsh 源码构建／npm 安装版 Web | 🟡 | 🟡 | Windows 基线 0.1.7-rc.2；两种真实安装的隔离启动、认证、双 home、手动连接与恢复通过；Electron Desktop 不在范围内；macOS 采用下述本机供应商路径 |
-| dsh 安装发现与手动添加指引 | ❌ | ✅ | Windows 检查 PATH 命令包装器、npm 前缀／用户 npmrc、官方 npx 缓存；验证包名和 CLI，去重并列出来源／版本；失败显示持久指引、文件／目录选择、配置检查、官方命令复制与已有实例入口。本机 0.2.1-rc.5 在独立 home 的发现、启动、会话认证、手动连接与恢复通过；Desktop 原生授权不接管；Mac 本次未修改 |
-| dsh Web 任务监控 | N/A | 🟡 | 标题读取 Web 使用的字符串 projection；过滤明确 blank 且未运行的预建项目会话，运行中／未知 blank 保留，过滤先于排序截断；真实历史标题对比通过；根会话元数据与排序接入；断连显示缓存与未知状态；实时模型任务待验收。2026-10-24 同步上游后移除文档接力 |
-| dsh 官方钱包与计费通道 | 🟡 | 🟡 | Windows 官方钱包与默认 DeepSeek API 余额分开显示；独立只读标准文件来源 Key，固定官方 HTTPS／拒绝重定向，无插件依赖；真实 API 余额查询通过；CNY／USD 精度、失败缓存与密钥切换已测；官方登录钱包待验收，环境／第三方来源暂不支持；macOS 范围见供应商说明 |
+| dsh 源码构建／npm 安装版 Web | 🟡 | 🟡 | 双端支持独立安装与 home、动态端口、受管启动和已有实例连接；Mac 融合原 `.deepseek` 账号，保留 DSH Desktop／终端入口。当前验证边界见 [双端指南](../docs/deepseek-harness.md) |
+| dsh 安装发现与手动添加指引 | 🟡 | 🟡 | 双端验证 npm 包名与 CLI，提供安装来源／版本、手动路径、Node／profile／home 和已有实例入口。Mac 额外检查 Homebrew／nvm 路径；Windows 配置检查与创建统一展开环境变量。真实系统集成仍需各平台验收 |
+| dsh Web 任务监控 | 🟡 | 🟡 | 双端读取 root 会话标题和状态，过滤 blank／子 agent；断连保留元数据但标记未知。Mac 复用现有排序、通知和桌宠反馈；跨平台工作目录仅作元数据，不在另一平台解释为本地文件 |
+| dsh 官方钱包与计费通道 | 🟡 | 🟡 | 双端分别展示官方钱包与 API 余额；按当前默认路由仅读标准文件 Key，固定官方 HTTPS／拒绝重定向。不同实例或 Key 不复用旧缓存；协议样本覆盖多币种、精度和失败，真实账户验收独立记录 |
 | dsh 官方徽标 | ❌ | ✅ | 白色官方鲸鱼 SVG；浅色主题增加深色底 |
-| dsh 完成标记 | ❌ | ✅ | 通过不激活 Agent 的 projections 游标与最近消息窗口提取 turn/end；明确 completed 显示绿色 ✓，中断／错误独立标记；结果缓存仅保留游标与状态，新输入／运行优先；真实历史完成事件比对、失败与竞态测试通过 |
-| dsh 后台宿主与授权保护 | ❌ | 🟡 | DPAPI、重复启动防止、宿主恢复、显式停止和外部只断开已测；移除记录保留运行与数据 |
+| dsh 完成标记 | 🟡 | 🟡 | 双端仅依明确 completed 的 turn/end 标记成功；中断／错误／未知独立处理，新输入／运行优先。共同消费 shared/fixtures/dsh，真实模型任务另行验收 |
+| dsh 后台宿主与授权保护 | 🟡 | 🟡 | 双端按 home 锁定独立宿主，退出面板保留服务；Mac Keychain／Windows DPAPI 保存授权。受管重连限制原实例，外部只能断开，移除账号保留服务与 home。OS 进程／凭据集成不能由 Linux 协议测试替代 |
 | 本机 Gemini CLI / Antigravity / DeepSeek Harness | 🟡 | ❌ | macOS 引用既有配置、启动、会话索引（只解析最新 60 个文件并缓存，长会话读开头元数据）；Antigravity CLI 额度只在手动刷新时查询，DeepSeek 钱包余额；Gemini CLI 不再查询额度；客户端换了位置可在扫描结果里更新启动位置。详见 [供应商说明](../docs/macos/providers.md) |
 | Gemini 原生应用内 Antigravity | ✅ | ❌ | 独立 Gemini 分组；Antigravity 额度唯一的自动来源，从运行中的原生应用本地服务查询 Gemini 模型额度，Argon 周额度单独标注；真实面板刷新、明细及重启保留已验收；不复用 CLI 凭据 |
 | 从访达重新打开面板 | ✅ | ❌ | macOS 重新打开 Perch 时展示菜单栏面板，不依赖桌宠可见性 |
@@ -60,3 +60,10 @@ macOS 开发更新：沿用稳定代码签名；Claude 后台额度读取禁止�
 - 主页标题使用 20 DIP Bold，并在左侧以 30 DIP 产品图标居中对齐；其他页面保留原有标题层级。
 - 启用鲸鱼娘自动应用 DeepSeek 暗色主题：蓝黑底色、官方蓝 #4D6BFE、白色按钮文字；不经过系统强调色柔化。启用 Pox 使用 Pox 暗色金色；原生桌宠或关闭桌宠跟随系统亮暗与强调色。隐藏桌宠不取消角色主题；更换角色或禁用桌宠立即切换。演示支持 --theme deepseek。
 - Windows 本地 Core／WPF 测试与主题截图验证；macOS 本次未修改、未验收。
+
+### 2026-11-14：PR #6 修复与 dsh 双端融合
+
+- 修复 Windows home 检查／创建不一致、桌宠双击 dsh 错误启动入口、重连后沿用旧实例钱包；Mac 应用资源补齐 NOTICE/LICENSE。
+- Mac 保留已有 DeepSeek provider，并在同 home 账号上增加 Web 能力，不重复分组、不改变 Gemini／Antigravity 的原流程。Web 会话、通知、桌宠及分源余额接入原面板。
+- 协议状态、金额和路径元数据使用 shared/fixtures/dsh 的同一组合成样本；平台窗口、进程与授权存储仍各自验证。
+- 当前本地验证：Windows solution 交叉编译、Windows 共享契约执行、Swift 语法及 portable 协议／余额测试。原生 CI 和真实服务验收结果分别记录在两端 acceptance，不将 Linux 测试写成 Mac/WPF 实机通过。

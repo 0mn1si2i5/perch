@@ -15,6 +15,11 @@ static class Program
 
     static void Main(string[] args)
     {
+        if (args.Length == 1 && args[0] == "--dsh-contract-check")
+        {
+            DshSharedContractTests.Run();
+            return;
+        }
         if (args.Length is 1 or 2 && args[0] == "--dsh-discovery-smoke")
         {
             DshSmoke.Discovered(args.Length == 2 ? args[1] : null).GetAwaiter().GetResult();
@@ -153,7 +158,9 @@ static class Program
             Check(scaled.X == 2303 && scaled.Y == 585 && scaled.Width == 510, "Physical origins and scaled dimensions stay separate");
             Check(Sessions.Status("error", true, DateTimeOffset.UtcNow) == "遇到问题", "Failed tasks must remain distinct from stopped tasks");
             FixtureTests.Run(root);
+            DshSharedContractTests.Run();
             DshTests.Run(root).GetAwaiter().GetResult();
+            DshServiceCacheTests.Run(root).GetAwaiter().GetResult();
             DshApiBalanceTests.Run(root).GetAwaiter().GetResult();
             RegressionTests.Run(root);
             NoticeTests.Run();

@@ -25,3 +25,10 @@ jobs:
         run: |
           bash -n macos/script/build_and_run.sh macos/script/package-release.sh
           ./macos/script/build_and_run.sh --build
+      - name: Verify standalone app resources
+        run: |
+          fixture="$(mktemp -d)"
+          trap 'rm -rf "$fixture"' EXIT
+          ditto macos/dist.noindex/Perch.app "$fixture/Standalone Perch.app"
+          mkdir "$fixture/home"
+          env -i HOME="$fixture/home" PATH=/usr/bin:/bin "$fixture/Standalone Perch.app/Contents/MacOS/Perch" --verify-bundle-resources

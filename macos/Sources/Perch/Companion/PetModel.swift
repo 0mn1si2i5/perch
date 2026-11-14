@@ -59,7 +59,8 @@ final class PetModel: ObservableObject {
             if !previewing && pose == .watching && media.kind == .unknown { return Strings.get(character.dialogueKey("media")) }
             return character.poseLabel(pose)
         }
-        return previewing ? Strings.get("pet.preview") : pose == .thinking ? Strings.format("pet.running.codex", String(active)) : pose.label
+        let runningKey = tasks.contains { $0.source == "DeepSeek Harness" } ? "pet.running" : "pet.running.codex"
+        return previewing ? Strings.get("pet.preview") : pose == .thinking ? Strings.format(runningKey, String(active)) : pose.label
     }
 
     init(defaults: UserDefaults = .standard) {

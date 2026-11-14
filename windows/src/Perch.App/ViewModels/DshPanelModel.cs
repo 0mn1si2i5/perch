@@ -128,11 +128,11 @@ public sealed partial class PanelModel
         if (editingDsh != null && (DshState.ChildAlive(Dsh.State(account).Read()) || Dsh.State(account).HostAlive()))
             throw new IOException("请先停止这个 dsh 服务，再修改启动配置；可用“重新连接”更新授权。");
         var home = DshExternal ? account.ProfilePath.Length > 0 && account.Dsh?.Mode == "external" ? account.ProfilePath : Path.Combine(Store.Root, "dsh-external", account.Id)
-            : string.IsNullOrWhiteSpace(DshHome) ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".perch", "profiles", Guid.NewGuid().ToString("N")[..10], "dsh-home") : Path.GetFullPath(DshHome.Trim());
+            : string.IsNullOrWhiteSpace(DshHome) ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".perch", "profiles", Guid.NewGuid().ToString("N")[..10], "dsh-home") : DshDiscovery.Normalize(DshHome);
         if (Store.Accounts.Any(a => a.Id != account.Id && a.App == "dsh" && Store.SamePath(a.ProfilePath, home)))
             throw new IOException("这个 DSH_HOME 已被另一个账号引用，请使用已有记录。");
         var config = new DshConfiguration { Mode = DshExternal ? "external" : DshMode == 0 ? "source" : "npm", InstallationPath = DshExternal ? "" : DshPath.Trim(), NodePath = DshExternal ? "" : DshNode.Trim(), Profile = DshProfile.Trim(),
-            BalanceHome = DshExternal && !string.IsNullOrWhiteSpace(DshBalanceHome) ? Path.GetFullPath(DshBalanceHome.Trim()) : "" };
+            BalanceHome = DshExternal && !string.IsNullOrWhiteSpace(DshBalanceHome) ? DshDiscovery.Normalize(DshBalanceHome) : "" };
         // Validate a detached value so failed configuration never mutates a saved account.
         var candidate = new Account { Id = account.Id, App = "dsh", Name = NewName.Trim(), ProfilePath = home, SessionRoot = home, Dsh = config };
         if (DshExternal)

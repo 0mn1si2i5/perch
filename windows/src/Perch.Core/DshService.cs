@@ -33,17 +33,26 @@ public sealed class DshService(Store store, string? hostExecutable = null) : IDi
         await entry.Gate.WaitAsync();
         try
         {
-            using var connection = new DshConnection(new(validated.AbsoluteUri, ""));
-            await connection.Authenticate();
-            var sessions = await connection.Sessions();
             var state = State(account);
             // External reconnect replaces its authorization even when the old
             // encrypted descriptor is unreadable; it never owns a child process.
             var previous = account.Dsh?.Mode == "external" ? null : state.Read();
+            if (account.Dsh?.Mode != "external")
+            {
+                if (!DshState.ChildAlive(previous) && !state.HostAlive())
+                    throw new IOException("这个受管 dsh 服务尚未运行。请打开账号启动服务；连接终端中已有的服务时，请使用“连接已有实例”。");
+                if (previous?.Authorization == null)
+                    throw new IOException("受管 dsh 尚未取得授权地址，请等待启动完成后重试。");
+                var owned = DshConnection.ValidateUrl(previous.Authorization.Url);
+                if (!owned.GetLeftPart(UriPartial.Authority).Equals(validated.GetLeftPart(UriPartial.Authority), StringComparison.OrdinalIgnoreCase))
+                    throw new IOException("授权 URL 不属于这个受管 dsh 服务。请复制它当前的启动地址；其他服务请使用“连接已有实例”。");
+            }
+            using var connection = new DshConnection(new(validated.AbsoluteUri, ""));
+            await connection.Authenticate();
+            var sessions = await connection.Sessions();
             state.Write((previous ?? new DshRuntime("ready")) with { Phase = "ready", Authorization = connection.Authorization, Detail = "" });
-            entry.Connection?.Dispose();
-            entry.Connection = null;
-            entry.Authorization = null;
+            ResetConnection(entry);
+            entry.Authorization = connection.Authorization;
             entry.Snapshot = new(true, sessions, "dsh 本机 Web", 0, DateTimeOffset.UtcNow);
         }
         finally { entry.Gate.Release(); }
@@ -102,11 +111,23 @@ public sealed class DshService(Store store, string? hostExecutable = null) : IDi
         if (runtime.Authorization == null) throw new IOException("请先连接 dsh Web 实例。");
         if (entry.Connection == null || entry.Authorization != runtime.Authorization)
         {
-            entry.Connection?.Dispose();
+            // A host restart or a replaced descriptor can change the connected
+            // instance without going through Connect. Its caches must change too.
+            if (entry.Authorization != runtime.Authorization) ResetConnection(entry);
             entry.Connection = new DshConnection(runtime.Authorization);
             entry.Authorization = runtime.Authorization;
         }
         return entry.Connection;
+    }
+
+    private static void ResetConnection(Entry entry)
+    {
+        entry.Connection?.Dispose();
+        entry.Connection = null;
+        entry.Authorization = null;
+        entry.Snapshot = null;
+        entry.Api.Clear();
+        entry.OfficialQuota = null;
     }
 
     public async Task<Snapshot> Read(Account account)
@@ -214,11 +235,7 @@ public sealed class DshService(Store store, string? hostExecutable = null) : IDi
                     state.Write(runtime with { Phase = "stopped", Authorization = null, Detail = "dsh 服务已停止。" });
                 }
             }
-            entry.Connection?.Dispose();
-            entry.Connection = null;
-            entry.Snapshot = null;
-            entry.Api.Clear();
-            entry.OfficialQuota = null;
+            ResetConnection(entry);
         }
         finally { entry.Gate.Release(); }
     }

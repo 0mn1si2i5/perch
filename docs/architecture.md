@@ -11,6 +11,8 @@ Windows 轮询通过进程内 Win32 查询，显示时 5 秒、全部隐藏时 2
 
 会话数据库以 SQLite READONLY 打开。标题优先客户端元数据索引，不以提示词冒充生成标题。额度使用对应账号本地授权，Claude DPAPI 解密仅在内存中，向官方地址查询；第三方模式不假造官方订阅额度。
 
-会话监控主要读取元数据，不自动发送聊天。Windows dsh 为判断最近回合的结束状态会请求最近一个消息事件窗口，正文可能随响应进入内存，但不搜索、不展示、不记录、不落盘；缓存仅保留事件游标与解析状态。详见 [dsh 数据边界](windows/deepseek-harness.md#会话和余额)。文档接力和拆出需求已于 2026-10-21 从两端删除，数据目录里旧的 `handoffs/` 保留，不再读取。
+会话监控主要读取元数据，不自动发送聊天。两端 dsh Web 为判断最近回合的结束状态会请求最近一个消息事件窗口，正文可能随响应进入内存，但不搜索、不展示、不记录、不落盘；缓存仅保留事件游标与解析状态。详见 [dsh 数据边界](deepseek-harness.md#任务和余额)。文档接力和拆出需求已于 2026-10-21 从两端删除，数据目录里旧的 `handoffs/` 保留，不再读取。
+
+dsh Web 在两端使用同一协议行为和 `shared/fixtures/dsh` 样本；macOS 通过已有 `.deepseek` 账号的可选 Web 配置融合到 provider 面板，原有 DSH Desktop／终端入口仍可用。Windows 保留 WPF 账号入口。后台宿主与锁分别使用本机进程机制，本机连接授权分别进入 macOS 钥匙串与 Windows DPAPI。两个钱包独立缓存，换连接时清除旧身份结果。共享行为与原生实现的边界见 [双端指南](deepseek-harness.md)。
 
 Windows 版本来自 `windows/VERSION`，tag 为 `windows-v*`；macOS 版本来自 `macos/VERSION`，tag 为 `macos-v*`。CI 按目录分别运行。已发布的 macOS 1.0.x 保留旧 `v*` tag。Windows 0.2.0 已发布预览版，自包含 x64 ZIP 与 SHA256 可本地生成；尚无安装器、签名或开机启动。Windows 新增 dsh Web 支持，独立后台宿主与本机认证 RPC 不依赖 dsh 源码导入；详细模块与运行见 [Windows 架构](windows/architecture.md)。

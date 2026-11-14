@@ -127,7 +127,7 @@ public partial class Panel : Window, IDisposable
                 {
                     var busy = Model.BusyAccount;
                     if (busy != null && !Model.Demo)
-                        await Model.Clients.Open(busy);
+                        await Model.OpenClient(busy);
                 }), ShowInTaskbar);
                 pet.LocationChanged += (_, _) =>
                 {

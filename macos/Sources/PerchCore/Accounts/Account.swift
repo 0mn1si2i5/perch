@@ -44,20 +44,23 @@ public struct Account: Codable, Identifiable, Equatable {
     /// CODEX_HOME for Codex; equal to profilePath for Claude.
     public var sessionRoot: String
     public var localProvider: LocalProviderConfiguration?
+    /// Optional Web capability for the existing DeepSeek group. Local Desktop/terminal launch settings are retained.
+    public var dshWeb: DshConfiguration?
     public var createdAt: Date
     public var lastLaunchedAt: Date?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, app = "appId", profilePath, sessionRoot, createdAt, lastLaunchedAt, localProvider
+        case id, name, app = "appId", profilePath, sessionRoot, createdAt, lastLaunchedAt, localProvider, dshWeb
     }
 
     public init(id: String, name: String, app: AppKind, profilePath: String,
                 sessionRoot: String, createdAt: Date, lastLaunchedAt: Date?,
-                localProvider: LocalProviderConfiguration? = nil) {
+                localProvider: LocalProviderConfiguration? = nil, dshWeb: DshConfiguration? = nil) {
         self.id = id; self.name = name; self.app = app
         self.profilePath = profilePath; self.sessionRoot = sessionRoot
         self.createdAt = createdAt; self.lastLaunchedAt = lastLaunchedAt
         self.localProvider = localProvider
+        self.dshWeb = dshWeb
     }
 }
 
