@@ -1,0 +1,68 @@
+name: Release macOS
+on:
+  push:
+    tags: ['macos-v*']
+  pull_request:
+    paths: ['macos/VERSION', 'macos/script/package-release.sh', '.github/workflows/release-macos.yml']
+permissions:
+  contents: write
+jobs:
+  package-and-release:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check version and prepare release notes
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re
+          version = pathlib.Path('macos/VERSION').read_text().strip()
+          if not re.fullmatch(r'\d+\.\d+\.\d+', version):
+              raise SystemExit('Invalid VERSION')
+          if os.environ['GITHUB_REF_TYPE'] == 'tag' and os.environ['GITHUB_REF_NAME'] != f'macos-v{version}':
+              raise SystemExit('Tag and VERSION differ')
+          log = pathlib.Path('macos/CHANGELOG.md').read_text()
+          section = re.search(r'^## ' + re.escape(version) + r'\b[^\n]*\n(.*?)(?=^## |\Z)', log, re.M | re.S)
+          if not section:
+              raise SystemExit('Missing changelog section')
+          pathlib.Path('release-notes.md').write_text(section.group(1).strip() + '\n')
+          PY
+      - run: swift test --package-path macos
+      - name: Build universal release packages
+        run: ./macos/script/package-release.sh
+      - name: Verify packaged app and checksums
+        run: |
+          version="$(cat macos/VERSION)"
+          out="$PWD/macos/dist.noindex/releases"
+          fixture="$(mktemp -d)"
+          trap 'rm -rf "$fixture"' EXIT
+          (cd "$out" && shasum -a 256 -c SHA256SUMS)
+          hdiutil verify "$out/Perch-$version-universal.dmg"
+          ditto -x -k "$out/Perch-$version-universal.zip" "$fixture"
+          app="$fixture/Perch.app"
+          codesign --verify --deep --strict "$app"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" = "$version"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Contents/Info.plist")" = "$version"
+          for binary in "$app/Contents/MacOS/Perch" "$app/Contents/Resources/MediaRemoteAdapter.framework/MediaRemoteAdapter"; do
+            lipo "$binary" -verify_arch arm64 x86_64
+          done
+          mkdir "$fixture/home"
+          env -i HOME="$fixture/home" PATH=/usr/bin:/bin "$app/Contents/MacOS/Perch" --verify-bundle-resources
+      - name: Upload package preview
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Perch-macOS-release-preview
+          path: macos/dist.noindex/releases/
+          if-no-files-found: error
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/macos-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(cat macos/VERSION)"
+          gh release create "$GITHUB_REF_NAME" \
+            "macos/dist.noindex/releases/Perch-$version-universal.dmg" \
+            "macos/dist.noindex/releases/Perch-$version-universal.zip" \
+            macos/dist.noindex/releases/SHA256SUMS \
+            --title "Perch macOS $version" --notes-file release-notes.md --verify-tag

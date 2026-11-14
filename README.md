@@ -6,14 +6,14 @@
 
 | 平台 | 最新版本 | 系统要求 |
 | --- | --- | --- |
-| macOS | [1.1.0](https://github.com/0mn1si2i5/perch/releases/tag/macos-v1.1.0) | macOS 14 及以上，Apple Silicon / Intel |
-| Windows | [0.2.0 预览版](https://github.com/0mn1si2i5/perch/releases/tag/windows-v0.2.0) | Windows 10（19041）及以上，x64 |
+| macOS | [1.2.0](https://github.com/0mn1si2i5/perch/releases/tag/macos-v1.2.0) | macOS 14 及以上，Apple Silicon / Intel |
+| Windows | [0.3.0 预览版](https://github.com/0mn1si2i5/perch/releases/tag/windows-v0.3.0) | Windows 10（19041）及以上，x64 |
 
 <p align="center">
   <img src="docs/images/perch-overview.png" alt="Perch macOS 面板示意：账号、会话、额度与可选桌宠" width="100%">
 </p>
 
-上图为 macOS 界面示意，数据均为演示数据。Windows 版使用原生面板，支持系统浅色／深色及 Pox 主题；当前源码开发版另有鲸鱼娘配套的 DeepSeek 暗色主题。
+上图为 macOS 界面示意，数据均为演示数据。Windows 版使用原生面板，支持系统浅色／深色及 Pox 主题；鲸鱼娘另有配套的 DeepSeek 暗色主题。
 
 ## 能做什么
 
@@ -21,11 +21,11 @@
 | --- | --- | --- |
 | 按 Codex / Claude 分组，一键启动或调出对应账号的客户端，每个账号的登录和数据互不干扰。 | 查看正在运行的任务和最近的会话；分组、账号和会话都能拖动排序。 | 显示 5 小时和每周额度的已用比例与重置时间，可手动刷新或定期同步；查不到时显示上次的数据并注明时间。 |
 
-**macOS 开发版新增供应商管理**：可引用本机 Gemini CLI、Antigravity CLI、DeepSeek Harness 和 Gemini 应用。Antigravity 额度来自 Gemini 应用内的 Antigravity；Antigravity CLI 卡片只在手动刷新时运行一次 agy。DeepSeek 显示账户余额。通过新建页主动扫描、逐项添加本机入口。之前开发版里的自定义客户端和 API 供应商已删除，旧账号会移到备份文件。使用方式见[供应商说明](docs/macos/providers.md)。此功能尚未发布到上表的 Release；Windows 尚未接入 Gemini CLI、Antigravity CLI 和 Gemini 应用，dsh 支持见下一段。
+**macOS 供应商管理**：可引用本机 Gemini CLI、Antigravity CLI、DeepSeek Harness 和 Gemini 应用。Antigravity 额度来自 Gemini 应用内的 Antigravity；Antigravity CLI 卡片只在手动刷新时运行一次 agy。DeepSeek 显示账户余额。通过新建页主动扫描、逐项添加本机入口。之前开发版里的自定义客户端和 API 供应商已删除，旧账号会移到备份文件。使用方式见[供应商说明](docs/macos/providers.md)。Windows 尚未接入 Gemini CLI、Antigravity CLI 和 Gemini 应用，dsh 支持见下一段。
 
-**双端开发版 dsh Web**：支持源码构建版、npm 安装版、npx 缓存和已有本机 Web 实例，提供安装发现、手动添加、后台服务、根会话任务状态、官方账户钱包与独立 API 余额查询。Mac 将 Web 能力融合到已有 DeepSeek 账号，保留 DSH Desktop／终端入口，复用现有排序、通知和桌宠；Gemini、Antigravity 的原有接入不变。Electron Desktop 私有授权不接管。此能力尚未发布到上表的安装包；配置、数据边界与验收限制见 [双端 dsh 指南](docs/deepseek-harness.md)。
+**双端 dsh Web**：支持源码构建版、npm 安装版、npx 缓存和已有本机 Web 实例，提供安装发现、手动添加、后台服务、根会话任务状态、官方账户钱包与独立 API 余额查询。Mac 将 Web 能力融合到已有 DeepSeek 账号，保留 DSH Desktop／终端入口，复用现有排序、通知和桌宠；Gemini、Antigravity 的原有接入不变。Electron Desktop 私有授权不接管。配置、数据边界与验收限制见 [双端 dsh 指南](docs/deepseek-harness.md)。
 
-**桌宠（可选）**：默认关闭。已发布版本可选静态的原生浮球或 Pox（带配套面板主题）；单击打开面板，拖动可换位置。当前源码开发版新增 DeepSeek 鲸鱼娘、八种姿势和专属互动文案，两端桌宠文案共用 JSON。Windows 启用鲸鱼娘后使用 DeepSeek 暗色主题，启用 Pox 使用 Pox 主题，原生浮球或关闭桌宠时跟随系统明暗；macOS 鲸鱼娘跟随系统主题，其新增桌宠、共享文案和独立应用包资源由 [macOS CI](https://github.com/0mn1si2i5/perch/pull/7/checks) 检查，实机交互仍待验收。
+**桌宠（可选）**：默认关闭。可选静态的原生浮球、Pox（带配套面板主题）或 DeepSeek 鲸鱼娘；单击打开面板，拖动可换位置。鲸鱼娘提供八种姿势和专属互动文案，两端桌宠文案共用 JSON。Windows 启用鲸鱼娘后使用 DeepSeek 暗色主题，启用 Pox 使用 Pox 主题，原生浮球或关闭桌宠时跟随系统明暗；macOS 鲸鱼娘跟随系统主题，其新增桌宠、共享文案和独立应用包资源由 [macOS CI](https://github.com/0mn1si2i5/perch/pull/7/checks) 检查，实机交互仍待验收。
 
 ## 下载与安装
 
@@ -37,7 +37,7 @@
 2. 第一次打开如果提示“无法验证开发者”：打开“系统设置 → 隐私与安全性”，在页面下方找到 Perch，点“仍要打开”。
 3. Perch 出现在菜单栏，没有 Dock 图标。
 
-升级：用新版本覆盖旧的 Perch 即可，账号和设置都会保留。
+升级：若 Perch 正在托管 dsh，先在账号菜单停止该服务，再退出 Perch、替换应用并重新启动服务；账号和设置都会保留。
 
 ### Windows
 
@@ -45,7 +45,7 @@
 2. 双击 `Perch.exe`。如果出现蓝色的 SmartScreen 提示，点“更多信息”→“仍要运行”。
 3. Perch 出现在系统托盘（右下角，可能被收在 `^` 里），也可以按 `Ctrl+Alt+P` 打开面板。
 
-不需要另装 .NET。升级时关掉 Perch，用新版本的文件夹替换旧的即可。
+不需要另装 .NET。升级前先停止 Perch 托管的 dsh 服务，再退出 Perch、替换整个文件夹并重新启动服务；账号和设置保留。
 
 ### 卸载
 
