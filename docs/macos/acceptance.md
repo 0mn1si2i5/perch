@@ -6,7 +6,9 @@
 
 新增可选 Web 配置沿用 `.deepseek` 账号，同 home 关联保留 ID、名称、顺序和原客户端入口。受管启动、Keychain 恢复、外部连接、根会话、双余额、通知和桌宠进入现有面板；Gemini／Antigravity 的入口不变。独立应用包补齐 NOTICE/LICENSE，并增加不读取个人配置的 `--verify-bundle-resources` 检查。
 
-本地验证环境为 Linux：全部 Swift 文件通过 Swift 6.0.3 语法解析；协议和余额的 portable 测试使用真实源码副本、FoundationNetworking 和真实 swift-crypto，共 22 项通过，含原有 DeepSeekUsage 回归。安装、文件锁、状态机及注入凭据存储另有隔离回归；这些结果不代表 AppKit、真实 Keychain、后台宿主或 Mac 鼠标验收通过。原生测试与发布构建由 macOS CI 执行，结果另行记录。
+本地验证环境为 Linux：全部 Swift 文件通过 Swift 6.0.3 语法解析；portable 测试使用真实源码副本、FoundationNetworking 和真实 swift-crypto，协议／余额及既有 DeepSeekUsage 22 项、安装／文件锁／状态机及注入凭据存储 13 项通过。这些结果不代表 AppKit、真实 Keychain、后台宿主或 Mac 鼠标验收通过。原生测试、发布构建和独立应用包资源检查由 macOS CI 执行，结果见 [PR #7 Checks](https://github.com/0mn1si2i5/perch/pull/7/checks)。
+
+另用官方 npm `deepseek-harness@0.2.2-rc.1` 和 Node 24.22.1 启动隔离 Web 服务，通过实际 Swift `DshConnection` 验证 token 换 Cookie、空会话列表、计费路由与未登录钱包响应。只使用临时 HOME／DSH_HOME，没有模型请求、个人凭据或原始授权日志；结束后停止自建服务并清理临时目录。此项为 Linux 上的真实协议联通验证，不能替代 Mac 原生宿主和真实登录钱包验收。
 
 真实验收仍需：已有 DSH Desktop 账号关联 Web 后不重复账号；两个独立 home 启动、退出面板后继续、重开恢复；同源重连与错误实例拒绝；官方钱包／API 两路成功及失败；真实模型完成通知；应用升级后的显式钥匙串授权。未访问个人账号、发送模型任务或停止个人客户端。
 

@@ -47,4 +47,6 @@ windows/script/build.ps1 -Action Test
 windows/script/build.ps1 -Action Package
 ```
 
-Mac 发布包携带共享文案、两套图集、`NOTICE` 和 `LICENSE`；CI 还会将 `.app` 复制到脱离仓库的目录后检查资源。真实服务授权、重启恢复、明确停止、双 home、钱包和模型完成通知仍应在对应平台验收。记录分别见 [Mac 验收](macos/acceptance.md) 和 [Windows 验收](windows/acceptance.md)。
+Mac 发布包携带共享文案、两套图集、`NOTICE` 和 `LICENSE`；CI 还会将 `.app` 复制到脱离仓库的目录后检查资源。双端原生测试和发布构建见 [PR #7 Checks](https://github.com/0mn1si2i5/perch/pull/7/checks)。Linux 上已通过官方 npm dsh `0.2.2-rc.1` 的隔离协议联通检查，包括实际 token 授权、会话列表、计费路由和未登录钱包响应。
+
+原生宿主的真实服务启动、重启恢复、明确停止、双 home、登录钱包和模型完成通知仍应在对应平台验收。记录分别见 [Mac 验收](macos/acceptance.md) 和 [Windows 验收](windows/acceptance.md)。

@@ -14,8 +14,8 @@
 | G10 恢复桌宠位置 | ✅ | 🟡 | 托盘和桌宠菜单接入 |
 | G11 桌宠反馈 | ✅ | 🟡 | 渲染预览；真实任务完成事件待验收 |
 | G12 原生浮球 | ✅ | ✅ | 明暗离屏截图 |
-| 可切换 DeepSeek 鲸鱼娘 | 🟡 | 🟡 | 两端接入第三角色、8 姿势、任务/媒体反馈、大小/安静/预览及偏好持久化。Windows 启用鲸鱼娘使用 DeepSeek 暗色主题，启用 Pox 使用 Pox 主题，原生浮球或关闭桌宠跟随系统；macOS 鲸鱼娘使用系统主题，Pox 保留原主题。Windows Core 与 WPF 生命周期回归通过；截图和鼠标交互验收见 Windows 验收记录。Mac 新增代码的测试、构建及实机均待验证 |
-| 鲸鱼娘专属互动文案 | 🟡 | ✅ | 两端按角色分流 8 姿势、任务计数、媒体、搬家、双击和完成反馈；加入白饭、鱼片、呆毛与鲸尾梗，Pox／浮球保留原文案；[对照与来源](strings/deepseek-whale-copy.md)。Windows Core／WPF 回归及 135px 演示截图通过；Mac 构建及实机待验证 |
+| 可切换 DeepSeek 鲸鱼娘 | 🟡 | 🟡 | 两端接入第三角色、8 姿势、任务/媒体反馈、大小/安静/预览及偏好持久化。Windows 启用鲸鱼娘使用 DeepSeek 暗色主题，启用 Pox 使用 Pox 主题，原生浮球或关闭桌宠跟随系统；macOS 鲸鱼娘使用系统主题，Pox 保留原主题。Windows Core 与 WPF 生命周期回归通过；截图和鼠标交互验收见 Windows 验收记录。Mac 新增代码的测试、构建及资源检查见 PR #7 CI，实机交互待验收 |
+| 鲸鱼娘专属互动文案 | 🟡 | ✅ | 两端按角色分流 8 姿势、任务计数、媒体、搬家、双击和完成反馈；加入白饭、鱼片、呆毛与鲸尾梗，Pox／浮球保留原文案；[对照与来源](strings/deepseek-whale-copy.md)。Windows Core／WPF 回归及 135px 演示截图通过；Mac 构建及资源检查见 PR #7 CI，实机交互待验收 |
 | 共享 JSON 桌宠文案 | 🟡 | ✅ | 两端读取 `shared/strings/zh-CN.json`；Windows 嵌入程序集，Mac 构建时复制到应用资源，SwiftPM 开发／测试直接读取源文件；移除 Swift 重复台词及 C# 通用反馈字面量。按角色命名空间隔离，测试预期读取资源，改台词只改 JSON；Windows Core／WPF 通过，Mac 已补应用资源加载与隔离测试，待 Mac 构建验收 |
 | G13 后台通知 | ✅ | 🟡 | Windows 气球提示保留 |
 | 对话完成、等你回应通知 | 🟡 | 🟡 | Mac：Codex 和 Claude 对话从进行中变成已完成、等你回应或遇到问题时发系统通知，点通知调出所属客户端；同一次轮询几个变化合成一条；启动前已结束的不通知；Claude Code 历史和 `codex exec`（委派）运行不通知；设置可关。模型测试用模拟的轮询结果通过，真实客户端待验收。 Windows：托盘气泡逐条显示，点气泡同样处理；Windows 不读 Claude Code 历史；Mac 上编译通过，逻辑测试在 Mac 上单独跑过，Windows CI 和实机未跑 |
@@ -25,7 +25,7 @@
 | Codex 任务 30 分钟无更新视为停止 | ✅ | 🟡 | 两端阈值一致；Windows Core 测试 2026-10-20 在 CI 通过 |
 | 按账号读取 Claude 会话 | 🟡 | ✅ | Mac 已接入各 profile 桌面会话，信息页说明本机 Code 历史来源及账号限制；独立目录、audit 缓存与共享 fixture 测试通过，双真实账号待验收 |
 | 会话拖动排序 | 🟡 | 🟡 | Mac 拖动整行，同账号同分区排序并持久化；隐藏会话焦点蓝框，保留键盘操作；模型投放与重启恢复测试通过，鼠标拖动待验收 |
-| 共享 strings/fixtures 消费 | 🟡 | ✅ | Windows 消费共享 strings 与 fixture；Mac Claude 会话测试消费共享 fixture，新增桌宠文案读取共享 JSON，其测试与构建待 Mac 验证；其余 Mac 文案与 fixture 尚未全部接入。`info.8` 仍只是共享文案，Windows 信息页不显示，Mac 信息页也尚未消费该键 |
+| 共享 strings/fixtures 消费 | 🟡 | ✅ | Windows 消费共享 strings 与 fixture；Mac Claude 会话测试消费共享 fixture，新增桌宠文案读取共享 JSON，其测试、构建及资源检查见 PR #7 CI；其余 Mac 文案与 fixture 尚未全部接入。`info.8` 仍只是共享文案，Windows 信息页不显示，Mac 信息页也尚未消费该键 |
 | 双个人账号同时登录 | 🟡 | 🟡 | 未具备两套个人账号验收条件 |
 | 原生 UI 明暗/Pox/DeepSeek | ✅ | ✅ | Windows 系统明暗、Pox 与 DeepSeek 角色主题；Mac 无 DeepSeek 专属面板主题，鲸鱼娘跟随系统。Windows 历史主题截图及本地 WPF 主题回归通过；新增 Mac 桌宠切换仍待实机验证 |
 | 平台发布配置 | N/A | ✅ | `windows-v0.2.0` tag 已在远端完成测试、打包并发布预览 Release |
@@ -66,4 +66,4 @@ macOS 开发更新：沿用稳定代码签名；Claude 后台额度读取禁止�
 - 修复 Windows home 检查／创建不一致、桌宠双击 dsh 错误启动入口、重连后沿用旧实例钱包；Mac 应用资源补齐 NOTICE/LICENSE。
 - Mac 保留已有 DeepSeek provider，并在同 home 账号上增加 Web 能力，不重复分组、不改变 Gemini／Antigravity 的原流程。Web 会话、通知、桌宠及分源余额接入原面板。
 - 协议状态、金额和路径元数据使用 shared/fixtures/dsh 的同一组合成样本；平台窗口、进程与授权存储仍各自验证。
-- 当前本地验证：Windows solution 交叉编译、Windows 共享契约执行、Swift 语法及 portable 协议／余额测试。原生 CI 和真实服务验收结果分别记录在两端 acceptance，不将 Linux 测试写成 Mac/WPF 实机通过。
+- 当前本地验证：Windows solution 交叉编译、Windows 共享契约执行、Swift 语法及 35 项 portable 回归；另通过官方 dsh 0.2.2-rc.1 隔离实例的实际 Swift 协议联通。原生测试、构建及资源检查见 [PR #7 CI](https://github.com/0mn1si2i5/perch/pull/7/checks)，平台实机验收边界分别记录在两端 acceptance，不将 Linux 测试写成 Mac/WPF 实机通过。

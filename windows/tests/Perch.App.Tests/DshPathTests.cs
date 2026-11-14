@@ -44,7 +44,8 @@ internal static class DshPathTests
             Check(Store.SamePath(saved.ProfilePath, home) && Store.SamePath(saved.SessionRoot, home), "Creation must persist the expanded home used by validation");
 
             var externalStore = new Store(Path.Combine(root, "dsh external path store"));
-            var external = new Account { App = "dsh", Name = "Existing connection", ProfilePath = Path.Combine(externalStore.Root, "external home"), Dsh = new() { Mode = "external" } };
+            var externalHome = Path.Combine(externalStore.Root, "external home");
+            var external = new Account { App = "dsh", Name = "Existing connection", ProfilePath = externalHome, SessionRoot = externalHome, Dsh = new() { Mode = "external" } };
             externalStore.Add(external);
             using var externalModel = new PanelModel(externalStore, false);
             externalModel.ConfigureDsh(external);

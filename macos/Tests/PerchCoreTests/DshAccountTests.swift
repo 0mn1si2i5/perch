@@ -27,9 +27,15 @@ final class DshAccountTests: XCTestCase {
             XCTAssertEqual(web.localProvider, native.localProvider)
             XCTAssertEqual(web.profilePath, native.profilePath)
             XCTAssertEqual(web.sessionRoot, native.sessionRoot)
+            XCTAssertEqual(web.createdAt, native.createdAt)
             XCTAssertEqual(store.accounts.map(\.id), [native.id, codex.id])
             try store.load()
-            XCTAssertEqual(store.accounts.first, web)
+            let restored = try XCTUnwrap(store.accounts.first)
+            // The existing account format persists ISO 8601 milliseconds, while Date() has finer precision.
+            XCTAssertEqual(restored.createdAt.timeIntervalSince1970, web.createdAt.timeIntervalSince1970, accuracy: 0.001)
+            var expected = web
+            expected.createdAt = restored.createdAt
+            XCTAssertEqual(restored, expected)
             XCTAssertFalse(FileManager.default.fileExists(atPath: store.removedAccountsURL.path))
         }
     }

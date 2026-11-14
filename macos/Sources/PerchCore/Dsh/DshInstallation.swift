@@ -205,10 +205,17 @@ public enum DshInstallation {
     }
 
     private static func directories(home: String, path: String) -> [String] {
-        let nvm = children(home + "/.nvm/versions/node").sorted().reversed().map { $0 + "/bin" }
-        let values = path.split(separator: ":").map(String.init) + ToolPaths.userDirectories(home: home) + nvm
+        let values = path.split(separator: ":").map(String.init) + ToolPaths.userDirectories(home: home) + nvmDirectories(home: home)
         var seen = Set<String>()
         return values.filter { $0.hasPrefix("/") && seen.insert($0).inserted }
+    }
+
+    /// Finder launches have no shell-selected Node; prefer the newest installed nvm version numerically.
+    static func nvmDirectories(home: String) -> [String] {
+        children(home + "/.nvm/versions/node").sorted {
+            URL(fileURLWithPath: $0).lastPathComponent.compare(URL(fileURLWithPath: $1).lastPathComponent,
+                                                            options: .numeric, locale: Locale(identifier: "en_US_POSIX")) == .orderedDescending
+        }.map { $0 + "/bin" }
     }
 
     private static func children(_ path: String) -> [String] {

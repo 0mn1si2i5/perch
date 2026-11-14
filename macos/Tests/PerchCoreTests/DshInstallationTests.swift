@@ -2,6 +2,22 @@ import XCTest
 @testable import PerchCore
 
 final class DshInstallationTests: XCTestCase {
+    func testNvmVersionsSortNumericallyForFinderLaunches() throws {
+        let root = try makeTempDir().resolvingSymlinksInPath()
+        defer { try? FileManager.default.removeItem(at: root) }
+        for version in ["v9.11.2", "v24.9.0", "v24.10.0"] {
+            let bin = root.appendingPathComponent(".nvm/versions/node/" + version + "/bin")
+            try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+            try executable(bin.appendingPathComponent("node"))
+        }
+        let directories = DshInstallation.nvmDirectories(home: root.path)
+        XCTAssertEqual(directories.map { URL(fileURLWithPath: $0).deletingLastPathComponent().lastPathComponent },
+                       ["v24.10.0", "v24.9.0", "v9.11.2"])
+        // Supplying only these directories keeps the test independent of the developer's installed Node.
+        XCTAssertEqual(DshInstallation.findNode(home: root.path, path: directories.joined(separator: ":")),
+                       root.appendingPathComponent(".nvm/versions/node/v24.10.0/bin/node").path)
+    }
+
     func testHomeInputUsesOneCanonicalPathForCheckAndLaunch() throws {
         let root = try makeTempDir().resolvingSymlinksInPath()
         defer { try? FileManager.default.removeItem(at: root) }
