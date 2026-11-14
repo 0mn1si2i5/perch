@@ -2,7 +2,7 @@
 
 ## 2026-11-14：PR #6 修复与双端协议回归
 
-修复 home 路径检查与创建不一致、桌宠双击错用原生启动入口、重连沿用旧钱包；受管重连限制原进程的 origin。自动计费查询进入 30 秒缓存调度，API 网络请求保留 5 分钟缓存，手动刷新可立即查询。
+修复 home 路径检查与创建不一致、桌宠双击错用原生启动入口、重连沿用旧钱包；受管重连限制原进程的 origin。自动计费查询进入 30 秒缓存调度，API 网络请求保留 5 分钟缓存，手动刷新绕过普通缓存，保留 HTTP 429 退避。
 
 Linux 上用 .NET SDK 10.0.404 完整交叉编译 Windows solution，0 警告、0 错误；`--dsh-contract-check` 实际运行通过，消费与 Mac 相同的 sessions/outcomes/wallet 样本。新增路径保存、两个隔离 RPC 实例缓存、受管重连及自动／手动节流回归已接入默认测试入口；Core／WPF／DPAPI、宿主回归与发布构建由 Windows 原生 CI 执行，结果见 [PR #7 Checks](https://github.com/0mn1si2i5/perch/pull/7/checks)。没有启动或改动个人客户端。
 
