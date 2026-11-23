@@ -37,7 +37,7 @@
 | dsh 完成标记 | 🟡 | 🟡 | 双端仅依明确 completed 的 turn/end 标记成功；中断／错误／未知独立处理，新输入／运行优先。共同消费 shared/fixtures/dsh，真实模型任务另行验收 |
 | dsh 后台宿主与授权保护 | 🟡 | 🟡 | 双端按 home 锁定独立宿主，退出面板保留服务；Mac Keychain／Windows DPAPI 保存授权。受管重连限制原实例，外部只能断开，移除账号保留服务与 home。OS 进程／凭据集成不能由 Linux 协议测试替代 |
 | 本机 Gemini CLI / Antigravity / DeepSeek Harness | 🟡 | ❌ | macOS 引用既有配置、启动、会话索引（只解析最新 60 个文件并缓存，长会话读开头元数据）；Antigravity CLI 额度只在手动刷新时查询，DeepSeek 钱包余额；Gemini CLI 不再查询额度；客户端换了位置可在扫描结果里更新启动位置。详见 [供应商说明](../docs/macos/providers.md) |
-| Gemini 原生应用内 Antigravity | ✅ | ❌ | 独立 Gemini 分组；Antigravity 额度唯一的自动来源，从运行中的原生应用本地服务查询 Gemini 模型额度，Argon 周额度单独标注；真实面板刷新、明细及重启保留已验收；不复用 CLI 凭据 |
+| Gemini 原生应用内 Antigravity | 🟡 | ❌ | 独立 Gemini 分组；只读 `~/.gemini/antigravity/conversation_summaries.db` 展示实时会话列表，并持久化历史额度缓存（`provider-usage-cache.json`，0600）。新版 `Gemini.app`（1.147.5+）内部本地服务已启用 401 鉴权，Perch 不再误报登录失效，也不在后台拉起 `agy` |
 | 从访达重新打开面板 | ✅ | ❌ | macOS 重新打开 Perch 时展示菜单栏面板，不依赖桌宠可见性 |
 | 接力、拆出需求 | N/A | N/A | 2026-10-21 两端删除，包括右键菜单、待接力卡片、接力记录和交接文档写好提醒；数据目录里旧的 `handoffs/` 保留，不再读取。对话状态通知保留 |
 | 自定义客户端 / API 供应商 | N/A | N/A | macOS 已删除；旧账号升级时移到 `removed-accounts.json`，钥匙串里的密钥需手动清理 |

@@ -11,12 +11,16 @@ public enum AntigravityCLIUsage {
         guard URL(fileURLWithPath: account.profilePath).standardizedFileURL == defaultRoot else {
             throw ProviderUsageError.unsupported("Antigravity CLI 额度查询仅支持本机默认登录目录")
         }
-        guard config.target.hasPrefix("/"), FileManager.default.isExecutableFile(atPath: config.target) else {
+        return try await queryExecutable(config.target)
+    }
+
+    private static func queryExecutable(_ executable: String) async throws -> ProviderUsage {
+        guard executable.hasPrefix("/"), FileManager.default.isExecutableFile(atPath: executable) else {
             throw ProviderUsageError.unsupported("找不到 Antigravity CLI，请先安装 agy")
         }
         var environment = ProcessInfo.processInfo.environment
         environment["AGY_CLI_DISABLE_AUTO_UPDATE"] = "1"
-        let result = await Subprocess.run(config.target, ["-p", "/usage", "--output-format", "json", "--print-timeout", "30s"],
+        let result = await Subprocess.run(executable, ["-p", "/usage", "--output-format", "json", "--print-timeout", "30s"],
                                           environment: environment, currentDirectory: FileManager.default.temporaryDirectory.path,
                                           timeout: 35, outputLimit: 512 * 1024, captureErrors: true)
         try Task.checkCancellation()
@@ -26,19 +30,34 @@ public enum AntigravityCLIUsage {
         case .failure(.tooLarge): throw ProviderUsageError.requestFailed("Antigravity 额度响应过大")
         case .success(let output):
             guard output.status == 0 else {
-                let message = String(decoding: output.stderr + output.stdout, as: UTF8.self).lowercased()
-                if message.contains("authentication required") || message.contains("not authenticated") || message.contains("not logged in") {
-                    throw ProviderUsageError.signedOut
-                }
-                throw ProviderUsageError.requestFailed("Antigravity 额度查询失败，请在客户端确认登录")
+                throw failureError(for: String(decoding: output.stderr + output.stdout, as: UTF8.self))
             }
             return try parse(output.stdout)
         }
     }
 
+    static func failureError(for raw: String) -> ProviderUsageError {
+        let message = raw.lowercased()
+        if message.contains("authentication required") || message.contains("not authenticated") || message.contains("not logged in") {
+            return .signedOut
+        }
+        if message.contains("not currently available in your location") || message.contains("eligibility check failed") {
+            return .requestFailed("当前网络地区不支持 Antigravity，请切换代理节点后重试")
+        }
+        if message.contains("proxyconnect") || message.contains("connection refused") || message.contains("no such host") {
+            return .requestFailed("Antigravity 额度查询网络不可达，请检查网络或代理设置")
+        }
+        return .requestFailed("Antigravity 额度查询失败，请在客户端确认登录")
+    }
+
     static func parse(_ data: Data, now: Date = Date()) throws -> ProviderUsage {
-        guard data.count <= 1024 * 1024, let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              object["status"] as? String == "SUCCESS",
+        guard data.count <= 1024 * 1024, let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw ProviderUsageError.requestFailed("Antigravity 未返回可识别的额度数据，请更新客户端后重试")
+        }
+        if object["status"] as? String == "ERROR", let errorText = object["error"] as? String, !errorText.isEmpty {
+            throw failureError(for: errorText)
+        }
+        guard object["status"] as? String == "SUCCESS",
               let command = object["command"] as? [String: Any], command["name"] as? String == "usage",
               let payload = command["data"] as? [String: Any],
               let groups = payload["groups"] as? [[String: Any]] else {

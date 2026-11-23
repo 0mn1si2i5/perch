@@ -85,4 +85,16 @@ final class AntigravityCLIUsageTests: XCTestCase {
         let usage = try await AntigravityCLIUsage.query(account)
         XCTAssertEqual(usage.metrics.first?.remainingPercent, 100)
     }
+
+    func testAntigravityClassifiesRegionEligibilityAndAuthErrors() throws {
+        let regionPayload = try data(["status": "ERROR", "error": "Eligibility check failed: Your current account is not eligible for Antigravity, because it is not currently available in your location."])
+        XCTAssertThrowsError(try AntigravityCLIUsage.parse(regionPayload)) { error in
+            guard case ProviderUsageError.requestFailed(let reason) = error else { return XCTFail("expected requestFailed") }
+            XCTAssertTrue(reason.contains("地区") || reason.contains("代理"))
+        }
+        let authPayload = try data(["status": "ERROR", "error": "Authentication required"])
+        XCTAssertThrowsError(try AntigravityCLIUsage.parse(authPayload)) { error in
+            guard case ProviderUsageError.signedOut = error else { return XCTFail("expected signedOut") }
+        }
+    }
 }

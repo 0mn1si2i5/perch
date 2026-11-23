@@ -1,6 +1,6 @@
 import Foundation
 
-public struct ProviderUsageMetric: Equatable {
+public struct ProviderUsageMetric: Codable, Equatable {
     public let label: String
     public let remainingPercent: Double?
     public let value: String?
@@ -14,7 +14,7 @@ public struct ProviderUsageMetric: Equatable {
     }
 }
 
-public struct ProviderUsage: Equatable {
+public struct ProviderUsage: Codable, Equatable {
     public let metrics: [ProviderUsageMetric]
     public let summary: String
     public let observedAt: Date

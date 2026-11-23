@@ -17,8 +17,8 @@ public struct LocalProviderSession: Identifiable, Equatable {
 /// Local indexes only. Never decrypts credentials or reads compressed conversation bodies.
 public enum LocalProviderSessions {
     /// A one-off read without a cache, for diagnostics.
-    public static func recent(_ account: Account) -> [LocalProviderSession] {
-        LocalProviderSessionReader(account: account).recent()
+    public static func recent(_ account: Account, home: String = NSHomeDirectory()) -> [LocalProviderSession] {
+        LocalProviderSessionReader(account: account, home: home).recent()
     }
 }
 
@@ -27,6 +27,7 @@ public enum LocalProviderSessions {
 public final class LocalProviderSessionReader {
     public let app: AppKind
     public let root: String
+    private let home: String
     /// Files and database reads done so far; tests use it to check the cache.
     private(set) var parsed = 0
     private var files: [String: (signature: Signature, session: LocalProviderSession?)] = [:]
@@ -41,9 +42,10 @@ public final class LocalProviderSessionReader {
     static let fullParseLimit = 2 * 1024 * 1024
     static let headLimit = 256 * 1024
 
-    public init(account: Account) {
+    public init(account: Account, home: String = NSHomeDirectory()) {
         app = account.app
         root = account.sessionRoot
+        self.home = home
     }
 
     public func recent(now: Date = Date()) -> [LocalProviderSession] {
@@ -52,6 +54,10 @@ public final class LocalProviderSessionReader {
         let sessions: [LocalProviderSession]
         switch app {
         case .antigravity: sessions = antigravity(base, now: now)
+        case .geminiApp:
+            let expected = URL(fileURLWithPath: home).appendingPathComponent("Library/Application Support/com.google.GeminiMacOS").standardizedFileURL
+            guard base.standardizedFileURL == expected else { return [] }
+            sessions = antigravity(URL(fileURLWithPath: home).appendingPathComponent(".gemini/antigravity", isDirectory: true), now: now)
         case .deepseek:
             sessions = read(newest(in: [base.appendingPathComponent("storages/session_projcache/sessions")]) {
                 $0.pathExtension == "json"

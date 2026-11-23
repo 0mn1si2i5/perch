@@ -89,6 +89,15 @@ public enum NativeGeminiUsage {
         return .init(metrics: metrics, summary: "Gemini 内 Antigravity", observedAt: now, authenticationVerified: true)
     }
 
+    static func httpError(statusCode: Int) -> ProviderUsageError {
+        if statusCode == 401 {
+            // Newer Gemini desktop releases require host authentication on the internal hub port.
+            // Treat 401 as an unsupported local endpoint rather than signedOut so cached quota is preserved.
+            return .unsupported("新版 Gemini 本地服务已启用鉴权，无法直接读取额度")
+        }
+        return .requestFailed("Gemini 本地额度请求失败（HTTP \(statusCode)）")
+    }
+
     private static let invalidResponse = ProviderUsageError.requestFailed("Gemini 本地额度服务返回的数据无法识别")
     private static func json(_ data: Data) throws -> [String: Any] {
         guard data.count <= 1_048_576, let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw invalidResponse }
@@ -112,8 +121,7 @@ public enum NativeGeminiUsage {
             do {
                 let (bytes, response) = try await session.bytes(for: request)
                 guard let http = response as? HTTPURLResponse else { throw invalidResponse }
-                if http.statusCode == 401 { throw ProviderUsageError.signedOut }
-                guard (200..<300).contains(http.statusCode) else { throw ProviderUsageError.requestFailed("Gemini 本地额度请求失败（HTTP \(http.statusCode)）") }
+                guard (200..<300).contains(http.statusCode) else { throw httpError(statusCode: http.statusCode) }
                 var data = Data()
                 for try await byte in bytes {
                     guard data.count < limit else { throw invalidResponse }

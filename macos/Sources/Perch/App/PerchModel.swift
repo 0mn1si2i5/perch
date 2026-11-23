@@ -51,6 +51,8 @@ final class PerchModel: ObservableObject {
     @Published var refreshingQuotas: Set<String> = []
     @Published var providerUsage: [String: ProviderUsage] = [:]
     @Published var providerUsageErrors: [String: String] = [:]
+    @Published var providerUsageCached: Set<String> = []
+    let providerUsageCache: ProviderUsageCache
     @Published var dshSnapshots: [String: DshSnapshot] = [:]
     @Published var dshBalances: [String: DshBalances] = [:]
     @Published var dshErrors: [String: String] = [:]
@@ -96,6 +98,7 @@ final class PerchModel: ObservableObject {
              PerchNotifications.shared.send($0, completion: $1)
          }) {
         self.store = store
+        self.providerUsageCache = ProviderUsageCache(root: store.root)
         self.dshService = DshService(root: store.root)
         self.pasteboard = pasteboard
         self.accounts = store.accounts
@@ -175,6 +178,15 @@ final class PerchModel: ObservableObject {
         accounts = store.accounts
         skippedImports = store.skippedImports
         removedAccountsBackup = FileManager.default.fileExists(atPath: store.removedAccountsURL.path) ? store.removedAccountsURL : nil
+        let cached = providerUsageCache.load()
+        let validIDs = Set(accounts.map(\.id))
+        providerUsageCache.prune(keeping: validIDs)
+        for account in accounts where validIDs.contains(account.id) {
+            if let usage = cached[account.id], providerUsage[account.id] == nil {
+                providerUsage[account.id] = usage
+                providerUsageCached.insert(account.id)
+            }
+        }
     }
 
     func refreshDiscovered() {
@@ -451,6 +463,7 @@ final class PerchModel: ObservableObject {
         trackers[accountID] = nil
         providerUsage[accountID] = nil
         providerUsageErrors[accountID] = nil
+        providerUsageCached.remove(accountID)
         localSessions[accountID] = nil
         runningIDs.remove(accountID)
         quotaThrottle.reset(accountID)
@@ -497,7 +510,7 @@ final class PerchModel: ObservableObject {
     private func localReader(for account: Account) -> LocalProviderSessionReader {
         let key = account.app.rawValue + ":" + account.sessionRoot
         if let reader = localReaders[key] { return reader }
-        let reader = LocalProviderSessionReader(account: account)
+        let reader = LocalProviderSessionReader(account: account, home: store.home)
         localReaders[key] = reader
         return reader
     }
@@ -693,6 +706,10 @@ final class PerchModel: ObservableObject {
         }
         accounts = store.accounts
         snapshots[account.id] = nil
+        providerUsage[account.id] = nil
+        providerUsageErrors[account.id] = nil
+        providerUsageCached.remove(account.id)
+        providerUsageCache.remove(accountID: account.id)
         if account.dshWeb != nil { resetDshState(account.id) }
         refreshDiscovered()
     }

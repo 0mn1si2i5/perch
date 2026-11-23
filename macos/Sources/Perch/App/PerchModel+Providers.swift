@@ -81,10 +81,18 @@ extension PerchModel {
             case .success(let usage):
                 self.providerUsage[account.id] = usage
                 self.providerUsageErrors[account.id] = nil
+                self.providerUsageCached.remove(account.id)
+                self.providerUsageCache.save(usage, for: account.id)
             case .failure(let error):
                 // Retain a timestamped last success during outages; never replace it with zero.
                 self.providerUsageErrors[account.id] = error.localizedDescription
-                if case ProviderUsageError.signedOut = error { self.providerUsage[account.id] = nil }
+                if case ProviderUsageError.signedOut = error {
+                    self.providerUsage[account.id] = nil
+                    self.providerUsageCached.remove(account.id)
+                    self.providerUsageCache.remove(accountID: account.id)
+                } else if self.providerUsage[account.id] != nil {
+                    self.providerUsageCached.insert(account.id)
+                }
             }
         }
     }

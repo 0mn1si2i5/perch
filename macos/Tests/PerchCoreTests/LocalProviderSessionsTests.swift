@@ -48,6 +48,31 @@ final class LocalProviderSessionsTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: dbPath), before)
     }
 
+    func testGeminiAppReadsNativeAntigravitySessionsForDefaultProfileOnly() throws {
+        let home = try fixture()
+        let profile = home.appendingPathComponent("Library/Application Support/com.google.GeminiMacOS")
+        let agyDir = home.appendingPathComponent(".gemini/antigravity")
+        try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: agyDir, withIntermediateDirectories: true)
+        let dbPath = agyDir.appendingPathComponent("conversation_summaries.db")
+        var db: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(dbPath.path, &db), SQLITE_OK)
+        let now = ISO8601.string(Date())
+        XCTAssertEqual(sqlite3_exec(db, """
+            CREATE TABLE conversation_summaries(conversation_id TEXT, title TEXT, last_modified_time TEXT, status TEXT);
+            INSERT INTO conversation_summaries VALUES ('native-1','Native Antigravity task','\(now)','CASCADE_RUN_STATUS_RUNNING');
+            """, nil, nil, nil), SQLITE_OK)
+        sqlite3_close(db)
+
+        let nativeAccount = account(.geminiApp, profile)
+        let sessions = LocalProviderSessions.recent(nativeAccount, home: home.path)
+        XCTAssertEqual(sessions.map(\.id), ["native-1"])
+        XCTAssertEqual(sessions.first?.status, .running)
+
+        let otherProfile = home.appendingPathComponent("other-profile")
+        XCTAssertTrue(LocalProviderSessions.recent(account(.geminiApp, otherProfile), home: home.path).isEmpty)
+    }
+
     func testDeepSeekSkipsBrokenAndBlankMetadataAndCapsRecent() throws {
         let root = try fixture(), folder = root.appendingPathComponent("storages/session_projcache/sessions")
         for i in 0..<35 {

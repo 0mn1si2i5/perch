@@ -5,12 +5,13 @@ struct ProviderUsageView: View {
     let usage: ProviderUsage?
     let error: String?
     let refreshing: Bool
+    var cached: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             if let usage {
                 if !ProviderUsagePresentation.windows(usage).isEmpty {
-                    QuotaRowView(quota: ProviderUsagePresentation.display(usage: usage, error: error))
+                    QuotaRowView(quota: ProviderUsagePresentation.display(usage: usage, error: error, cached: cached))
                 }
                 ForEach(Array(ProviderUsagePresentation.rows(usage).enumerated()), id: \.offset) { _, row in
                     HStack(alignment: .firstTextBaseline, spacing: 6) {

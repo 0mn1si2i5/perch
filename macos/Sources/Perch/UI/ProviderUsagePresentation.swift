@@ -17,10 +17,10 @@ enum ProviderUsagePresentation {
         }.sorted { ($0.minutes, $0.pool == nil ? 0 : 1) < ($1.minutes, $1.pool == nil ? 0 : 1) }
     }
 
-    static func display(usage: ProviderUsage?, error: String?) -> QuotaDisplay {
+    static func display(usage: ProviderUsage?, error: String?, cached: Bool = false) -> QuotaDisplay {
         let values = usage.map { Self.windows($0) } ?? []
         return QuotaDisplay(value: values.isEmpty ? nil : .windows(values), observedAt: usage?.observedAt,
-                            cached: usage != nil && error != nil, liveFailure: error)
+                            cached: usage != nil && (cached || error != nil), liveFailure: error)
     }
 
     static func rows(_ usage: ProviderUsage) -> [Row] {

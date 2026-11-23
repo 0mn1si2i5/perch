@@ -50,5 +50,14 @@ final class NativeGeminiUsageTests: XCTestCase {
         catch { XCTAssertTrue(error.localizedDescription.contains("默认登录目录")) }
     }
 
+    func testHttp401IsUnsupportedRatherThanSignedOut() {
+        let error = NativeGeminiUsage.httpError(statusCode: 401)
+        if case .unsupported(let reason) = error {
+            XCTAssertTrue(reason.contains("鉴权"))
+        } else {
+            XCTFail("401 from authenticated internal Gemini hub must not wipe cached quota as signedOut")
+        }
+    }
+
     private func data(_ value: Any) throws -> Data { try JSONSerialization.data(withJSONObject: value) }
 }

@@ -26,7 +26,8 @@ struct AccountCard: View {
                     QuotaFreshnessView(quota: quota)
                 } else if !missing, account.dshWeb == nil, perch.supportsProviderUsage(account) {
                     QuotaFreshnessView(quota: ProviderUsagePresentation.display(
-                        usage: perch.providerUsage[account.id], error: perch.providerUsageErrors[account.id]))
+                        usage: perch.providerUsage[account.id], error: perch.providerUsageErrors[account.id],
+                        cached: perch.providerUsageCached.contains(account.id)))
                 }
                 if !missing, account.app.hasQuota || perch.supportsProviderUsage(account) {
                     Button { perch.refreshQuota(account) } label: {
@@ -65,7 +66,8 @@ struct AccountCard: View {
             }
             if !missing, account.dshWeb == nil, perch.supportsProviderUsage(account), account.app != .antigravity || queried {
                 ProviderUsageView(usage: perch.providerUsage[account.id], error: perch.providerUsageErrors[account.id],
-                                  refreshing: perch.refreshingQuotas.contains(account.id))
+                                  refreshing: perch.refreshingQuotas.contains(account.id),
+                                  cached: perch.providerUsageCached.contains(account.id))
             }
             if missing {
                 Text(account.dshWeb != nil ? "数据目录不存在；请检查配置，打开网页时会创建受管目录。" : account.localProvider == nil ? "数据目录不存在" : "数据目录不存在，删除后重新扫描添加")
