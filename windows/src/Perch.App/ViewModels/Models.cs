@@ -140,6 +140,24 @@ public sealed record WalletRowModel(WalletBalance Value)
     public string Amount => Value.Amount.ToString("0.############################", CultureInfo.InvariantCulture);
 }
 
+public sealed record InsightsAgentRowModel(InsightsAgent Value)
+{
+    public string NameText => Value.Role == "historical" ? Value.Name + "（历史）" : Value.Name;
+    public string CountText => Value.Subagents is > 0 ? $"{Value.Sessions} 会话 / {Value.Subagents} 子代理" : $"{Value.Sessions} 会话";
+    public string RatesText => FormatRates(Value.CacheHitRate, Value.ErrorRate);
+    public bool HasRates => RatesText.Length > 0;
+
+    public static string FormatRates(double? cacheHitRate, double? errorRate)
+    {
+        var parts = new List<string>(2);
+        if (cacheHitRate.HasValue)
+            parts.Add($"缓存命中 {cacheHitRate.Value * 100:0.0}%");
+        if (errorRate.HasValue)
+            parts.Add($"错误率 {errorRate.Value * 100:0.0}%");
+        return string.Join(" · ", parts);
+    }
+}
+
 public sealed class AccountModel : Observable
 {
     public PanelModel Owner

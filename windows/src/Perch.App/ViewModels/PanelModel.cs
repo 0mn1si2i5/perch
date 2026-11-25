@@ -46,6 +46,11 @@ public sealed partial class PanelModel : Observable, IDisposable
     public event Action<string>? BackgroundError;
     public ObservableCollection<GroupModel> Groups { get; } = [];
     public ObservableCollection<DiscoveredModel> Discovered { get; } = [];
+    public ObservableCollection<InsightsAgentRowModel> InsightsAgents { get; } = [];
+
+    private readonly InsightsSummaryReader insightsReader;
+    private InsightsSummary? insights;
+    private string? insightsReportPath;
 
     private readonly Dictionary<string, AccountModel> accounts = [];
     private readonly Dictionary<string, GroupModel> groups = [];
@@ -76,6 +81,7 @@ public sealed partial class PanelModel : Observable, IDisposable
                 Changed(nameof(IsSettings));
                 Changed(nameof(IsInfo));
                 Changed(nameof(IsAdd));
+                Changed(nameof(ShowInsightsBadge));
             }
         }
     }
@@ -292,12 +298,41 @@ public sealed partial class PanelModel : Observable, IDisposable
     {
         get;
     }
+    public Command OpenInsightsReport
+    {
+        get;
+    }
+    public Command RevealInsightsReport
+    {
+        get;
+    }
+    public Command ClickInsightsBadge
+    {
+        get;
+    }
     public Command Quit { get; } = new(() => Application.Current.Shutdown());
+
+    public InsightsSummary? Insights => insights;
+    public bool HasInsights => insights != null;
+    public bool HasNoInsights => insights == null;
+    public bool HasInsightsReport => insights != null && insightsReportPath != null;
+    public bool ShowInsightsBadge => IsAccounts && HasInsights;
+    public string InsightsBadgeText => insights == null ? "" : $"{insights.Window.Days}天 · {insights.Totals.Sessions}会话";
+    public string InsightsWindowText => insights == null ? "" : FormatInsightsWindow(insights);
+    public string InsightsTotalsText => insights == null ? "" : FormatInsightsTotals(insights.Totals);
+    public string InsightsRatesText => insights == null ? "" : InsightsAgentRowModel.FormatRates(insights.Totals.CacheHitRate, insights.Totals.ErrorRate);
+    public bool HasInsightsRates => InsightsRatesText.Length > 0;
+    public string InsightsDeltaText => FormatInsightsDelta(insights?.Delta);
+    public bool HasInsightsDelta => InsightsDeltaText.Length > 0;
+    public bool HasInsightsAgents => InsightsAgents.Count > 0;
+    public string InsightsAgentsHeader => $"各 Agent 明细（{InsightsAgents.Count}）";
+    public string InsightsTooltip => insights == null ? "" : FormatInsightsTooltip(insights, HasInsightsReport);
 
     public PanelModel(Store store, bool demo)
     {
         Store = store;
         Demo = demo;
+        insightsReader = new InsightsSummaryReader(store.Root);
         InitializeDshEditor();
         Dsh = new DshService(store);
         Quotas = new QuotaService(Clients, Dsh);
@@ -327,6 +362,15 @@ public sealed partial class PanelModel : Observable, IDisposable
             MergeAccounts();
         }));
         TaskbarSettings = new(() => Run(() => Process.Start(new ProcessStartInfo("ms-settings:taskbar") { UseShellExecute = true })?.Dispose()));
+        OpenInsightsReport = new(() => Run(OpenInsights));
+        RevealInsightsReport = new(() => Run(RevealInsights));
+        ClickInsightsBadge = new(() =>
+        {
+            if (HasInsightsReport)
+                Run(OpenInsights);
+            else
+                Page = "settings";
+        });
         messageTimer.Tick += (_, _) =>
         {
             Message = "";
@@ -347,6 +391,7 @@ public sealed partial class PanelModel : Observable, IDisposable
             return;
         await Background(async () =>
         {
+            await RefreshInsights();
             await Clients.Discover();
             await ScanDshInstallations();
             icons.Clear();
@@ -366,13 +411,146 @@ public sealed partial class PanelModel : Observable, IDisposable
     public void Opened()
     {
         Ready();
-        if (Demo || !started || !AutoQuota)
+        if (Demo)
+            return;
+        _ = Background(RefreshInsights);
+        if (!started || !AutoQuota)
             return;
         _ = Background(async () =>
         {
             foreach (var account in Store.Accounts.ToArray())
                 await Refresh(account, false);
         });
+    }
+
+    private async Task RefreshInsights()
+    {
+        var (summary, reportPath) = await Task.Run(() =>
+        {
+            var read = insightsReader.Read();
+            var valid = read?.ValidateReportPath();
+            return (read, valid);
+        });
+        ApplyInsights(summary, reportPath);
+    }
+
+    private void ApplyInsights(InsightsSummary? summary, string? reportPath)
+    {
+        bool sameSummary = Equals(insights, summary);
+        bool sameReport = string.Equals(insightsReportPath, reportPath, StringComparison.Ordinal);
+        if (sameSummary && sameReport)
+            return;
+        insights = summary;
+        insightsReportPath = reportPath;
+        Merge(InsightsAgents, (summary?.Agents ?? []).Select(a => new InsightsAgentRowModel(a)));
+        Changed(nameof(Insights));
+        Changed(nameof(HasInsights));
+        Changed(nameof(HasNoInsights));
+        Changed(nameof(HasInsightsReport));
+        Changed(nameof(ShowInsightsBadge));
+        Changed(nameof(InsightsBadgeText));
+        Changed(nameof(InsightsWindowText));
+        Changed(nameof(InsightsTotalsText));
+        Changed(nameof(InsightsRatesText));
+        Changed(nameof(HasInsightsRates));
+        Changed(nameof(InsightsDeltaText));
+        Changed(nameof(HasInsightsDelta));
+        Changed(nameof(HasInsightsAgents));
+        Changed(nameof(InsightsAgentsHeader));
+        Changed(nameof(InsightsTooltip));
+    }
+
+    public void OpenInsights()
+    {
+        var path = insights?.ValidateReportPath();
+        if (path == null)
+        {
+            ApplyInsights(insights, null);
+            Notify("找不到诊断报告文件或路径不受支持。");
+            return;
+        }
+        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true })?.Dispose();
+    }
+
+    public void RevealInsights()
+    {
+        var path = insights?.ValidateReportPath();
+        if (path == null)
+        {
+            ApplyInsights(insights, null);
+            Notify("找不到诊断报告文件或路径不受支持。");
+            return;
+        }
+        Reveal(path);
+    }
+
+    private static string? FormatDateRange(InsightsWindow window)
+    {
+        if (string.IsNullOrEmpty(window.Start) || string.IsNullOrEmpty(window.End))
+            return null;
+        var s = window.Start.Length >= 10 ? window.Start[..10] : window.Start;
+        var e = window.End.Length >= 10 ? window.End[..10] : window.End;
+        return $"{s} ~ {e}";
+    }
+
+    private static string FormatInsightsWindow(InsightsSummary summary)
+    {
+        var range = FormatDateRange(summary.Window);
+        var head = range != null ? $"近 {summary.Window.Days} 天（{range}）" : $"近 {summary.Window.Days} 天";
+        return $"{head} · 更新于 {summary.GeneratedAt.LocalDateTime:M/d HH:mm}";
+    }
+
+    private static string FormatInsightsTotals(InsightsTotals totals)
+    {
+        var parts = new List<string>(3) { $"{totals.Sessions} 会话" };
+        if (totals.Subagents.HasValue)
+            parts.Add($"{totals.Subagents.Value} 子代理");
+        if (totals.ActiveDays.HasValue)
+            parts.Add($"活跃 {totals.ActiveDays.Value} 天");
+        return string.Join(" · ", parts);
+    }
+
+    private static string FormatInsightsDelta(InsightsDelta? delta)
+    {
+        if (delta == null)
+            return "";
+        var parts = new List<string>(3);
+        if (delta.Sessions.HasValue)
+            parts.Add($"会话 {(delta.Sessions.Value > 0 ? "+" : "")}{delta.Sessions.Value}");
+        if (delta.CacheHitRate.HasValue)
+            parts.Add($"命中率 {(delta.CacheHitRate.Value > 0 ? "+" : "")}{delta.CacheHitRate.Value * 100:0.0}%");
+        if (delta.ErrorRate.HasValue)
+            parts.Add($"错误率 {(delta.ErrorRate.Value > 0 ? "+" : "")}{delta.ErrorRate.Value * 100:0.0}%");
+        return parts.Count == 0 ? "" : "较上次：" + string.Join(" · ", parts);
+    }
+
+    private static string FormatInsightsTooltip(InsightsSummary summary, bool hasReport)
+    {
+        var lines = new List<string>();
+        var range = FormatDateRange(summary.Window);
+        lines.Add(range != null ? $"使用诊断（近 {summary.Window.Days} 天，{range}）" : $"使用诊断（近 {summary.Window.Days} 天）");
+
+        var overview = "总计：" + FormatInsightsTotals(summary.Totals);
+        var rates = InsightsAgentRowModel.FormatRates(summary.Totals.CacheHitRate, summary.Totals.ErrorRate);
+        if (rates.Length > 0)
+            overview += " · " + rates;
+        lines.Add(overview);
+
+        var delta = FormatInsightsDelta(summary.Delta);
+        if (delta.Length > 0)
+            lines.Add(delta);
+
+        foreach (var agent in summary.Agents)
+        {
+            var row = new InsightsAgentRowModel(agent);
+            var line = $"· {row.NameText}：{row.CountText}";
+            if (row.HasRates)
+                line += " · " + row.RatesText;
+            lines.Add(line);
+        }
+
+        lines.Add($"更新于 {summary.GeneratedAt.LocalDateTime:M/d HH:mm}" + (hasReport ? " · 点击打开报告" : ""));
+        return string.Join("\n", lines);
     }
 
     public void SetVisible(bool panel, bool pet) => pollTimer.Interval = TimeSpan.FromSeconds(panel || pet ? 5 : 20);

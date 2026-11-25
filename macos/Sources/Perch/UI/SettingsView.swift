@@ -68,6 +68,65 @@ struct SettingsView: View {
                 }
             }
             Divider()
+            section("使用诊断") {
+                if let insights = perch.insights {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(InsightsPresentation.windowText(insights))
+                            .foregroundStyle(.secondary)
+                        Text(InsightsPresentation.totalsText(insights.totals))
+                        if let rates = InsightsPresentation.ratesText(
+                            cacheHitRate: insights.totals.cacheHitRate,
+                            errorRate: insights.totals.errorRate
+                        ) {
+                            Text(rates).foregroundStyle(.secondary)
+                        }
+                        if let delta = InsightsPresentation.deltaText(insights.delta) {
+                            Text(delta).foregroundStyle(.secondary)
+                        }
+                        if !insights.agents.isEmpty {
+                            PanelDisclosure("各 Agent 明细（\(insights.agents.count)）") {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    ForEach(insights.agents) { agent in
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            HStack(spacing: 4) {
+                                                Text(agent.name).fontWeight(.medium)
+                                                if agent.role == "historical" {
+                                                    Text("历史")
+                                                        .font(.system(size: 9))
+                                                        .foregroundStyle(.tertiary)
+                                                }
+                                                Spacer(minLength: 0)
+                                                Text(InsightsPresentation.agentCountText(agent))
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            if let rates = InsightsPresentation.ratesText(
+                                                cacheHitRate: agent.cacheHitRate,
+                                                errorRate: agent.errorRate
+                                            ) {
+                                                Text(rates)
+                                                    .font(.system(size: 10))
+                                                    .foregroundStyle(.tertiary)
+                                            }
+                                        }
+                                    }
+                                }
+                                .padding(.top, 4)
+                            }
+                        }
+                        if perch.insightsReportURL != nil {
+                            HStack(spacing: 8) {
+                                Button("打开报告") { perch.openInsightsReport() }
+                                Button("访达中显示") { perch.revealInsightsReport() }
+                            }
+                            .padding(.top, 2)
+                        }
+                    }
+                } else {
+                    Text("未检测到 omni-insights 摘要，运行分析后将自动显示。")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Divider()
             HStack {
                 Spacer()
                 Button("退出 Perch") { NSApp.terminate(nil) }

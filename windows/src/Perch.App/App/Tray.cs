@@ -95,6 +95,8 @@ public sealed class Tray : IDisposable
         }
 
         Add("打开面板", panel.OpenPanel);
+        if (panel.Model.HasInsightsReport)
+            Add("查看使用诊断报告", () => panel.Model.Run(panel.Model.OpenInsights));
         if (panel.Model.PetEnabled)
         {
             Add(panel.Model.PetVisible ? "隐藏桌宠" : "显示桌宠", panel.TogglePet);

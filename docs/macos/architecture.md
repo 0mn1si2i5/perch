@@ -36,6 +36,7 @@ Codex 使用所属账号的 app-server 查询额度，本地 rollout 尾部记�
 - 数据根目录：`~/Library/Application Support/Perch/`。`accounts.json` 保存账号槽；客户端原目录继续原地引用。
 - `removed-accounts.json`：升级时从 `accounts.json` 移出的旧 API 供应商和自定义客户端账号（0600），只写不读。
 - `session-order.json` 按账号保存会话 ID 顺序（0600），不改客户端记录。只允许在同一账号、同一活动状态分区内拖动；新会话保留来序，活动会话仍显示在上方。
+- `insights/summary.json`：由外部 `omni-insights` 落盘的聚合摘要，Perch 仅在 `start()` 与 `panelOpened()` 时按 `(mtime, fileSize)` 缓存被动只读一次（上限 256 KB，不进入高频轮询），缺失、超限、版本不支持或解析失败时静默隐藏主页徽章与菜单项。打开或定位 `reportPath` 前先展开 `~` 并经 `realpath` 解析符号链接，仅允许当前用户主目录内的普通 `.html`/`.htm` 文件；打开时优先使用系统默认 `https://` 浏览器，获取不到再回退 `NSWorkspace.shared.open`。
 - `handoffs/`：旧版文档接力留下的副本、`log.jsonl` 和 `pending.json`。接力和拆出需求已删除，Perch 不再读写这个目录，也不删除它。
 - Claude 登录信息通过 macOS 钥匙串解开对应客户端的加密配置，仅在内存用于 `api.anthropic.com` 额度请求；不保存、打印、不刷新 token，不改变客户端登录，也不跟随请求重定向。
 - 偏好域为 `com.omnis.perch`，保留从 `com.pox.desktop` 的一次性迁移，不覆盖已有新偏好。

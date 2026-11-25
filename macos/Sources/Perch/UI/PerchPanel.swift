@@ -21,7 +21,13 @@ struct PerchPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(.system(size: 14, weight: .semibold))
+            HStack(spacing: 8) {
+                Text(title).font(.system(size: 14, weight: .semibold))
+                Spacer(minLength: 0)
+                if page == .accounts, let insights = perch.insights {
+                    insightsBadge(insights)
+                }
+            }
             // Keep one instance of every page, so navigation preserves scroll and expanded state.
             // The shared shell owns the size; long page contents scroll inside it.
             ZStack(alignment: .topLeading) {
@@ -90,6 +96,32 @@ struct PerchPanel: View {
 
     private func toggle(_ destination: Page) {
         page = page == destination ? .accounts : destination
+    }
+
+    private func insightsBadge(_ insights: InsightsSummary) -> some View {
+        Button {
+            if perch.insightsReportURL != nil {
+                perch.openInsightsReport()
+            } else {
+                page = .settings
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "chart.bar.xaxis").font(.system(size: 10))
+                Text(InsightsPresentation.badgeText(insights))
+                    .font(.system(size: 10, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Color.primary.opacity(0.07), in: Capsule())
+            .frame(maxWidth: 180, alignment: .trailing)
+        }
+        .buttonStyle(.plain)
+        .help(InsightsPresentation.tooltip(insights, hasReport: perch.insightsReportURL != nil))
+        .accessibilityLabel("使用诊断")
     }
 
     private func pageContent<Content: View>(_ destination: Page, @ViewBuilder content: () -> Content) -> some View {

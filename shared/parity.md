@@ -39,6 +39,7 @@
 | 本机 Gemini CLI / Antigravity / DeepSeek Harness | 🟡 | ❌ | macOS 引用既有配置、启动、会话索引（只解析最新 60 个文件并缓存，长会话读开头元数据）；Antigravity CLI 额度只在手动刷新时查询，DeepSeek 钱包余额；Gemini CLI 不再查询额度；客户端换了位置可在扫描结果里更新启动位置。详见 [供应商说明](../docs/macos/providers.md) |
 | Gemini 原生应用内 Antigravity | 🟡 | ❌ | 独立 Gemini 分组；只读 `~/.gemini/antigravity/conversation_summaries.db` 展示实时会话列表，并持久化历史额度缓存（`provider-usage-cache.json`，0600）。新版 `Gemini.app`（1.147.5+）内部本地服务已启用 401 鉴权，Perch 不再误报登录失效，也不在后台拉起 `agy` |
 | 从访达重新打开面板 | ✅ | ❌ | macOS 重新打开 Perch 时展示菜单栏面板，不依赖桌宠可见性 |
+| 使用诊断摘要（omni-insights） | 🟡 | 🟡 | 双端只读消费 `<数据根目录>/insights/summary.json`（上限 256 KB，按 mtime+size 缓存，仅启动与打开面板刷新，不入轮询；缺失或非法静默隐藏）。主页标题行胶囊徽章、设置页「使用诊断」节与托盘/菜单栏右键入口；打开报告前展开 `~`、解析符号链接并限制为主目录内普通 `.html`/`.htm` 文件，macOS 优先使用系统默认浏览器打开。共享样本位于 `shared/fixtures/insights/summary.json` |
 | 接力、拆出需求 | N/A | N/A | 2026-10-21 两端删除，包括右键菜单、待接力卡片、接力记录和交接文档写好提醒；数据目录里旧的 `handoffs/` 保留，不再读取。对话状态通知保留 |
 | 自定义客户端 / API 供应商 | N/A | N/A | macOS 已删除；旧账号升级时移到 `removed-accounts.json`，钥匙串里的密钥需手动清理 |
 

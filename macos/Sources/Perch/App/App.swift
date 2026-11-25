@@ -217,11 +217,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     @objc private func quit() { NSApp.terminate(nil) }
 
+    @objc private func openInsightsReport() { perch.openInsightsReport() }
+
     private func makeMenu() -> NSMenu {
         let menu = NSMenu(title: "Perch")
         let open = NSMenuItem(title: "打开面板", action: #selector(showPanel), keyEquivalent: "")
         open.target = self
         menu.addItem(open)
+        if perch.insights != nil, perch.insightsReportURL != nil {
+            let insights = NSMenuItem(title: "查看使用诊断报告", action: #selector(openInsightsReport), keyEquivalent: "")
+            insights.target = self
+            menu.addItem(insights)
+        }
         if pet.enabled {
             for (title, action) in [
                 (pet.visible ? "隐藏桌宠" : "显示桌宠", #selector(togglePet)),

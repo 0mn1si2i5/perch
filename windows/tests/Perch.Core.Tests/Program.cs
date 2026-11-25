@@ -20,6 +20,13 @@ static class Program
             DshSharedContractTests.Run();
             return;
         }
+        if (args.Length == 1 && args[0] == "--insights-check")
+        {
+            var checkRoot = Path.Combine(Path.GetTempPath(), "perch-insights-" + Guid.NewGuid().ToString("N"));
+            try { InsightsSummaryTests.Run(checkRoot); }
+            finally { if (Directory.Exists(checkRoot)) Directory.Delete(checkRoot, true); }
+            return;
+        }
         if (args.Length is 1 or 2 && args[0] == "--dsh-discovery-smoke")
         {
             DshSmoke.Discovered(args.Length == 2 ? args[1] : null).GetAwaiter().GetResult();
@@ -164,7 +171,8 @@ static class Program
             DshApiBalanceTests.Run(root).GetAwaiter().GetResult();
             RegressionTests.Run(root);
             NoticeTests.Run();
-            Console.WriteLine("PASS: persistence, ACLs, process isolation, quota windows, task lifecycle, launch failures, session notices and dsh integration");
+            InsightsSummaryTests.Run(root);
+            Console.WriteLine("PASS: persistence, ACLs, process isolation, quota windows, task lifecycle, launch failures, session notices, dsh and insights integration");
         }
         finally
         {

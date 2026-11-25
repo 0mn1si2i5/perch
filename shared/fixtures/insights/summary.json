@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "generatedAt": "2026-11-24T23:48:54.171960+08:00",
+  "window": {
+    "days": 30,
+    "start": "2026-10-16",
+    "end": "2026-11-24"
+  },
+  "reportPath": "/Users/demo/.agents/omni-insights/latest.html",
+  "totals": {
+    "sessions": 198,
+    "subagents": 502,
+    "activeDays": 35,
+    "cacheHitRate": 0.983,
+    "errorRate": 0.023
+  },
+  "agents": [
+    {
+      "id": "codex",
+      "name": "Codex",
+      "role": "active",
+      "sessions": 45,
+      "subagents": 1,
+      "cacheHitRate": 0.98,
+      "errorRate": 0.056
+    },
+    {
+      "id": "antigravity",
+      "name": "Antigravity",
+      "role": "active",
+      "sessions": 7,
+      "subagents": 2,
+      "cacheHitRate": 0.868,
+      "errorRate": 0.044
+    },
+    {
+      "id": "claude",
+      "name": "Claude",
+      "role": "historical",
+      "sessions": 146,
+      "subagents": 499,
+      "cacheHitRate": 0.983,
+      "errorRate": 0.023
+    }
+  ],
+  "delta": {
+    "comparedTo": "2026-11-17T23:48:51.692243+08:00",
+    "sessions": 12,
+    "cacheHitRate": 0.015,
+    "errorRate": -0.004
+  }
+}

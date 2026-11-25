@@ -62,6 +62,9 @@ final class PerchModel: ObservableObject {
     let dshService: DshService
     var dshReading: Set<String> = []
     var dshEpochs: [String: Int] = [:]
+    @Published private(set) var insights: InsightsSummary?
+    @Published private(set) var insightsReportURL: URL?
+    private let insightsReader: InsightsSummaryReader
     @Published var automaticallySyncQuota = UserDefaults.standard.object(forKey: "automaticallySyncQuota") as? Bool ?? true {
         didSet { UserDefaults.standard.set(automaticallySyncQuota, forKey: "automaticallySyncQuota") }
     }
@@ -100,6 +103,7 @@ final class PerchModel: ObservableObject {
         self.store = store
         self.providerUsageCache = ProviderUsageCache(root: store.root)
         self.dshService = DshService(root: store.root)
+        self.insightsReader = InsightsSummaryReader(root: store.root)
         self.pasteboard = pasteboard
         self.accounts = store.accounts
         self.launcher = launcher
@@ -158,6 +162,7 @@ final class PerchModel: ObservableObject {
 
     func start() {
         reload()
+        refreshInsights()
         poll()
         timer = Timer.scheduledTimer(withTimeInterval: Self.pollInterval(panelVisible: panelVisible), repeats: true) { [weak self] _ in
             self?.poll()
@@ -250,11 +255,55 @@ final class PerchModel: ObservableObject {
         let wasHidden = !panelVisible
         panelVisible = true
         scheduleMessageDismissal()
+        refreshInsights()
         if wasHidden, timer != nil {
             poll()   // the hidden interval can leave the list 20 seconds old
             schedulePolling()
         }
         refreshQuotas()
+    }
+
+    // MARK: Insights
+
+    func refreshInsights() {
+        let reader = insightsReader
+        let home = store.home
+        worker.async { [weak self] in
+            let summary = reader.read()
+            let reportURL = summary?.validatedReportURL(home: home)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if self.insights != summary { self.insights = summary }
+                if self.insightsReportURL != reportURL { self.insightsReportURL = reportURL }
+            }
+        }
+    }
+
+    func openInsightsReport() {
+        guard let url = insights?.validatedReportURL(home: store.home) else {
+            insightsReportURL = nil
+            message = "找不到诊断报告文件或路径不受支持。"
+            return
+        }
+        if let browser = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://")!) {
+            NSWorkspace.shared.open([url], withApplicationAt: browser, configuration: NSWorkspace.OpenConfiguration()) { _, error in
+                guard error != nil else { return }
+                DispatchQueue.main.async {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+        } else {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    func revealInsightsReport() {
+        guard let url = insights?.validatedReportURL(home: store.home) else {
+            insightsReportURL = nil
+            message = "找不到诊断报告文件或路径不受支持。"
+            return
+        }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
     func refreshQuotas(manual: Bool = false) {

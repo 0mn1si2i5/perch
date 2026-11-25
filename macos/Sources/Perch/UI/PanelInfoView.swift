@@ -33,6 +33,7 @@ struct PanelInfoView: View {
                     Text("本机供应商只引用已有目录，不复制登录凭据。Gemini CLI、Antigravity 与 DeepSeek Harness 读取本机会话索引。")
                     Text("dsh Web 连接授权保存到钥匙串。任务事件可能携带正文进入内存，仅用于判断任务状态，不展示、记录或保存正文。API 余额只查询标准文件来源的官方 Key；退出 Perch 或移除账号不停止 dsh 服务。")
                     Text("Antigravity 额度以 Gemini 应用为准。Antigravity CLI 卡片只在点刷新时运行一次 agy 查询，后台不运行。")
+                    Text("使用诊断仅在启动与打开面板时只读本机 insights/summary.json 聚合摘要，不运行分析脚本，也不读取或保存对话正文。")
                     if let backup = perch.removedAccountsBackup {
                         Text("API 供应商和自定义客户端已移除，原来的这类账号保存在：")
                         Text(backup.path).textSelection(.enabled)

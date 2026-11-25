@@ -3,10 +3,16 @@
  <AdornerDecorator><Grid x:Name="Surface" SizeChanged="SurfaceSized">
  <Border x:Name="Backdrop" Background="{DynamicResource PanelFill}" CornerRadius="20" BorderBrush="{DynamicResource PanelStroke}" BorderThickness="1"/>
  <Grid Margin="16" KeyboardNavigation.TabNavigation="Cycle"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
- <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-  <Image Source="{Binding ProductIcon}" Width="30" Height="30" Margin="0,0,9,0" Visibility="{Binding IsAccounts, Converter={StaticResource BoolVisibility}}"/>
-  <TextBlock Text="{Binding Title}" VerticalAlignment="Center"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="FontSize" Value="{DynamicResource FontTitle}"/><Setter Property="FontWeight" Value="SemiBold"/><Style.Triggers><DataTrigger Binding="{Binding IsAccounts}" Value="True"><Setter Property="FontSize" Value="20"/><Setter Property="FontWeight" Value="Bold"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
- </StackPanel>
+ <DockPanel Margin="0,0,0,12">
+  <Button DockPanel.Dock="Right" Command="{Binding ClickInsightsBadge}" Visibility="{Binding ShowInsightsBadge, Converter={StaticResource BoolVisibility}}" ToolTip="{Binding InsightsTooltip}" VerticalAlignment="Center" Margin="8,0,0,0" Padding="8,3" MinHeight="22" MaxWidth="168">
+   <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SubtleButton}"><Setter Property="Background" Value="{DynamicResource CardFill}"/><Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="Pill" Background="{TemplateBinding Background}" BorderBrush="{DynamicResource ControlStroke}" BorderThickness="1" CornerRadius="11" Padding="{TemplateBinding Padding}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Pill" Property="Background" Value="{DynamicResource ControlFill}"/></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="Pill" Property="Background" Value="{DynamicResource ControlStroke}"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style></Button.Style>
+   <TextBlock Text="{Binding InsightsBadgeText}" FontSize="{DynamicResource FontMeta}" Foreground="{DynamicResource TextSecondary}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
+  </Button>
+  <StackPanel Orientation="Horizontal">
+   <Image Source="{Binding ProductIcon}" Width="30" Height="30" Margin="0,0,9,0" Visibility="{Binding IsAccounts, Converter={StaticResource BoolVisibility}}"/>
+   <TextBlock Text="{Binding Title}" VerticalAlignment="Center"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="FontSize" Value="{DynamicResource FontTitle}"/><Setter Property="FontWeight" Value="SemiBold"/><Style.Triggers><DataTrigger Binding="{Binding IsAccounts}" Value="True"><Setter Property="FontSize" Value="20"/><Setter Property="FontWeight" Value="Bold"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+  </StackPanel>
+ </DockPanel>
  <Grid Grid.Row="1">
  <ScrollViewer x:Name="accountsView" Visibility="{Binding IsAccounts, Converter={StaticResource BoolVisibility}}"><local:AccountsPage/></ScrollViewer>
  <ScrollViewer x:Name="settingsView" Visibility="{Binding IsSettings, Converter={StaticResource BoolVisibility}}"><local:SettingsPage/></ScrollViewer>

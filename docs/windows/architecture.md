@@ -37,6 +37,7 @@ Windows 版本来自 `windows/VERSION`，当前为 0.2.0。系统要求 Windows 
 - Codex 用原生 RPC 查询额度；Claude 通过当前账号授权访问官方 usage 服务，DPAPI 解密仅在内存。第三方模式不假造官方订阅额度。
 - dsh 使用独立安装／home 配置和本机认证 RPC，后台宿主模式在 WPF 单实例入口之前分派。实例按 home 匹配并持有命名 mutex，动态端口与授权写入 DPAPI 加密记录；退出面板不停止服务。详见 [dsh 使用与复验](deepseek-harness.md)。
 - 文档接力和拆出需求已删除。旧版留在 `%LOCALAPPDATA%\Perch\handoffs` 的交接文档和记录保留，不再读取。
+- `%LOCALAPPDATA%\Perch\insights\summary.json` 为外部 `omni-insights` 导出的聚合摘要；Perch 仅在启动与打开面板时按 `(mtime, size)` 缓存只读一次（上限 256 KB，不进入轮询），缺失或非法时静默隐藏主页徽章与托盘菜单入口。打开或定位报告前展开 `~`、解析符号链接/联接并限制为 `%USERPROFILE%` 内的普通 `.html`/`.htm` 文件。
 - 用户操作（对话框、启动客户端）期间面板不因失焦收起；启动、轮询和自动额度刷新在后台运行，不影响点外部收起。逃出处理函数的文件和剪贴板错误（IOException、UnauthorizedAccessException、COMException）只在面板提示，不退出程序；截图模式不装这个处理器，出错照常退出。启动期间的提示（文件恢复、快捷键占用）先保留，等托盘接上或面板第一次打开时再显示。
 - 启用鲸鱼娘使用 DeepSeek 暗色主题，启用 Pox 使用 Pox 主题；隐藏桌宠保留角色主题，原生浮球或关闭桌宠则跟随系统明暗与强调色。媒体感知只读取播放状态及类型，不读取歌曲、视频或窗口标题。
 
